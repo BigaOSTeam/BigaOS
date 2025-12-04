@@ -3,6 +3,7 @@ import { MapContainer, TileLayer, Marker, Popup, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
+import { useSettings, speedConversions, depthConversions } from '../../context/SettingsContext';
 
 interface ChartViewProps {
   position: GeoPosition;
@@ -192,41 +193,27 @@ const Compass: React.FC<{ heading: number }> = ({ heading }) => {
   );
 };
 
-type SpeedUnit = 'kt' | 'km/h' | 'mph' | 'm/s';
-type DepthUnit = 'm' | 'ft';
-type SettingsPanel = 'speed' | 'depth' | null;
-
-const speedConversions: Record<SpeedUnit, { factor: number; label: string }> = {
-  'kt': { factor: 1, label: 'kt' },
-  'km/h': { factor: 1.852, label: 'km/h' },
-  'mph': { factor: 1.15078, label: 'mph' },
-  'm/s': { factor: 0.514444, label: 'm/s' }
-};
-
-const depthConversions: Record<DepthUnit, { factor: number; label: string }> = {
-  'm': { factor: 1, label: 'm' },
-  'ft': { factor: 3.28084, label: 'ft' }
-};
-
 export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, depth, onClose }) => {
   const [autoCenter, setAutoCenter] = useState(true);
-  const [settingsOpen, setSettingsOpen] = useState<SettingsPanel>(null);
-  const [speedUnit, setSpeedUnit] = useState<SpeedUnit>('kt');
-  const [depthUnit, setDepthUnit] = useState<DepthUnit>('m');
-  const [depthAlarm, setDepthAlarm] = useState<number | null>(null);
-  const [soundAlarmEnabled, setSoundAlarmEnabled] = useState(false);
+  const [depthSettingsOpen, setDepthSettingsOpen] = useState(false);
   const mapRef = useRef<L.Map>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  const convertedSpeed = speed * speedConversions[speedUnit].factor;
-  const convertedDepth = depth * depthConversions[depthUnit].factor;
+  const {
+    speedUnit,
+    depthUnit,
+    depthAlarm,
+    setDepthAlarm,
+    soundAlarmEnabled,
+    setSoundAlarmEnabled,
+    isDepthAlarmTriggered,
+    convertSpeed,
+    convertDepth,
+  } = useSettings();
 
-  // Check if depth is below alarm threshold (convert alarm threshold to meters for comparison)
-  const alarmThresholdInMeters = depthAlarm !== null
-    ? (depthUnit === 'ft' ? depthAlarm / 3.28084 : depthAlarm)
-    : null;
-  const isDepthAlarmTriggered = alarmThresholdInMeters !== null && depth < alarmThresholdInMeters;
+  const convertedSpeed = convertSpeed(speed);
+  const convertedDepth = convertDepth(depth);
 
   // Beep function - annoying dual tone
   const playBeep = () => {
@@ -235,7 +222,6 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
     }
     const ctx = audioContextRef.current;
 
-    // First beep - high pitch
     const osc1 = ctx.createOscillator();
     const gain1 = ctx.createGain();
     osc1.connect(gain1);
@@ -246,7 +232,6 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
     osc1.start();
     osc1.stop(ctx.currentTime + 0.1);
 
-    // Second beep - higher pitch, slight delay
     setTimeout(() => {
       const osc2 = ctx.createOscillator();
       const gain2 = ctx.createGain();
@@ -300,10 +285,6 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
 
   const handleMapDrag = () => {
     setAutoCenter(false);
-  };
-
-  const toggleSettings = (panel: SettingsPanel) => {
-    setSettingsOpen(settingsOpen === panel ? null : panel);
   };
 
   const sidebarWidth = 100;
@@ -404,14 +385,10 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
 
         {/* Speed */}
         <div
-          onClick={() => toggleSettings('speed')}
           style={{
             padding: '1rem 0.5rem',
             textAlign: 'center',
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            cursor: 'pointer',
-            background: settingsOpen === 'speed' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            transition: 'background 0.2s'
           }}
         >
           <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.25rem' }}>SPEED</div>
@@ -419,16 +396,16 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
           <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{speedConversions[speedUnit].label}</div>
         </div>
 
-        {/* Depth */}
+        {/* Depth - clickable to open alarm settings */}
         <div
-          onClick={() => toggleSettings('depth')}
+          onClick={() => setDepthSettingsOpen(!depthSettingsOpen)}
           style={{
             padding: '1rem 0.5rem',
             textAlign: 'center',
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
             cursor: 'pointer',
-            background: settingsOpen === 'depth' ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
-            transition: 'background 0.2s'
+            background: depthSettingsOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+            transition: 'background 0.2s',
           }}
         >
           <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.25rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem' }}>
@@ -513,8 +490,8 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
         </button>
       )}
 
-      {/* Settings Panel */}
-      {settingsOpen && (
+      {/* Depth Settings Panel */}
+      {depthSettingsOpen && (
         <div
           style={{
             position: 'absolute',
@@ -532,78 +509,30 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
             boxShadow: '0 4px 12px rgba(0,0,0,0.3)'
           }}
         >
-          {settingsOpen === 'speed' && (
-            <div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>UNIT</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {(Object.keys(speedConversions) as SpeedUnit[]).map((unit) => (
-                  <button
-                    key={unit}
-                    onClick={() => setSpeedUnit(unit)}
-                    style={{
-                      padding: '0.9rem 0.75rem',
-                      background: speedUnit === unit ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                      border: 'none',
-                      borderRadius: '3px',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '1.1rem',
-                      textAlign: 'left'
-                    }}
-                  >
-                    {speedConversions[unit].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {settingsOpen === 'depth' && (
-            <div>
-              <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>ALARM</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <button
-                  onClick={() => setDepthAlarm(null)}
-                  style={{
-                    padding: '0.9rem 0.75rem',
-                    background: depthAlarm === null ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                    border: 'none',
-                    borderRadius: '3px',
-                    color: '#fff',
-                    cursor: 'pointer',
-                    fontSize: '1.1rem',
-                    textAlign: 'left'
-                  }}
-                >
-                  Off
-                </button>
-                {(depthUnit === 'm' ? [1, 2, 3, 5, 10] : [3, 6, 10, 15, 30]).map((alarmDepth) => (
-                  <button
-                    key={alarmDepth}
-                    onClick={() => setDepthAlarm(alarmDepth)}
-                    style={{
-                      padding: '0.9rem 0.75rem',
-                      background: depthAlarm === alarmDepth ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                      border: 'none',
-                      borderRadius: '3px',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '1.1rem',
-                      textAlign: 'left'
-                    }}
-                  >
-                    &lt; {alarmDepth} {depthUnit}
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem', marginTop: '1rem' }}>SOUND</div>
+          <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>DEPTH ALARM</div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <button
+              onClick={() => setDepthAlarm(null)}
+              style={{
+                padding: '0.9rem 0.75rem',
+                background: depthAlarm === null ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '3px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '1.1rem',
+                textAlign: 'left'
+              }}
+            >
+              Off
+            </button>
+            {(depthUnit === 'm' ? [1, 2, 3, 5, 10] : [3, 6, 10, 15, 30]).map((alarmDepth) => (
               <button
-                onClick={() => setSoundAlarmEnabled(!soundAlarmEnabled)}
+                key={alarmDepth}
+                onClick={() => setDepthAlarm(alarmDepth)}
                 style={{
-                  width: '100%',
                   padding: '0.9rem 0.75rem',
-                  background: soundAlarmEnabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                  background: depthAlarm === alarmDepth ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
                   border: 'none',
                   borderRadius: '3px',
                   color: '#fff',
@@ -612,42 +541,35 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
                   textAlign: 'left'
                 }}
               >
-                {soundAlarmEnabled ? 'On' : 'Off'}
+                &lt; {alarmDepth} {depthUnit}
               </button>
+            ))}
+          </div>
 
-              <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem', marginTop: '1rem' }}>UNIT</div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                {(Object.keys(depthConversions) as DepthUnit[]).map((unit) => (
-                  <button
-                    key={unit}
-                    onClick={() => {
-                      setDepthUnit(unit);
-                      setDepthAlarm(null);
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '0.9rem 0.75rem',
-                      background: depthUnit === unit ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                      border: 'none',
-                      borderRadius: '3px',
-                      color: '#fff',
-                      cursor: 'pointer',
-                      fontSize: '1.1rem'
-                    }}
-                  >
-                    {depthConversions[unit].label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem', marginTop: '1rem' }}>SOUND</div>
+          <button
+            onClick={() => setSoundAlarmEnabled(!soundAlarmEnabled)}
+            style={{
+              width: '100%',
+              padding: '0.9rem 0.75rem',
+              background: soundAlarmEnabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+              border: 'none',
+              borderRadius: '3px',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '1.1rem',
+              textAlign: 'left'
+            }}
+          >
+            {soundAlarmEnabled ? 'On' : 'Off'}
+          </button>
         </div>
       )}
 
-      {/* Click outside to close settings */}
-      {settingsOpen && (
+      {/* Click outside to close depth settings */}
+      {depthSettingsOpen && (
         <div
-          onClick={() => setSettingsOpen(null)}
+          onClick={() => setDepthSettingsOpen(false)}
           style={{
             position: 'absolute',
             top: 0,

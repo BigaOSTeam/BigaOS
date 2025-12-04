@@ -1,38 +1,38 @@
-import React, { useState, useEffect } from 'react';
-import { BoatState, SensorData, BoatStateData } from './types';
-import { StateIndicator } from './components/layout/StateIndicator';
-import { DashboardView } from './components/views/DashboardView';
+import { useState, useEffect } from 'react';
+import { SensorData } from './types';
+import { ViewType } from './types/dashboard';
+import { Dashboard } from './components/dashboard';
 import { MapPage } from './components/navigation/MapPage';
+import { WindView } from './components/views/WindView';
+import { DepthView } from './components/views/DepthView';
+import { SettingsView } from './components/views/SettingsView';
+import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { wsService } from './services/websocket';
-import { sensorAPI, stateAPI } from './services/api';
+import { sensorAPI } from './services/api';
 import './styles/globals.css';
 
-type ViewMode = 'dashboard' | 'map';
+type ActiveView = 'dashboard' | ViewType;
 
-function App() {
-  const [boatState, setBoatState] = useState<BoatState>(BoatState.DRIFTING);
+// Inner app component that uses settings context
+function AppContent() {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
-  const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const { addDepthReading, setCurrentDepth } = useSettings();
 
   useEffect(() => {
-    // Connect WebSocket
     wsService.connect();
 
-    // Listen for sensor updates
     wsService.on('sensor_update', (data: any) => {
       if (data.data) {
         setSensorData(data.data);
+        // Update depth readings in settings context
+        if (data.data.environment?.depth?.belowTransducer !== undefined) {
+          addDepthReading(data.data.environment.depth.belowTransducer);
+        }
       }
       setConnectionStatus('connected');
-    });
-
-    // Listen for state changes
-    wsService.on('state_change', (data: any) => {
-      if (data.currentState) {
-        setBoatState(data.currentState);
-      }
     });
 
     wsService.on('connect', () => {
@@ -43,23 +43,21 @@ function App() {
       setConnectionStatus('disconnected');
     });
 
-    // Initial data fetch
     fetchInitialData();
 
     return () => {
       wsService.disconnect();
     };
-  }, []);
+  }, [addDepthReading]);
 
   const fetchInitialData = async () => {
     try {
-      const [stateResponse, sensorResponse] = await Promise.all([
-        stateAPI.getCurrentState(),
-        sensorAPI.getAllSensors()
-      ]);
-
-      setBoatState(stateResponse.data.currentState);
+      const sensorResponse = await sensorAPI.getAllSensors();
       setSensorData(sensorResponse.data);
+      // Update depth in settings context
+      if (sensorResponse.data.environment?.depth?.belowTransducer !== undefined) {
+        setCurrentDepth(sensorResponse.data.environment.depth.belowTransducer);
+      }
       setLoading(false);
     } catch (error) {
       console.error('Failed to fetch initial data:', error);
@@ -67,13 +65,12 @@ function App() {
     }
   };
 
-  const handleStateChange = async (newState: BoatState) => {
-    try {
-      await stateAPI.overrideState(newState, 'Manual override from UI');
-      setBoatState(newState);
-    } catch (error) {
-      console.error('Failed to change state:', error);
-    }
+  const handleNavigate = (view: ViewType) => {
+    setActiveView(view);
+  };
+
+  const handleBack = () => {
+    setActiveView('dashboard');
   };
 
   if (loading || !sensorData) {
@@ -83,92 +80,121 @@ function App() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100vh',
-        fontSize: '1.5rem'
+        background: '#0a1929',
+        color: '#e0e0e0',
       }}>
-        Loading Biga OS...
+        <div style={{ fontSize: '1.5rem' }}>Loading...</div>
       </div>
     );
   }
 
-  // Show map view
-  if (viewMode === 'map') {
-    return <MapPage onClose={() => setViewMode('dashboard')} />;
+  // Disconnection warning overlay
+  const DisconnectionWarning = () => (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(0, 0, 0, 0.85)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999,
+    }}>
+      <div style={{
+        fontSize: '4rem',
+        marginBottom: '1rem',
+        animation: 'pulse 1.5s infinite',
+      }}>
+        ⚠️
+      </div>
+      <div style={{
+        fontSize: '2rem',
+        fontWeight: 'bold',
+        color: '#ef5350',
+        textTransform: 'uppercase',
+        letterSpacing: '0.2em',
+      }}>
+        Connection Lost
+      </div>
+      <div style={{
+        fontSize: '1rem',
+        color: '#999',
+        marginTop: '1rem',
+      }}>
+        Attempting to reconnect...
+      </div>
+      <style>
+        {`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(1.1); }
+          }
+        `}
+      </style>
+    </div>
+  );
+
+  // Render full-screen views
+  if (activeView === 'chart') {
+    return (
+      <>
+        <MapPage onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
   }
 
-  // Show dashboard view
+  if (activeView === 'wind') {
+    return (
+      <>
+        <WindView sensorData={sensorData} onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'depth') {
+    return (
+      <>
+        <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'settings') {
+    return (
+      <>
+        <SettingsView onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  // Default: Dashboard view
   return (
-    <div style={{ minHeight: '100vh', padding: '1rem' }}>
-      <div className="container">
-        {/* Header */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '1.5rem',
-          flexWrap: 'wrap',
-          gap: '1rem'
-        }}>
-          <h1 style={{ fontSize: '2rem', fontWeight: 'bold' }}>
-            🚤 Biga OS
-          </h1>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-            {/* Map Button */}
-            <button
-              onClick={() => setViewMode('map')}
-              className="btn btn-primary"
-              style={{ padding: '0.5rem 1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
-            >
-              🗺️ Chart
-            </button>
-
-            {/* Connection Status */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              padding: '0.5rem 1rem',
-              background: connectionStatus === 'connected' ? 'rgba(102, 187, 106, 0.2)' : 'rgba(239, 83, 80, 0.2)',
-              borderRadius: '8px',
-              fontSize: '0.875rem'
-            }}>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                background: connectionStatus === 'connected' ? '#66bb6a' : '#ef5350'
-              }} />
-              {connectionStatus === 'connected' ? 'Connected' : 'Disconnected'}
-            </div>
-          </div>
-        </div>
-
-        {/* State Indicator */}
-        <StateIndicator state={boatState} onStateChange={handleStateChange} />
-
-        {/* Dashboard */}
-        <DashboardView state={boatState} sensorData={sensorData} />
-
-        {/* System Info */}
-        <div className="card" style={{ marginTop: '1.5rem', opacity: 0.6, fontSize: '0.75rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1rem' }}>
-            <div>
-              <strong>Position:</strong> {sensorData.navigation.position.latitude.toFixed(4)}°,{' '}
-              {sensorData.navigation.position.longitude.toFixed(4)}°
-            </div>
-            <div>
-              <strong>COG:</strong> {sensorData.navigation.courseOverGround.toFixed(0)}°
-            </div>
-            <div>
-              <strong>SOG:</strong> {sensorData.navigation.speedOverGround.toFixed(1)} kt
-            </div>
-            <div>
-              <strong>System:</strong> All sensors operational
-            </div>
-          </div>
-        </div>
-      </div>
+    <div style={{
+      width: '100vw',
+      height: '100vh',
+      background: '#0a1929',
+      color: '#e0e0e0',
+      overflow: 'hidden',
+    }}>
+      <Dashboard sensorData={sensorData} onNavigate={handleNavigate} />
+      {connectionStatus === 'disconnected' && <DisconnectionWarning />}
     </div>
+  );
+}
+
+// Main App component with SettingsProvider
+function App() {
+  return (
+    <SettingsProvider>
+      <AppContent />
+    </SettingsProvider>
   );
 }
 

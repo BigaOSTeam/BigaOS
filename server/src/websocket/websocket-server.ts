@@ -1,6 +1,7 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { dummyDataService } from '../services/dummy-data.service';
+import db from '../database/database';
 
 export class WebSocketServer {
   private io: SocketIOServer;
@@ -29,10 +30,40 @@ export class WebSocketServer {
         timestamp: new Date()
       });
 
+      // Send current settings
+      this.sendSettings(socket);
+
       // Handle client subscriptions
       socket.on('subscribe', (data) => {
         console.log('Client subscribed to:', data.paths);
         socket.emit('subscription_confirmed', { paths: data.paths });
+      });
+
+      // Handle settings update
+      socket.on('settings_update', (data) => {
+        console.log('Settings update received:', data);
+
+        try {
+          // Save setting to database
+          if (data.key && data.value !== undefined) {
+            db.setSetting(data.key, JSON.stringify(data.value), data.description);
+          }
+
+          // Broadcast to ALL clients (including sender) so everyone stays in sync
+          this.io.emit('settings_changed', {
+            key: data.key,
+            value: data.value,
+            timestamp: new Date()
+          });
+        } catch (error) {
+          console.error('Error saving setting:', error);
+          socket.emit('settings_error', { error: 'Failed to save setting' });
+        }
+      });
+
+      // Handle request for all settings
+      socket.on('get_settings', () => {
+        this.sendSettings(socket);
       });
 
       // Handle control commands
@@ -58,6 +89,28 @@ export class WebSocketServer {
         console.log(`Client disconnected: ${socket.id}`);
       });
     });
+  }
+
+  private sendSettings(socket: any) {
+    try {
+      const allSettings = db.getAllSettings();
+      const settingsObj: Record<string, any> = {};
+
+      for (const setting of allSettings) {
+        try {
+          settingsObj[setting.key] = JSON.parse(setting.value);
+        } catch {
+          settingsObj[setting.key] = setting.value;
+        }
+      }
+
+      socket.emit('settings_sync', {
+        settings: settingsObj,
+        timestamp: new Date()
+      });
+    } catch (error) {
+      console.error('Error sending settings:', error);
+    }
   }
 
   private startDataBroadcast() {
