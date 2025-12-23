@@ -32,14 +32,26 @@ interface DashboardProps {
 }
 
 const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: ViewType; defaultSize: { w: number; h: number } }> = {
-  'speed': { label: 'Speed', targetView: 'chart', defaultSize: { w: 1, h: 1 } },
-  'heading': { label: 'Heading', targetView: 'chart', defaultSize: { w: 1, h: 1 } },
+  'speed': { label: 'Speed', targetView: 'speed', defaultSize: { w: 1, h: 1 } },
+  'heading': { label: 'Heading', targetView: 'heading', defaultSize: { w: 1, h: 1 } },
   'depth': { label: 'Depth', targetView: 'depth', defaultSize: { w: 1, h: 1 } },
   'wind': { label: 'Wind', targetView: 'wind', defaultSize: { w: 1, h: 1 } },
-  'position': { label: 'Position', targetView: 'chart', defaultSize: { w: 1, h: 1 } },
-  'battery': { label: 'Battery', targetView: 'electrical', defaultSize: { w: 1, h: 1 } },
-  'cog': { label: 'COG', targetView: 'chart', defaultSize: { w: 1, h: 1 } },
+  'position': { label: 'Position', targetView: 'position', defaultSize: { w: 1, h: 1 } },
+  'battery': { label: 'Battery', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
+  'cog': { label: 'COG', targetView: 'cog', defaultSize: { w: 1, h: 1 } },
   'chart-mini': { label: 'Chart', targetView: 'chart', defaultSize: { w: 2, h: 2 } },
+};
+
+// Migrate old items to use new targetView values
+const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
+  return items.map(item => {
+    // Update targetView to match the item type (each widget gets its own view now)
+    const config = ITEM_TYPE_CONFIG[item.type];
+    if (config && item.targetView !== config.targetView) {
+      return { ...item, targetView: config.targetView };
+    }
+    return item;
+  });
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) => {
@@ -47,7 +59,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
     if (saved) {
       try {
-        return JSON.parse(saved);
+        const parsed = JSON.parse(saved);
+        const migrated = migrateItems(parsed);
+        // Save migrated items back to localStorage
+        if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
+          localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(migrated));
+        }
+        return migrated;
       } catch {
         return DEFAULT_DASHBOARD_ITEMS;
       }

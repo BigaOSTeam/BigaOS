@@ -6,6 +6,11 @@ import { MapPage } from './components/navigation/MapPage';
 import { WindView } from './components/views/WindView';
 import { DepthView } from './components/views/DepthView';
 import { SettingsView } from './components/views/SettingsView';
+import { SpeedView } from './components/views/SpeedView';
+import { HeadingView } from './components/views/HeadingView';
+import { COGView } from './components/views/COGView';
+import { PositionView } from './components/views/PositionView';
+import { BatteryView } from './components/views/BatteryView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { wsService } from './services/websocket';
 import { sensorAPI } from './services/api';
@@ -169,6 +174,57 @@ function AppContent() {
     return (
       <>
         <SettingsView onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'speed') {
+    return (
+      <>
+        <SpeedView speed={sensorData.navigation.speedOverGround} onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'heading') {
+    return (
+      <>
+        <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'cog') {
+    return (
+      <>
+        <COGView cog={sensorData.navigation.courseOverGround} onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'position') {
+    return (
+      <>
+        <PositionView position={sensorData.navigation.position} onClose={handleBack} />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      </>
+    );
+  }
+
+  if (activeView === 'battery') {
+    return (
+      <>
+        <BatteryView
+          voltage={sensorData.electrical.battery.voltage}
+          current={sensorData.electrical.battery.current}
+          temperature={sensorData.electrical.battery.temperature}
+          stateOfCharge={sensorData.electrical.battery.stateOfCharge}
+          onClose={handleBack}
+        />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
