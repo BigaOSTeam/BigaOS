@@ -1,11 +1,21 @@
-import React, { useEffect, useRef, useMemo } from 'react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useSettings, depthConversions } from '../../context/SettingsContext';
-import { SensorChart, DataPoint } from '../common/SensorChart';
+import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
+import { sensorAPI } from '../../services/api';
 
 interface DepthViewProps {
   depth: number; // Current depth in meters
   onClose: () => void;
 }
+
+type TimeframeOption = '15m' | '1h' | '6h' | '24h';
+
+const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: number }> = {
+  '15m': { label: '15m', ms: 15 * 60 * 1000, minutes: 15 },
+  '1h': { label: '1h', ms: 60 * 60 * 1000, minutes: 60 },
+  '6h': { label: '6h', ms: 6 * 60 * 60 * 1000, minutes: 360 },
+  '24h': { label: '24h', ms: 24 * 60 * 60 * 1000, minutes: 1440 },
+};
 
 export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
   const {
@@ -15,9 +25,12 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
     soundAlarmEnabled,
     setSoundAlarmEnabled,
     isDepthAlarmTriggered,
-    depthHistory,
     convertDepth,
   } = useSettings();
+
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('15m');
+  const [historyData, setHistoryData] = useState<TimeSeriesDataPoint[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   const audioContextRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -83,16 +96,48 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
     return '#4fc3f7';
   };
 
-  // Convert depth history to chart data format (with unit conversion)
-  const chartData: DataPoint[] = useMemo(() => {
-    return depthHistory.map(point => ({
-      timestamp: point.timestamp,
-      value: convertDepth(point.depth),
-    }));
-  }, [depthHistory, convertDepth]);
+  // Fetch history data from server
+  const fetchHistory = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await sensorAPI.getSpecificSensorHistory(
+        'environment',
+        'depth',
+        TIMEFRAMES[timeframe].minutes
+      );
+      const data = response.data.map((item: any) => ({
+        // Database stores UTC timestamps without 'Z' suffix, so append it for correct parsing
+        timestamp: new Date(item.timestamp + 'Z').getTime(),
+        value: convertDepth(item.value),
+      }));
+      setHistoryData(data);
+    } catch (error) {
+      console.error('Failed to fetch depth history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeframe, convertDepth]);
 
-  // Get alarm threshold in current display unit
-  const alarmThreshold = depthAlarm;
+  // Fetch history on mount and when timeframe changes
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // Periodically refresh history data
+  useEffect(() => {
+    const interval = setInterval(fetchHistory, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchHistory]);
+
+  // Convert server data for chart display
+  const chartData = React.useMemo(() => {
+    return historyData;
+  }, [historyData]);
+
+  // Chart configuration based on unit
+  const chartConfig = depthUnit === 'm'
+    ? { interval: 3, headroom: 2, unit: 'm' }
+    : { interval: 10, headroom: 5, unit: 'ft' };
 
   const alarmOptions = depthUnit === 'm' ? [1, 2, 3, 5, 10] : [3, 6, 10, 15, 30];
 
@@ -176,30 +221,72 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
       <div style={{
         flex: '1 1 auto',
         padding: '1rem',
-        minHeight: '250px',
+        minHeight: '200px',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         <div style={{
-          fontSize: '0.75rem',
-          opacity: 0.6,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '0.5rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
         }}>
-          Depth History
+          <div style={{
+            fontSize: '0.75rem',
+            opacity: 0.6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+          }}>
+            Depth History
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {(Object.keys(TIMEFRAMES) as TimeframeOption[]).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                  border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.7rem',
+                  fontWeight: timeframe === tf ? 'bold' : 'normal',
+                }}
+              >
+                {TIMEFRAMES[tf].label}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={{
+          flex: 1,
           background: 'rgba(255,255,255,0.03)',
           borderRadius: '8px',
-          padding: '1rem',
-          height: 'calc(100% - 2rem)',
+          overflow: 'hidden',
+          position: 'relative',
         }}>
-          <SensorChart
+          {isLoading && chartData.length === 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              opacity: 0.5,
+              fontSize: '0.9rem',
+            }}>
+              Loading history...
+            </div>
+          )}
+          <TimeSeriesChart
             data={chartData}
-            unit={depthConversions[depthUnit].label}
-            color="#4fc3f7"
-            thresholdLine={alarmThreshold}
-            thresholdColor="#ef5350"
-            minValue={0}
+            timeframeMs={TIMEFRAMES[timeframe].ms}
+            yInterval={chartConfig.interval}
+            yHeadroom={chartConfig.headroom}
+            yUnit={chartConfig.unit}
+            lineColor="#4fc3f7"
+            alarmThreshold={depthAlarm}
           />
         </div>
       </div>

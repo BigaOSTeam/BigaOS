@@ -1,46 +1,37 @@
-import React, { useState, useEffect, useRef } from 'react';
-
-interface BatteryHistoryPoint {
-  timestamp: number;
-  voltage: number;
-  current: number;
-  stateOfCharge: number;
-}
+import React, { useState, useEffect, useCallback } from 'react';
+import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
+import { sensorAPI } from '../../services/api';
 
 interface BatteryViewProps {
   voltage: number;
   current: number;
   temperature: number;
   stateOfCharge: number;
+  batteryId?: string; // e.g., 'house' or 'starter'
   onClose: () => void;
 }
 
-const BATTERY_HISTORY_MAX_POINTS = 300;
+type TimeframeOption = '5m' | '15m' | '1h' | '6h';
+
+const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: number }> = {
+  '5m': { label: '5m', ms: 5 * 60 * 1000, minutes: 5 },
+  '15m': { label: '15m', ms: 15 * 60 * 1000, minutes: 15 },
+  '1h': { label: '1h', ms: 60 * 60 * 1000, minutes: 60 },
+  '6h': { label: '6h', ms: 6 * 60 * 60 * 1000, minutes: 360 },
+};
 
 export const BatteryView: React.FC<BatteryViewProps> = ({
   voltage,
   current,
   temperature,
   stateOfCharge,
+  batteryId = 'house',
   onClose,
 }) => {
-  const [batteryHistory, setBatteryHistory] = useState<BatteryHistoryPoint[]>([]);
-  const lastReadingTime = useRef<number>(0);
-
-  // Add battery reading to history
-  useEffect(() => {
-    const now = Date.now();
-    if (now - lastReadingTime.current >= 1000) {
-      lastReadingTime.current = now;
-      setBatteryHistory(prev => {
-        const newHistory = [...prev, { timestamp: now, voltage, current, stateOfCharge }];
-        if (newHistory.length > BATTERY_HISTORY_MAX_POINTS) {
-          return newHistory.slice(-BATTERY_HISTORY_MAX_POINTS);
-        }
-        return newHistory;
-      });
-    }
-  }, [voltage, current, stateOfCharge]);
+  const [voltageHistory, setVoltageHistory] = useState<TimeSeriesDataPoint[]>([]);
+  const [chargeHistory, setChargeHistory] = useState<TimeSeriesDataPoint[]>([]);
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('15m');
+  const [isLoading, setIsLoading] = useState(true);
 
   const getBatteryColor = (soc: number) => {
     if (soc > 80) return '#66bb6a';
@@ -55,6 +46,47 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     if (temp < 50) return '#ff7043';
     return '#ef5350';
   };
+
+  // Fetch history data from server
+  const fetchHistory = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [voltageRes, chargeRes] = await Promise.all([
+        sensorAPI.getSpecificSensorHistory('electrical', `${batteryId}_voltage`, TIMEFRAMES[timeframe].minutes),
+        sensorAPI.getSpecificSensorHistory('electrical', `${batteryId}_stateOfCharge`, TIMEFRAMES[timeframe].minutes),
+      ]);
+
+      // Database stores UTC timestamps without 'Z' suffix, so append it for correct parsing
+      setVoltageHistory(voltageRes.data.map((item: any) => ({
+        timestamp: new Date(item.timestamp + 'Z').getTime(),
+        value: item.value,
+      })));
+
+      setChargeHistory(chargeRes.data.map((item: any) => ({
+        timestamp: new Date(item.timestamp + 'Z').getTime(),
+        value: item.value,
+      })));
+    } catch (error) {
+      console.error('Failed to fetch battery history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeframe, batteryId]);
+
+  // Fetch history on mount and when timeframe changes
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // Periodically refresh history data
+  useEffect(() => {
+    const interval = setInterval(fetchHistory, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchHistory]);
+
+  // Chart data from server
+  const voltageChartData = React.useMemo(() => voltageHistory, [voltageHistory]);
+  const chargeChartData = React.useMemo(() => chargeHistory, [chargeHistory]);
 
   // Render battery icon
   const renderBatteryIcon = () => {
@@ -73,68 +105,6 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         <text x="55" y="35" fill="#fff" fontSize="18" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
           {Math.round(stateOfCharge)}%
         </text>
-      </svg>
-    );
-  };
-
-  // Render voltage/current history graph
-  const renderGraph = (dataKey: 'voltage' | 'stateOfCharge') => {
-    if (batteryHistory.length < 2) {
-      return (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          opacity: 0.5,
-          fontSize: '0.9rem',
-        }}>
-          Collecting data...
-        </div>
-      );
-    }
-
-    const graphHeight = 80;
-    const data = batteryHistory.map(p => p[dataKey]);
-    const minVal = Math.min(...data);
-    const maxVal = Math.max(...data);
-    const range = (maxVal - minVal) || 1;
-
-    const points = batteryHistory.map((point, index) => {
-      const x = (index / (batteryHistory.length - 1)) * 100;
-      const y = graphHeight - ((point[dataKey] - minVal) / range) * graphHeight;
-      return `${x},${y}`;
-    });
-
-    const color = dataKey === 'voltage' ? '#ffa726' : '#66bb6a';
-
-    return (
-      <svg
-        viewBox={`0 0 100 ${graphHeight}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: `${graphHeight}px` }}
-      >
-        {/* Grid lines */}
-        {[0, 0.5, 1].map((ratio, i) => (
-          <line
-            key={i}
-            x1="0"
-            y1={ratio * graphHeight}
-            x2="100"
-            y2={ratio * graphHeight}
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth="0.3"
-          />
-        ))}
-
-        {/* Data line */}
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          stroke={color}
-          strokeWidth="0.8"
-          vectorEffect="non-scaling-stroke"
-        />
       </svg>
     );
   };
@@ -179,14 +149,14 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
       {/* Main battery display */}
       <div style={{
         flex: '0 0 auto',
-        padding: '2rem',
+        padding: '1.5rem',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
       }}>
         {renderBatteryIcon()}
         <div style={{
-          marginTop: '1rem',
+          marginTop: '0.5rem',
           fontSize: '0.9rem',
           opacity: 0.6,
         }}>
@@ -198,20 +168,19 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
       <div style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(2, 1fr)',
-        gap: '1rem',
-        padding: '1rem',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        gap: '0.75rem',
+        padding: '0 1rem 1rem',
       }}>
         <div style={{
           background: 'rgba(255,255,255,0.05)',
           borderRadius: '8px',
-          padding: '1rem',
+          padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
             Voltage
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: '#ffa726' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ffa726' }}>
             {voltage.toFixed(1)}V
           </div>
         </div>
@@ -219,13 +188,13 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         <div style={{
           background: 'rgba(255,255,255,0.05)',
           borderRadius: '8px',
-          padding: '1rem',
+          padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
             Current
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: current >= 0 ? '#66bb6a' : '#ef5350' }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: current >= 0 ? '#66bb6a' : '#ef5350' }}>
             {current >= 0 ? '+' : ''}{current.toFixed(1)}A
           </div>
         </div>
@@ -233,13 +202,13 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         <div style={{
           background: 'rgba(255,255,255,0.05)',
           borderRadius: '8px',
-          padding: '1rem',
+          padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
             Temperature
           </div>
-          <div style={{ fontSize: '1.75rem', fontWeight: 'bold', color: getTemperatureColor(temperature) }}>
+          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: getTemperatureColor(temperature) }}>
             {temperature.toFixed(0)}°C
           </div>
         </div>
@@ -247,62 +216,134 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         <div style={{
           background: 'rgba(255,255,255,0.05)',
           borderRadius: '8px',
-          padding: '1rem',
+          padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
             Status
           </div>
-          <div style={{ fontSize: '1.25rem', fontWeight: 'bold', color: current > 0.5 ? '#66bb6a' : current < -0.5 ? '#ff7043' : '#64b5f6' }}>
+          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: current > 0.5 ? '#66bb6a' : current < -0.5 ? '#ff7043' : '#64b5f6' }}>
             {current > 0.5 ? 'Charging' : current < -0.5 ? 'Discharging' : 'Idle'}
           </div>
         </div>
       </div>
 
+      {/* Timeframe selector */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        padding: '0.5rem 1rem',
+        gap: '0.5rem',
+      }}>
+        {(Object.keys(TIMEFRAMES) as TimeframeOption[]).map((tf) => (
+          <button
+            key={tf}
+            onClick={() => setTimeframe(tf)}
+            style={{
+              padding: '0.25rem 0.5rem',
+              background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+              border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
+              borderRadius: '4px',
+              color: '#fff',
+              cursor: 'pointer',
+              fontSize: '0.7rem',
+              fontWeight: timeframe === tf ? 'bold' : 'normal',
+            }}
+          >
+            {TIMEFRAMES[tf].label}
+          </button>
+        ))}
+      </div>
+
       {/* Graphs */}
       <div style={{
         flex: '1 1 auto',
-        padding: '1rem',
+        padding: '0 1rem 1rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '1rem',
+        gap: '0.75rem',
         minHeight: '200px',
       }}>
-        <div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '80px' }}>
           <div style={{
-            fontSize: '0.75rem',
+            fontSize: '0.7rem',
             opacity: 0.6,
-            marginBottom: '0.5rem',
+            marginBottom: '0.25rem',
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
           }}>
             Voltage History
           </div>
           <div style={{
+            flex: 1,
             background: 'rgba(255,255,255,0.03)',
             borderRadius: '8px',
-            padding: '0.5rem',
+            overflow: 'hidden',
+            position: 'relative',
           }}>
-            {renderGraph('voltage')}
+            {isLoading && voltageChartData.length === 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                opacity: 0.5,
+                fontSize: '0.8rem',
+              }}>
+                Loading...
+              </div>
+            )}
+            <TimeSeriesChart
+              data={voltageChartData}
+              timeframeMs={TIMEFRAMES[timeframe].ms}
+              yInterval={1}
+              yHeadroom={0.5}
+              yUnit="V"
+              lineColor="#ffa726"
+              fillGradient={false}
+            />
           </div>
         </div>
 
-        <div>
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '80px' }}>
           <div style={{
-            fontSize: '0.75rem',
+            fontSize: '0.7rem',
             opacity: 0.6,
-            marginBottom: '0.5rem',
+            marginBottom: '0.25rem',
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
           }}>
             Charge History
           </div>
           <div style={{
+            flex: 1,
             background: 'rgba(255,255,255,0.03)',
             borderRadius: '8px',
-            padding: '0.5rem',
+            overflow: 'hidden',
+            position: 'relative',
           }}>
-            {renderGraph('stateOfCharge')}
+            {isLoading && chargeChartData.length === 0 && (
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                opacity: 0.5,
+                fontSize: '0.8rem',
+              }}>
+                Loading...
+              </div>
+            )}
+            <TimeSeriesChart
+              data={chargeChartData}
+              timeframeMs={TIMEFRAMES[timeframe].ms}
+              yInterval={25}
+              yHeadroom={0}
+              yUnit="%"
+              yMinValue={0}
+              yMaxValue={100}
+              lineColor="#66bb6a"
+            />
           </div>
         </div>
       </div>

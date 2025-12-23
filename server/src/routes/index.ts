@@ -15,6 +15,7 @@ router.get('/state/history', stateController.getStateHistory.bind(stateControlle
 
 // Sensor routes
 router.get('/sensors', sensorController.getAllSensors.bind(sensorController));
+router.get('/sensors/history/:category/:sensor', sensorController.getSpecificSensorHistory.bind(sensorController));
 router.get('/sensors/:category', sensorController.getSensorCategory.bind(sensorController));
 router.get('/sensors/:category/history', sensorController.getSensorHistory.bind(sensorController));
 

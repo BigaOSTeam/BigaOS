@@ -6,6 +6,8 @@ import db from '../database/database';
 export class WebSocketServer {
   private io: SocketIOServer;
   private updateInterval: NodeJS.Timeout | null = null;
+  private storageCounter: number = 0;
+  private readonly STORAGE_INTERVAL: number = 5; // Store to DB every 5 seconds
 
   constructor(httpServer: HttpServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -124,6 +126,13 @@ export class WebSocketServer {
         timestamp: new Date()
       });
 
+      // Store sensor data to database every STORAGE_INTERVAL seconds
+      this.storageCounter++;
+      if (this.storageCounter >= this.STORAGE_INTERVAL) {
+        this.storageCounter = 0;
+        this.storeSensorData(sensorData);
+      }
+
       // Occasionally send notifications
       if (Math.random() < 0.01) { // 1% chance per update
         this.io.emit('notification', {
@@ -135,6 +144,121 @@ export class WebSocketServer {
         });
       }
     }, 1000);
+  }
+
+  private storeSensorData(sensorData: any) {
+    try {
+      // Navigation data
+      if (sensorData.navigation) {
+        const nav = sensorData.navigation;
+        if (nav.position) {
+          db.addSensorData('navigation', 'latitude', nav.position.latitude, 'deg');
+          db.addSensorData('navigation', 'longitude', nav.position.longitude, 'deg');
+        }
+        if (nav.speedOverGround !== undefined) {
+          db.addSensorData('navigation', 'speedOverGround', nav.speedOverGround, 'kt');
+        }
+        if (nav.courseOverGround !== undefined) {
+          db.addSensorData('navigation', 'courseOverGround', nav.courseOverGround, 'deg');
+        }
+        // Handle both heading and headingMagnetic
+        const heading = nav.heading ?? nav.headingMagnetic;
+        if (heading !== undefined) {
+          db.addSensorData('navigation', 'heading', heading, 'deg');
+        }
+      }
+
+      // Environment data
+      if (sensorData.environment) {
+        const env = sensorData.environment;
+        // Handle nested depth object (depth.belowTransducer) or direct depth value
+        const depthValue = env.depth?.belowTransducer ?? env.depth;
+        if (typeof depthValue === 'number') {
+          db.addSensorData('environment', 'depth', depthValue, 'm');
+        }
+        if (env.waterTemperature !== undefined) {
+          db.addSensorData('environment', 'waterTemperature', env.waterTemperature, 'C');
+        }
+        // Handle wind data - might be nested
+        const windSpeed = env.wind?.speedApparent ?? env.windSpeed;
+        const windDirection = env.wind?.angleApparent ?? env.windDirection;
+        if (windSpeed !== undefined) {
+          db.addSensorData('environment', 'windSpeed', windSpeed, 'kt');
+        }
+        if (windDirection !== undefined) {
+          db.addSensorData('environment', 'windDirection', windDirection, 'deg');
+        }
+      }
+
+      // Electrical data - handle both singular 'battery' and plural 'batteries'
+      if (sensorData.electrical) {
+        const elec = sensorData.electrical;
+
+        // Handle singular battery object
+        if (elec.battery) {
+          const battery = elec.battery;
+          if (battery.voltage !== undefined) {
+            db.addSensorData('electrical', 'house_voltage', battery.voltage, 'V');
+          }
+          if (battery.current !== undefined) {
+            db.addSensorData('electrical', 'house_current', battery.current, 'A');
+          }
+          if (battery.stateOfCharge !== undefined) {
+            db.addSensorData('electrical', 'house_stateOfCharge', battery.stateOfCharge, '%');
+          }
+          if (battery.temperature !== undefined) {
+            db.addSensorData('electrical', 'house_temperature', battery.temperature, 'C');
+          }
+        }
+
+        // Handle plural batteries object
+        if (elec.batteries) {
+          for (const [batteryId, battery] of Object.entries(elec.batteries) as [string, any][]) {
+            if (battery.voltage !== undefined) {
+              db.addSensorData('electrical', `${batteryId}_voltage`, battery.voltage, 'V');
+            }
+            if (battery.current !== undefined) {
+              db.addSensorData('electrical', `${batteryId}_current`, battery.current, 'A');
+            }
+            if (battery.stateOfCharge !== undefined) {
+              db.addSensorData('electrical', `${batteryId}_stateOfCharge`, battery.stateOfCharge, '%');
+            }
+            if (battery.temperature !== undefined) {
+              db.addSensorData('electrical', `${batteryId}_temperature`, battery.temperature, 'C');
+            }
+          }
+        }
+      }
+
+      // Engine/Motor data
+      if (sensorData.propulsion) {
+        for (const [engineId, engine] of Object.entries(sensorData.propulsion) as [string, any][]) {
+          if (engine.rpm !== undefined) {
+            db.addSensorData('propulsion', `${engineId}_rpm`, engine.rpm, 'rpm');
+          }
+          if (engine.temperature !== undefined) {
+            db.addSensorData('propulsion', `${engineId}_temperature`, engine.temperature, 'C');
+          }
+          if (engine.oilPressure !== undefined) {
+            db.addSensorData('propulsion', `${engineId}_oilPressure`, engine.oilPressure, 'kPa');
+          }
+          if (engine.fuelRate !== undefined) {
+            db.addSensorData('propulsion', `${engineId}_fuelRate`, engine.fuelRate, 'L/h');
+          }
+        }
+      }
+
+      // Tank data
+      if (sensorData.tanks) {
+        for (const [tankId, tank] of Object.entries(sensorData.tanks) as [string, any][]) {
+          if (tank.currentLevel !== undefined) {
+            db.addSensorData('tanks', `${tankId}_level`, tank.currentLevel, '%');
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error storing sensor data:', error);
+    }
   }
 
   public stop() {

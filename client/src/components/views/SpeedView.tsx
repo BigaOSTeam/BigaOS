@@ -1,39 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useSettings, speedConversions } from '../../context/SettingsContext';
-
-interface SpeedHistoryPoint {
-  timestamp: number;
-  speed: number; // Always stored in knots
-}
+import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
+import { sensorAPI } from '../../services/api';
 
 interface SpeedViewProps {
   speed: number; // Current speed in knots
   onClose: () => void;
 }
 
-const SPEED_HISTORY_MAX_POINTS = 300; // 5 minutes at 1 reading/second
+type TimeframeOption = '5m' | '15m' | '1h' | '6h';
+
+const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: number }> = {
+  '5m': { label: '5m', ms: 5 * 60 * 1000, minutes: 5 },
+  '15m': { label: '15m', ms: 15 * 60 * 1000, minutes: 15 },
+  '1h': { label: '1h', ms: 60 * 60 * 1000, minutes: 60 },
+  '6h': { label: '6h', ms: 6 * 60 * 60 * 1000, minutes: 360 },
+};
 
 export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
   const { speedUnit, convertSpeed } = useSettings();
-  const [speedHistory, setSpeedHistory] = useState<SpeedHistoryPoint[]>([]);
-  const lastReadingTime = useRef<number>(0);
+  const [historyData, setHistoryData] = useState<TimeSeriesDataPoint[]>([]);
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('5m');
+  const [isLoading, setIsLoading] = useState(true);
 
   const convertedSpeed = convertSpeed(speed);
-
-  // Add speed reading to history
-  useEffect(() => {
-    const now = Date.now();
-    if (now - lastReadingTime.current >= 1000) {
-      lastReadingTime.current = now;
-      setSpeedHistory(prev => {
-        const newHistory = [...prev, { timestamp: now, speed }];
-        if (newHistory.length > SPEED_HISTORY_MAX_POINTS) {
-          return newHistory.slice(-SPEED_HISTORY_MAX_POINTS);
-        }
-        return newHistory;
-      });
-    }
-  }, [speed]);
 
   const getSpeedColor = (speedInKnots: number) => {
     if (speedInKnots < 1) return '#64b5f6'; // Light blue - very slow
@@ -43,94 +33,56 @@ export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
     return '#ef5350'; // Red - very fast
   };
 
+  // Fetch history data from server
+  const fetchHistory = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await sensorAPI.getSpecificSensorHistory(
+        'navigation',
+        'speedOverGround',
+        TIMEFRAMES[timeframe].minutes
+      );
+      const data = response.data.map((item: any) => ({
+        // Database stores UTC timestamps without 'Z' suffix, so append it for correct parsing
+        timestamp: new Date(item.timestamp + 'Z').getTime(),
+        value: convertSpeed(item.value),
+      }));
+      setHistoryData(data);
+    } catch (error) {
+      console.error('Failed to fetch speed history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeframe, convertSpeed]);
+
+  // Fetch history on mount and when timeframe changes
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // Periodically refresh history data
+  useEffect(() => {
+    const interval = setInterval(fetchHistory, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchHistory]);
+
+  // Chart data from server
+  const chartData = React.useMemo(() => {
+    return historyData;
+  }, [historyData]);
+
   // Calculate stats
   const stats = React.useMemo(() => {
-    if (speedHistory.length === 0) {
+    if (chartData.length === 0) {
       return { avg: 0, max: 0, min: 0 };
     }
-    const speeds = speedHistory.map(p => p.speed);
+    const values = chartData.map(p => p.value);
     return {
-      avg: speeds.reduce((a, b) => a + b, 0) / speeds.length,
-      max: Math.max(...speeds),
-      min: Math.min(...speeds),
+      avg: values.reduce((a, b) => a + b, 0) / values.length,
+      max: Math.max(...values),
+      min: Math.min(...values),
     };
-  }, [speedHistory]);
-
-  // Render speed history graph
-  const renderGraph = () => {
-    if (speedHistory.length < 2) {
-      return (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          opacity: 0.5,
-          fontSize: '0.9rem',
-        }}>
-          Collecting speed data...
-        </div>
-      );
-    }
-
-    const graphHeight = 200;
-
-    // Find max for scaling
-    const speeds = speedHistory.map(p => p.speed);
-    const maxSpeed = Math.max(...speeds, 5) * 1.2;
-
-    // Create path
-    const points = speedHistory.map((point, index) => {
-      const x = (index / (speedHistory.length - 1)) * 100;
-      const y = graphHeight - (point.speed / maxSpeed) * graphHeight;
-      return `${x},${y}`;
-    });
-
-    return (
-      <svg
-        viewBox={`0 0 100 ${graphHeight}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: `${graphHeight}px` }}
-      >
-        {/* Grid lines */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
-          <line
-            key={i}
-            x1="0"
-            y1={ratio * graphHeight}
-            x2="100"
-            y2={ratio * graphHeight}
-            stroke="rgba(255,255,255,0.1)"
-            strokeWidth="0.3"
-          />
-        ))}
-
-        {/* Area fill */}
-        <path
-          d={`M0,${graphHeight} L${points.join(' L')} L100,${graphHeight} Z`}
-          fill="url(#speedGradient)"
-          opacity="0.3"
-        />
-
-        {/* Speed line */}
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          stroke="#66bb6a"
-          strokeWidth="0.8"
-          vectorEffect="non-scaling-stroke"
-        />
-
-        {/* Gradient definition */}
-        <defs>
-          <linearGradient id="speedGradient" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stopColor="#66bb6a" />
-            <stop offset="100%" stopColor="#0a1929" />
-          </linearGradient>
-        </defs>
-      </svg>
-    );
-  };
+  }, [chartData]);
 
   return (
     <div style={{
@@ -203,19 +155,19 @@ export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Avg</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#64b5f6' }}>
-            {convertSpeed(stats.avg).toFixed(1)}
+            {stats.avg.toFixed(1)}
           </div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Max</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#66bb6a' }}>
-            {convertSpeed(stats.max).toFixed(1)}
+            {stats.max.toFixed(1)}
           </div>
         </div>
         <div style={{ textAlign: 'center' }}>
           <div style={{ fontSize: '0.75rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em' }}>Min</div>
           <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ffa726' }}>
-            {convertSpeed(stats.min).toFixed(1)}
+            {stats.min.toFixed(1)}
           </div>
         </div>
       </div>
@@ -225,23 +177,71 @@ export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
         flex: '1 1 auto',
         padding: '1rem',
         minHeight: '200px',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         <div style={{
-          fontSize: '0.75rem',
-          opacity: 0.6,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '0.5rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
         }}>
-          Recent Speed
+          <div style={{
+            fontSize: '0.75rem',
+            opacity: 0.6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+          }}>
+            Speed History
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {(Object.keys(TIMEFRAMES) as TimeframeOption[]).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                  border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.7rem',
+                  fontWeight: timeframe === tf ? 'bold' : 'normal',
+                }}
+              >
+                {TIMEFRAMES[tf].label}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={{
+          flex: 1,
           background: 'rgba(255,255,255,0.03)',
           borderRadius: '8px',
-          padding: '1rem',
-          height: 'calc(100% - 2rem)',
+          overflow: 'hidden',
+          position: 'relative',
         }}>
-          {renderGraph()}
+          {isLoading && chartData.length === 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              opacity: 0.5,
+              fontSize: '0.9rem',
+            }}>
+              Loading history...
+            </div>
+          )}
+          <TimeSeriesChart
+            data={chartData}
+            timeframeMs={TIMEFRAMES[timeframe].ms}
+            yInterval={2}
+            yHeadroom={1}
+            yUnit={speedConversions[speedUnit].label}
+            lineColor="#66bb6a"
+          />
         </div>
       </div>
     </div>

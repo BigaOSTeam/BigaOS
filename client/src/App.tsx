@@ -24,7 +24,7 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
-  const { addDepthReading, setCurrentDepth } = useSettings();
+  const { setCurrentDepth } = useSettings();
 
   useEffect(() => {
     wsService.connect();
@@ -32,9 +32,9 @@ function AppContent() {
     wsService.on('sensor_update', (data: any) => {
       if (data.data) {
         setSensorData(data.data);
-        // Update depth readings in settings context
+        // Update current depth for alarm checking
         if (data.data.environment?.depth?.belowTransducer !== undefined) {
-          addDepthReading(data.data.environment.depth.belowTransducer);
+          setCurrentDepth(data.data.environment.depth.belowTransducer);
         }
       }
       setConnectionStatus('connected');
@@ -53,7 +53,7 @@ function AppContent() {
     return () => {
       wsService.disconnect();
     };
-  }, [addDepthReading]);
+  }, [setCurrentDepth]);
 
   const fetchInitialData = async () => {
     try {

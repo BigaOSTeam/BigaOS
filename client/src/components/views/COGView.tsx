@@ -1,41 +1,68 @@
-import React, { useState, useEffect, useRef } from 'react';
-
-interface COGHistoryPoint {
-  timestamp: number;
-  cog: number; // In degrees
-}
+import React, { useState, useEffect, useCallback } from 'react';
+import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
+import { sensorAPI } from '../../services/api';
 
 interface COGViewProps {
   cog: number; // Current course over ground in degrees
   onClose: () => void;
 }
 
-const COG_HISTORY_MAX_POINTS = 300;
+type TimeframeOption = '5m' | '15m' | '1h';
+
+const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: number }> = {
+  '5m': { label: '5m', ms: 5 * 60 * 1000, minutes: 5 },
+  '15m': { label: '15m', ms: 15 * 60 * 1000, minutes: 15 },
+  '1h': { label: '1h', ms: 60 * 60 * 1000, minutes: 60 },
+};
 
 export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
-  const [cogHistory, setCogHistory] = useState<COGHistoryPoint[]>([]);
-  const lastReadingTime = useRef<number>(0);
-
-  // Add COG reading to history
-  useEffect(() => {
-    const now = Date.now();
-    if (now - lastReadingTime.current >= 1000) {
-      lastReadingTime.current = now;
-      setCogHistory(prev => {
-        const newHistory = [...prev, { timestamp: now, cog }];
-        if (newHistory.length > COG_HISTORY_MAX_POINTS) {
-          return newHistory.slice(-COG_HISTORY_MAX_POINTS);
-        }
-        return newHistory;
-      });
-    }
-  }, [cog]);
+  const [historyData, setHistoryData] = useState<TimeSeriesDataPoint[]>([]);
+  const [timeframe, setTimeframe] = useState<TimeframeOption>('5m');
+  const [isLoading, setIsLoading] = useState(true);
 
   const getCardinalDirection = (degrees: number): string => {
     const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
     const index = Math.round(degrees / 22.5) % 16;
     return dirs[index];
   };
+
+  // Fetch history data from server
+  const fetchHistory = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await sensorAPI.getSpecificSensorHistory(
+        'navigation',
+        'courseOverGround',
+        TIMEFRAMES[timeframe].minutes
+      );
+      const data = response.data.map((item: any) => ({
+        // Database stores UTC timestamps without 'Z' suffix, so append it for correct parsing
+        timestamp: new Date(item.timestamp + 'Z').getTime(),
+        value: item.value,
+      }));
+      setHistoryData(data);
+    } catch (error) {
+      console.error('Failed to fetch COG history:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [timeframe]);
+
+  // Fetch history on mount and when timeframe changes
+  useEffect(() => {
+    fetchHistory();
+  }, [fetchHistory]);
+
+  // Periodically refresh history data
+  useEffect(() => {
+    const interval = setInterval(fetchHistory, 10000); // Refresh every 10 seconds
+    return () => clearInterval(interval);
+  }, [fetchHistory]);
+
+  // Chart data from server
+  const chartData = React.useMemo(() => {
+    return historyData;
+  }, [historyData]);
 
   // Render compass rose for COG
   const renderCompass = () => {
@@ -125,72 +152,6 @@ export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
     );
   };
 
-  // Render COG history graph
-  const renderGraph = () => {
-    if (cogHistory.length < 2) {
-      return (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: '100%',
-          opacity: 0.5,
-          fontSize: '0.9rem',
-        }}>
-          Collecting COG data...
-        </div>
-      );
-    }
-
-    const graphHeight = 120;
-
-    // Create path
-    const points = cogHistory.map((point, index) => {
-      const x = (index / (cogHistory.length - 1)) * 100;
-      const y = graphHeight - (point.cog / 360) * graphHeight;
-      return `${x},${y}`;
-    });
-
-    return (
-      <svg
-        viewBox={`0 0 100 ${graphHeight}`}
-        preserveAspectRatio="none"
-        style={{ width: '100%', height: `${graphHeight}px` }}
-      >
-        {/* Grid lines at cardinal directions */}
-        {[0, 0.25, 0.5, 0.75, 1].map((ratio, i) => (
-          <g key={i}>
-            <line
-              x1="0"
-              y1={ratio * graphHeight}
-              x2="100"
-              y2={ratio * graphHeight}
-              stroke="rgba(255,255,255,0.1)"
-              strokeWidth="0.3"
-            />
-            <text
-              x="2"
-              y={ratio * graphHeight + 3}
-              fill="rgba(255,255,255,0.3)"
-              fontSize="3"
-            >
-              {['360°', '270°', '180°', '90°', '0°'][i]}
-            </text>
-          </g>
-        ))}
-
-        {/* COG line */}
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          stroke="#42a5f5"
-          strokeWidth="0.8"
-          vectorEffect="non-scaling-stroke"
-        />
-      </svg>
-    );
-  };
-
   return (
     <div style={{
       width: '100%',
@@ -264,23 +225,74 @@ export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
         flex: '1 1 auto',
         padding: '1rem',
         minHeight: '150px',
+        display: 'flex',
+        flexDirection: 'column',
       }}>
         <div style={{
-          fontSize: '0.75rem',
-          opacity: 0.6,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
           marginBottom: '0.5rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
         }}>
-          Recent Course
+          <div style={{
+            fontSize: '0.75rem',
+            opacity: 0.6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+          }}>
+            Course History
+          </div>
+          <div style={{ display: 'flex', gap: '0.5rem' }}>
+            {(Object.keys(TIMEFRAMES) as TimeframeOption[]).map((tf) => (
+              <button
+                key={tf}
+                onClick={() => setTimeframe(tf)}
+                style={{
+                  padding: '0.25rem 0.5rem',
+                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                  border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
+                  borderRadius: '4px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.7rem',
+                  fontWeight: timeframe === tf ? 'bold' : 'normal',
+                }}
+              >
+                {TIMEFRAMES[tf].label}
+              </button>
+            ))}
+          </div>
         </div>
         <div style={{
+          flex: 1,
           background: 'rgba(255,255,255,0.03)',
           borderRadius: '8px',
-          padding: '1rem',
-          height: 'calc(100% - 2rem)',
+          overflow: 'hidden',
+          position: 'relative',
         }}>
-          {renderGraph()}
+          {isLoading && chartData.length === 0 && (
+            <div style={{
+              position: 'absolute',
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              opacity: 0.5,
+              fontSize: '0.9rem',
+            }}>
+              Loading history...
+            </div>
+          )}
+          <TimeSeriesChart
+            data={chartData}
+            timeframeMs={TIMEFRAMES[timeframe].ms}
+            yInterval={90}
+            yHeadroom={0}
+            yUnit="°"
+            yMinValue={0}
+            yMaxValue={360}
+            lineColor="#42a5f5"
+            fillGradient={false}
+          />
         </div>
       </div>
     </div>

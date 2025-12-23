@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { wsService } from '../services/websocket';
 
 export type SpeedUnit = 'kt' | 'km/h' | 'mph' | 'm/s';
@@ -24,11 +24,6 @@ export const distanceConversions: Record<DistanceUnit, { factor: number; label: 
   'mi': { factor: 1.15078, label: 'mi' }
 };
 
-export interface DepthHistoryPoint {
-  timestamp: number;
-  depth: number; // Always stored in meters
-}
-
 interface SettingsContextType {
   // Units
   speedUnit: SpeedUnit;
@@ -48,10 +43,6 @@ interface SettingsContextType {
   setSoundAlarmEnabled: (enabled: boolean) => void;
   isDepthAlarmTriggered: boolean;
 
-  // Depth history (local only - not synced)
-  depthHistory: DepthHistoryPoint[];
-  addDepthReading: (depth: number) => void;
-
   // Conversion helpers
   convertSpeed: (speedInKnots: number) => number;
   convertDepth: (depthInMeters: number) => number;
@@ -64,9 +55,6 @@ interface SettingsContextType {
   // Sync status
   isSynced: boolean;
 }
-
-const DEPTH_HISTORY_MAX_POINTS = 17280; // 24 hours at 1 reading per 5 seconds
-const DEPTH_HISTORY_INTERVAL = 5000; // 5 seconds between readings (for longer history)
 
 const defaultSettings = {
   speedUnit: 'kt' as SpeedUnit,
@@ -86,11 +74,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [timeFormat, setTimeFormatState] = useState<TimeFormat>(defaultSettings.timeFormat);
   const [depthAlarm, setDepthAlarmState] = useState<number | null>(defaultSettings.depthAlarm);
   const [soundAlarmEnabled, setSoundAlarmEnabledState] = useState<boolean>(defaultSettings.soundAlarmEnabled);
-  const [depthHistory, setDepthHistory] = useState<DepthHistoryPoint[]>([]);
   const [currentDepth, setCurrentDepth] = useState<number>(10);
   const [isSynced, setIsSynced] = useState<boolean>(false);
-  const lastDepthReadingTime = useRef<number>(0);
-  const isApplyingServerSettings = useRef<boolean>(false);
+  const isApplyingServerSettings = React.useRef<boolean>(false);
 
   // Listen for settings from server
   useEffect(() => {
@@ -212,22 +198,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   // Check if alarm is triggered
   const isDepthAlarmTriggered = depthAlarmMeters !== null && currentDepth < depthAlarmMeters;
 
-  // Add depth reading to history (local only)
-  const addDepthReading = useCallback((depth: number) => {
-    const now = Date.now();
-    if (now - lastDepthReadingTime.current >= DEPTH_HISTORY_INTERVAL) {
-      lastDepthReadingTime.current = now;
-      setDepthHistory(prev => {
-        const newHistory = [...prev, { timestamp: now, depth }];
-        if (newHistory.length > DEPTH_HISTORY_MAX_POINTS) {
-          return newHistory.slice(-DEPTH_HISTORY_MAX_POINTS);
-        }
-        return newHistory;
-      });
-    }
-    setCurrentDepth(depth);
-  }, []);
-
   // Conversion helpers
   const convertSpeed = useCallback((speedInKnots: number) => {
     return speedInKnots * speedConversions[speedUnit].factor;
@@ -256,8 +226,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     soundAlarmEnabled,
     setSoundAlarmEnabled,
     isDepthAlarmTriggered,
-    depthHistory,
-    addDepthReading,
     convertSpeed,
     convertDepth,
     convertDistance,

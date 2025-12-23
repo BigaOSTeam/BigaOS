@@ -24,7 +24,9 @@ export const sensorAPI = {
   getAllSensors: () => api.get('/sensors'),
   getSensorCategory: (category: string) => api.get(`/sensors/${category}`),
   getSensorHistory: (category: string, limit?: number) =>
-    api.get(`/sensors/${category}/history`, { params: { limit } })
+    api.get(`/sensors/${category}/history`, { params: { limit } }),
+  getSpecificSensorHistory: (category: string, sensor: string, minutes?: number) =>
+    api.get(`/sensors/history/${category}/${sensor}`, { params: { minutes } })
 };
 
 // Weather API
