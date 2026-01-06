@@ -21,7 +21,20 @@ interface CustomMarker {
   lon: number;
   name: string;
   color: string;
+  icon: string;
 }
+
+// Google Material Icons SVG paths (all solid/filled versions)
+const markerIcons: { [key: string]: string } = {
+  pin: 'M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z', // place
+  anchor: 'M17 15l1.55 1.55c-.96 1.69-3.33 3.04-5.55 3.37V11h3V9h-3V7.82C14.16 7.4 15 6.3 15 5c0-1.65-1.35-3-3-3S9 3.35 9 5c0 1.3.84 2.4 2 2.82V9H8v2h3v8.92c-2.22-.33-4.59-1.68-5.55-3.37L7 15l-4-3v3c0 3.88 4.92 7 9 7s9-3.12 9-7v-3l-4 3zM12 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z', // anchor
+  buoy: 'M12 22c-3.87 0-7-3.13-7-7s3.13-7 7-7 7 3.13 7 7-3.13 7-7 7zm-1-14V5h2v3h-2zm1-5c1.1 0 2 .9 2 2s-.9 2-2 2-2-.9-2-2 .9-2 2-2z', // mooring buoy
+  star: 'M12 17.27L18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2 9.19 8.63 2 9.24l5.46 4.73L5.82 21z', // star
+  flag: 'M14.4 6L14 4H5v17h2v-7h5.6l.4 2h7V6z', // flag
+  warning: 'M1 21h22L12 2 1 21zm12-3h-2v-2h2v2zm0-4h-2v-4h2v4z', // warning triangle
+  favorite: 'M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z', // favorite/heart
+  home: 'M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z', // home
+};
 
 // Custom boat icon that rotates with heading
 const createBoatIcon = (heading: number) => {
@@ -43,7 +56,8 @@ const createBoatIcon = (heading: number) => {
 };
 
 // Create custom marker icon with better styling and label
-const createCustomMarkerIcon = (color: string, name: string) => {
+const createCustomMarkerIcon = (color: string, name: string, icon: string = 'pin') => {
+  const iconPath = markerIcons[icon] || markerIcons.pin;
   const markerHtml = `
     <div style="display: flex; flex-direction: column; align-items: center; width: max-content;">
       <div style="
@@ -58,17 +72,8 @@ const createCustomMarkerIcon = (color: string, name: string) => {
         box-shadow: 0 2px 8px rgba(0,0,0,0.4);
         margin-bottom: 4px;
       ">${name}</div>
-      <svg width="40" height="52" viewBox="0 0 40 52" xmlns="http://www.w3.org/2000/svg" style="display: block;">
-        <defs>
-          <filter id="shadow-${color.replace('#', '')}" x="-50%" y="-50%" width="200%" height="200%">
-            <feDropShadow dx="0" dy="2" stdDeviation="3" flood-opacity="0.4"/>
-          </filter>
-        </defs>
-        <g filter="url(#shadow-${color.replace('#', '')})">
-          <path d="M20 2C12.268 2 6 8.268 6 16c0 10.5 14 32 14 32s14-21.5 14-32c0-7.732-6.268-14-14-14z"
-                fill="${color}" stroke="#fff" stroke-width="2.5"/>
-          <circle cx="20" cy="16" r="6" fill="#fff" opacity="0.9"/>
-        </g>
+      <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
+        <path d="${iconPath}" fill="${color}" stroke="#fff" stroke-width="1.5"/>
       </svg>
     </div>
   `;
@@ -76,9 +81,9 @@ const createCustomMarkerIcon = (color: string, name: string) => {
   return L.divIcon({
     html: markerHtml,
     className: 'custom-marker-icon-with-label',
-    iconSize: [40, 52],
-    iconAnchor: [20, 52],
-    popupAnchor: [0, -52],
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32],
   });
 };
 
@@ -385,6 +390,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
   const [editingMarker, setEditingMarker] = useState<CustomMarker | null>(null);
   const [markerName, setMarkerName] = useState('');
   const [markerColor, setMarkerColor] = useState('#ef5350');
+  const [markerIcon, setMarkerIcon] = useState('pin');
   const mapRef = useRef<L.Map>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -505,6 +511,15 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
   }, [apiUrls.nominatimUrl]);
 
   // Search functionality with auto-search after 2 characters
+  // Filter custom markers by search query
+  const getMatchingMarkers = (query: string): CustomMarker[] => {
+    const lowerQuery = query.toLowerCase().trim();
+    if (lowerQuery.length < 2) return [];
+    return customMarkers.filter(marker =>
+      marker.name.toLowerCase().includes(lowerQuery)
+    );
+  };
+
   const handleSearch = async (query: string) => {
     if (query.trim().length < 2) {
       setSearchResults([]);
@@ -521,6 +536,17 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
     } finally {
       setSearchLoading(false);
     }
+  };
+
+  // Handle clicking on a custom marker search result
+  const handleMarkerSearchClick = (marker: CustomMarker) => {
+    if (mapRef.current) {
+      mapRef.current.flyTo([marker.lat, marker.lon], 16);
+      setAutoCenter(false);
+    }
+    setSearchOpen(false);
+    setSearchQuery('');
+    setSearchResults([]);
   };
 
   // Debounced search effect
@@ -553,18 +579,20 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
   };
 
   // Marker management
-  const addMarker = (lat: number, lon: number, name: string, color: string) => {
+  const addMarker = (lat: number, lon: number, name: string, color: string, icon: string) => {
     const newMarker: CustomMarker = {
       id: Date.now().toString(),
       lat,
       lon,
       name,
       color,
+      icon,
     };
     setCustomMarkers([...customMarkers, newMarker]);
     setContextMenu(null);
     setMarkerName('');
     setMarkerColor('#ef5350');
+    setMarkerIcon('pin');
   };
 
   const deleteMarker = (id: string) => {
@@ -572,9 +600,9 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
     setEditingMarker(null);
   };
 
-  const updateMarker = (id: string, name: string, color: string) => {
+  const updateMarker = (id: string, name: string, color: string, icon: string) => {
     setCustomMarkers(customMarkers.map(m =>
-      m.id === id ? { ...m, name, color } : m
+      m.id === id ? { ...m, name, color, icon } : m
     ));
     setEditingMarker(null);
   };
@@ -638,23 +666,16 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
           <Marker
             key={marker.id}
             position={[marker.lat, marker.lon]}
-            icon={createCustomMarkerIcon(marker.color, marker.name)}
+            icon={createCustomMarkerIcon(marker.color, marker.name, marker.icon)}
             eventHandlers={{
               click: () => {
                 setEditingMarker(marker);
                 setMarkerName(marker.name);
                 setMarkerColor(marker.color);
+                setMarkerIcon(marker.icon || 'pin');
               },
             }}
-          >
-            <Popup>
-              <div style={{ padding: '0.5rem', minWidth: '150px' }}>
-                <strong>{marker.name}</strong>
-                <br />
-                <small>{marker.lat.toFixed(5)}°, {marker.lon.toFixed(5)}°</small>
-              </div>
-            </Popup>
-          </Marker>
+          />
         ))}
 
         <MapController position={position} autoCenter={autoCenter} onDrag={handleMapDrag} />
@@ -1062,7 +1083,59 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
             flexDirection: 'column',
             gap: '0.5rem'
           }}>
-            {searchResults.length === 0 && !searchLoading && searchQuery && (
+            {/* Custom markers section */}
+            {searchQuery && getMatchingMarkers(searchQuery).length > 0 && (
+              <>
+                <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '0.25rem', marginTop: '0.25rem' }}>
+                  YOUR MARKERS
+                </div>
+                {getMatchingMarkers(searchQuery).map((marker) => (
+                  <button
+                    key={`marker-${marker.id}`}
+                    onClick={() => handleMarkerSearchClick(marker)}
+                    style={{
+                      width: '100%',
+                      padding: '0.75rem',
+                      background: 'rgba(255, 255, 255, 0.1)',
+                      border: `1px solid ${marker.color}`,
+                      borderRadius: '3px',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      fontSize: '0.85rem',
+                      transition: 'background 0.2s',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.75rem'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill={marker.color} stroke="#fff" strokeWidth="1.5">
+                      <path d={markerIcons[marker.icon] || markerIcons.pin} />
+                    </svg>
+                    <div>
+                      <div style={{ fontWeight: 'bold' }}>{marker.name}</div>
+                      <div style={{ opacity: 0.5, fontSize: '0.7rem' }}>
+                        {marker.lat.toFixed(4)}, {marker.lon.toFixed(4)}
+                      </div>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+
+            {/* Geocoding results section */}
+            {searchQuery && searchResults.length > 0 && (
+              <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '0.25rem', marginTop: '0.5rem' }}>
+                LOCATIONS
+              </div>
+            )}
+            {searchResults.length === 0 && getMatchingMarkers(searchQuery).length === 0 && !searchLoading && searchQuery && (
               <div style={{ opacity: 0.6, fontSize: '0.85rem', textAlign: 'center', padding: '1rem' }}>
                 No results found
               </div>
@@ -1148,7 +1221,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
               padding: '0.75rem',
               zIndex: 1101,
               boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-              minWidth: '200px',
+              minWidth: '280px',
             }}
           >
             <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.75rem', textAlign: 'center' }}>
@@ -1172,6 +1245,34 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
                 outline: 'none'
               }}
             />
+            <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.35rem' }}>ICON</div>
+            <div style={{ display: 'flex', gap: '0.35rem', marginBottom: '0.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {Object.keys(markerIcons).map((iconKey) => (
+                <button
+                  key={iconKey}
+                  onClick={() => setMarkerIcon(iconKey)}
+                  style={{
+                    width: '32px',
+                    height: '32px',
+                    borderRadius: '4px',
+                    background: markerIcon === iconKey ? 'rgba(79, 195, 247, 0.3)' : 'rgba(255, 255, 255, 0.1)',
+                    border: markerIcon === iconKey ? '2px solid #4fc3f7' : '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'transform 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill={markerColor} stroke="#fff" strokeWidth="1.5">
+                    <path d={markerIcons[iconKey]} />
+                  </svg>
+                </button>
+              ))}
+            </div>
+            <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.35rem' }}>COLOR</div>
             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem', justifyContent: 'center' }}>
               {['#ef5350', '#66bb6a', '#42a5f5', '#ffa726', '#ab47bc'].map((color) => (
                 <button
@@ -1194,7 +1295,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
             <button
               onClick={() => {
                 if (markerName.trim()) {
-                  addMarker(contextMenu.lat, contextMenu.lon, markerName, markerColor);
+                  addMarker(contextMenu.lat, contextMenu.lon, markerName, markerColor, markerIcon);
                 }
               }}
               disabled={!markerName.trim()}
@@ -1247,6 +1348,40 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
               minWidth: '300px',
             }}
           >
+            {/* Close X button */}
+            <button
+              onClick={() => setEditingMarker(null)}
+              style={{
+                position: 'absolute',
+                top: '0.75rem',
+                right: '0.75rem',
+                width: '28px',
+                height: '28px',
+                background: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                borderRadius: '4px',
+                color: 'rgba(255, 255, 255, 0.6)',
+                transition: 'color 0.2s, background 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = '#fff';
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                e.currentTarget.style.background = 'transparent';
+              }}
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+
             <div style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '1rem', textAlign: 'center' }}>
               Edit Marker
             </div>
@@ -1268,7 +1403,36 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
                 outline: 'none'
               }}
             />
-            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>MARKER COLOR</div>
+
+            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>ICON</div>
+            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+              {Object.keys(markerIcons).map((iconKey) => (
+                <button
+                  key={iconKey}
+                  onClick={() => setMarkerIcon(iconKey)}
+                  style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '6px',
+                    background: markerIcon === iconKey ? 'rgba(79, 195, 247, 0.3)' : 'rgba(255, 255, 255, 0.1)',
+                    border: markerIcon === iconKey ? '2px solid #4fc3f7' : '1px solid rgba(255,255,255,0.2)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'transform 0.2s, background 0.2s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.1)'}
+                  onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill={markerColor} stroke="#fff" strokeWidth="1.5">
+                    <path d={markerIcons[iconKey]} />
+                  </svg>
+                </button>
+              ))}
+            </div>
+
+            <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>COLOR</div>
             <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '1.5rem', justifyContent: 'center' }}>
               {['#ef5350', '#66bb6a', '#42a5f5', '#ffa726', '#ab47bc'].map((color) => (
                 <button
@@ -1308,7 +1472,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
               <button
                 onClick={() => {
                   if (markerName.trim()) {
-                    updateMarker(editingMarker.id, markerName, markerColor);
+                    updateMarker(editingMarker.id, markerName, markerColor, markerIcon);
                   }
                 }}
                 disabled={!markerName.trim()}
