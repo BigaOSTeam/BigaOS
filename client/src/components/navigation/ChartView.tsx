@@ -1,9 +1,9 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents, Polyline } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
-import { useSettings, speedConversions, depthConversions } from '../../context/SettingsContext';
+import { useSettings, speedConversions, depthConversions, distanceConversions } from '../../context/SettingsContext';
 import { geocodingService, SearchResult } from '../../services/geocoding';
 
 interface ChartViewProps {
@@ -48,6 +48,37 @@ const markerColors = [
   '#7f8c8d', // slate gray
 ];
 
+// Calculate distance between two points using Haversine formula (returns nautical miles)
+const calculateDistanceNm = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  const R = 3440.065; // Earth's radius in nautical miles
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+// Format ETA time duration
+const formatETA = (hours: number): string => {
+  if (!isFinite(hours) || hours < 0) return '--';
+  if (hours < 1 / 60) return '< 1m'; // Less than 1 minute
+  if (hours < 1) {
+    const minutes = Math.round(hours * 60);
+    return `${minutes}m`;
+  }
+  if (hours < 24) {
+    const h = Math.floor(hours);
+    const m = Math.round((hours - h) * 60);
+    return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  }
+  const days = Math.floor(hours / 24);
+  const h = Math.round(hours % 24);
+  return h > 0 ? `${days}d ${h}h` : `${days}d`;
+};
+
 // Custom boat icon that rotates with heading
 const createBoatIcon = (heading: number) => {
   const svgIcon = `
@@ -70,9 +101,16 @@ const createBoatIcon = (heading: number) => {
 // Create custom marker icon with better styling and label
 const createCustomMarkerIcon = (color: string, name: string, icon: string = 'pin') => {
   const iconPath = markerIcons[icon] || markerIcons.pin;
+  // Container is 32x32, SVG icon anchored at bottom center
+  // Label floats above, centered on the icon
   const markerHtml = `
-    <div style="display: flex; flex-direction: column; align-items: center; width: max-content;">
+    <div style="position: relative; width: 32px; height: 32px;">
       <div style="
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        margin-bottom: 4px;
         background: rgba(10, 25, 41, 0.95);
         border: 1px solid ${color};
         border-radius: 4px;
@@ -82,7 +120,6 @@ const createCustomMarkerIcon = (color: string, name: string, icon: string = 'pin
         font-weight: bold;
         white-space: nowrap;
         box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-        margin-bottom: 4px;
       ">${name}</div>
       <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
         <path d="${iconPath}" fill="${color}" stroke="#fff" stroke-width="1.5"/>
@@ -95,7 +132,7 @@ const createCustomMarkerIcon = (color: string, name: string, icon: string = 'pin
     className: 'custom-marker-icon-with-label',
     iconSize: [32, 32],
     iconAnchor: [16, 32],
-    popupAnchor: [0, -32],
+    popupAnchor: [0, -40],
   });
 };
 
@@ -403,6 +440,11 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
   const [markerName, setMarkerName] = useState('');
   const [markerColor, setMarkerColor] = useState(markerColors[0]);
   const [markerIcon, setMarkerIcon] = useState('pin');
+  const [navigationTarget, setNavigationTarget] = useState<CustomMarker | null>(() => {
+    // Load navigation target from localStorage on initial render
+    const saved = localStorage.getItem('navigationTarget');
+    return saved ? JSON.parse(saved) : null;
+  });
   const mapRef = useRef<L.Map>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -410,6 +452,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
   const {
     speedUnit,
     depthUnit,
+    distanceUnit,
     depthAlarm,
     setDepthAlarm,
     soundAlarmEnabled,
@@ -417,6 +460,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
     isDepthAlarmTriggered,
     convertSpeed,
     convertDepth,
+    convertDistance,
     mapTileUrls,
     apiUrls,
   } = useSettings();
@@ -458,6 +502,15 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
   useEffect(() => {
     localStorage.setItem('chartMarkers', JSON.stringify(customMarkers));
   }, [customMarkers]);
+
+  // Save navigation target to localStorage whenever it changes
+  useEffect(() => {
+    if (navigationTarget) {
+      localStorage.setItem('navigationTarget', JSON.stringify(navigationTarget));
+    } else {
+      localStorage.removeItem('navigationTarget');
+    }
+  }, [navigationTarget]);
 
   // Save satellite view preference to localStorage
   useEffect(() => {
@@ -624,6 +677,31 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
     setContextMenu({ lat, lon, x, y });
   };
 
+  // Navigate to marker - zoom to fit both boat and marker, show route
+  const navigateToMarker = (marker: CustomMarker) => {
+    setNavigationTarget(marker);
+    setEditingMarker(null);
+    setAutoCenter(false);
+
+    if (mapRef.current) {
+      // Create bounds that include both boat position and marker
+      const bounds = L.latLngBounds(
+        [position.latitude, position.longitude],
+        [marker.lat, marker.lon]
+      );
+      // Fit map to show both points with generous padding for better overview
+      mapRef.current.fitBounds(bounds, {
+        padding: [120, 120],
+        maxZoom: 15
+      });
+    }
+  };
+
+  // Cancel navigation
+  const cancelNavigation = () => {
+    setNavigationTarget(null);
+  };
+
   const sidebarWidth = hideSidebar ? 0 : 100;
   const settingsPanelWidth = 180;
 
@@ -689,6 +767,38 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
             }}
           />
         ))}
+
+        {/* Navigation route line */}
+        {navigationTarget && (
+          <>
+            {/* White border/outline */}
+            <Polyline
+              positions={[
+                [position.latitude, position.longitude],
+                [navigationTarget.lat, navigationTarget.lon]
+              ]}
+              pathOptions={{
+                color: '#ffffff',
+                weight: 5,
+                dashArray: '10, 10',
+                opacity: 0.8
+              }}
+            />
+            {/* Black line on top */}
+            <Polyline
+              positions={[
+                [position.latitude, position.longitude],
+                [navigationTarget.lat, navigationTarget.lon]
+              ]}
+              pathOptions={{
+                color: '#000000',
+                weight: 3,
+                dashArray: '10, 10',
+                opacity: 0.9
+              }}
+            />
+          </>
+        )}
 
         <MapController position={position} autoCenter={autoCenter} onDrag={handleMapDrag} />
         <LongPressHandler onLongPress={handleLongPress} />
@@ -908,8 +1018,62 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
       </div>
       )}
 
+      {/* Navigation info banner (full view) */}
+      {!hideSidebar && navigationTarget && (() => {
+        const distanceNm = calculateDistanceNm(
+          position.latitude,
+          position.longitude,
+          navigationTarget.lat,
+          navigationTarget.lon
+        );
+        const convertedDistance = convertDistance(distanceNm);
+        const etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
+
+        return (
+          <button
+            onClick={cancelNavigation}
+            style={{
+              position: 'absolute',
+              top: '1rem',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              background: 'rgba(39, 174, 96, 0.9)',
+              border: 'none',
+              borderRadius: '4px',
+              padding: '0.5rem 0.75rem',
+              color: '#fff',
+              fontSize: '0.8rem',
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              zIndex: 1002,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.6rem',
+            }}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="6" cy="8" r="2" fill="currentColor" />
+              <path d="M6 10v4" />
+              <path d="M8 12h2" strokeDasharray="2 2" />
+              <path d="M12 12h2" strokeDasharray="2 2" />
+              <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="currentColor" />
+            </svg>
+            <span>{navigationTarget.name}</span>
+            <span style={{ opacity: 0.7 }}>|</span>
+            <span>{convertedDistance.toFixed(convertedDistance < 10 ? 2 : 1)} {distanceConversions[distanceUnit].label}</span>
+            <span style={{ opacity: 0.7 }}>|</span>
+            <span>{formatETA(etaHours)}</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.7, marginLeft: '0.25rem' }}>
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          </button>
+        );
+      })()}
+
       {/* Depth Alarm Notification */}
-      {isDepthAlarmTriggered && (
+      {isDepthAlarmTriggered && !navigationTarget && (
         <button
           onClick={() => setDepthAlarm(null)}
           style={{
@@ -1486,7 +1650,7 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
             </div>
 
             <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>COLOR</div>
-            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1.5rem', justifyContent: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.4rem', marginBottom: '1rem', justifyContent: 'center', flexWrap: 'wrap' }}>
               {markerColors.map((color) => (
                 <button
                   key={color}
@@ -1505,6 +1669,41 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
                 />
               ))}
             </div>
+
+            {/* Navigate to Marker button */}
+            <button
+              onClick={() => navigateToMarker(editingMarker)}
+              style={{
+                width: '100%',
+                padding: '0.75rem',
+                marginBottom: '0.75rem',
+                background: 'rgba(39, 174, 96, 0.5)',
+                border: 'none',
+                borderRadius: '6px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {/* Boat marker (left) */}
+                <circle cx="6" cy="8" r="2" fill="currentColor" />
+                <path d="M6 10v4" />
+                {/* Dotted line between */}
+                <path d="M8 12h2" strokeDasharray="2 2" />
+                <path d="M12 12h2" strokeDasharray="2 2" />
+                {/* Destination marker (right) */}
+                <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="currentColor" />
+                <circle cx="18" cy="6" r="1" fill="rgba(10, 25, 41, 0.95)" />
+              </svg>
+              Navigate to Marker
+            </button>
+
             <div style={{ display: 'flex', gap: '0.75rem' }}>
               <button
                 onClick={() => deleteMarker(editingMarker.id)}
@@ -1548,6 +1747,50 @@ export const ChartView: React.FC<ChartViewProps> = ({ position, heading, speed, 
           </div>
         </>
       )}
+
+      {/* Compact navigation info for dashboard widget */}
+      {hideSidebar && navigationTarget && (() => {
+        const distanceNm = calculateDistanceNm(
+          position.latitude,
+          position.longitude,
+          navigationTarget.lat,
+          navigationTarget.lon
+        );
+        const convertedDistance = convertDistance(distanceNm);
+        const etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
+
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              top: '0.5rem',
+              left: '0.5rem',
+              background: 'rgba(39, 174, 96, 0.9)',
+              borderRadius: '4px',
+              padding: '0.4rem 0.6rem',
+              color: '#fff',
+              fontSize: '0.7rem',
+              fontWeight: 'bold',
+              zIndex: 1000,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+            }}
+          >
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="6" cy="8" r="2" fill="currentColor" />
+              <path d="M6 10v4" />
+              <path d="M8 12h2" strokeDasharray="2 2" />
+              <path d="M12 12h2" strokeDasharray="2 2" />
+              <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="currentColor" />
+            </svg>
+            <span>{convertedDistance.toFixed(1)} {distanceConversions[distanceUnit].label}</span>
+            <span style={{ opacity: 0.8 }}>|</span>
+            <span>{formatETA(etaHours)}</span>
+          </div>
+        );
+      })()}
 
       {/* Compact recenter button for dashboard widget */}
       {hideSidebar && (
