@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import routes from './routes';
 import { WebSocketServer } from './websocket/websocket-server';
 import db from './database/database';
+import { waterDetectionService } from './services/water-detection.service';
 
 // Load environment variables
 dotenv.config();
@@ -17,8 +18,13 @@ try {
   process.exit(1);
 }
 
+// Initialize water detection service (async, non-blocking)
+waterDetectionService.initialize().catch(error => {
+  console.error('Failed to initialize water detection service:', error);
+});
+
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = parseInt(process.env.PORT || '3000', 10);
 
 // Middleware
 app.use(cors());

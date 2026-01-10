@@ -17,8 +17,30 @@ export class WebSocketServer {
       }
     });
 
+    // Initialize demo mode from database
+    this.initializeDemoMode();
+
     this.setupEventHandlers();
     this.startDataBroadcast();
+  }
+
+  private initializeDemoMode() {
+    try {
+      const demoModeSetting = db.getSetting('demoMode');
+      if (demoModeSetting && demoModeSetting.value && demoModeSetting.value !== 'undefined') {
+        const enabled = JSON.parse(demoModeSetting.value);
+        dummyDataService.setDemoMode(enabled);
+        console.log(`Demo mode initialized: ${enabled}`);
+      } else {
+        // Default to true if not set
+        dummyDataService.setDemoMode(true);
+        console.log('Demo mode initialized: true (default)');
+      }
+    } catch (error) {
+      console.error('Error initializing demo mode:', error);
+      // Default to true on error
+      dummyDataService.setDemoMode(true);
+    }
   }
 
   private setupEventHandlers() {
@@ -49,6 +71,11 @@ export class WebSocketServer {
           // Save setting to database
           if (data.key && data.value !== undefined) {
             db.setSetting(data.key, JSON.stringify(data.value), data.description);
+
+            // Update dummy data service demo mode when demoMode setting changes
+            if (data.key === 'demoMode') {
+              dummyDataService.setDemoMode(data.value);
+            }
           }
 
           // Broadcast to ALL clients (including sender) so everyone stays in sync

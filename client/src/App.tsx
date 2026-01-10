@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { SensorData } from './types';
 import { ViewType } from './types/dashboard';
 import { Dashboard } from './components/dashboard';
@@ -12,6 +12,7 @@ import { COGView } from './components/views/COGView';
 import { PositionView } from './components/views/PositionView';
 import { BatteryView } from './components/views/BatteryView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
+import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { wsService } from './services/websocket';
 import { sensorAPI } from './services/api';
 import './styles/globals.css';
@@ -24,7 +25,34 @@ function AppContent() {
   const [loading, setLoading] = useState(true);
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [, forceUpdate] = useState(0);
   const { setCurrentDepth } = useSettings();
+  const repaintIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Force a repaint periodically to recover from rendering freezes
+  const forceRepaint = useCallback(() => {
+    // Trigger a minimal re-render
+    forceUpdate(n => n + 1);
+
+    // Also force browser repaint by toggling a style
+    const root = document.getElementById('root');
+    if (root) {
+      root.style.transform = 'translateZ(1px)';
+      requestAnimationFrame(() => {
+        root.style.transform = 'translateZ(0)';
+      });
+    }
+  }, []);
+
+  // Set up periodic repaint check (every 3 seconds)
+  useEffect(() => {
+    repaintIntervalRef.current = setInterval(forceRepaint, 3000);
+    return () => {
+      if (repaintIntervalRef.current) {
+        clearInterval(repaintIntervalRef.current);
+      }
+    };
+  }, [forceRepaint]);
 
   useEffect(() => {
     wsService.connect();
@@ -93,6 +121,29 @@ function AppContent() {
     );
   }
 
+  // Demo mode indicator
+  const DemoModeBanner = () => {
+    const { demoMode } = useSettings();
+    if (!demoMode) return null;
+    return (
+      <div style={{
+        position: 'fixed',
+        top: '4px',
+        right: '4px',
+        background: 'rgba(245, 158, 11, 0.85)',
+        color: '#000',
+        padding: '2px 6px',
+        fontSize: '9px',
+        fontWeight: 600,
+        zIndex: 10000,
+        borderRadius: '3px',
+        opacity: 0.8,
+      }}>
+        DEMO
+      </div>
+    );
+  };
+
   // Disconnection warning overlay
   const DisconnectionWarning = () => (
     <div style={{
@@ -147,6 +198,7 @@ function AppContent() {
     return (
       <>
         <MapPage onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -156,6 +208,7 @@ function AppContent() {
     return (
       <>
         <WindView sensorData={sensorData} onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -165,6 +218,7 @@ function AppContent() {
     return (
       <>
         <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -174,6 +228,7 @@ function AppContent() {
     return (
       <>
         <SettingsView onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -183,6 +238,7 @@ function AppContent() {
     return (
       <>
         <SpeedView speed={sensorData.navigation.speedOverGround} onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -192,6 +248,7 @@ function AppContent() {
     return (
       <>
         <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -201,6 +258,7 @@ function AppContent() {
     return (
       <>
         <COGView cog={sensorData.navigation.courseOverGround} onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -210,6 +268,7 @@ function AppContent() {
     return (
       <>
         <PositionView position={sensorData.navigation.position} onClose={handleBack} />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -225,6 +284,7 @@ function AppContent() {
           stateOfCharge={sensorData.electrical.battery.stateOfCharge}
           onClose={handleBack}
         />
+        <DemoModeBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -240,16 +300,19 @@ function AppContent() {
       overflow: 'hidden',
     }}>
       <Dashboard sensorData={sensorData} onNavigate={handleNavigate} />
-      {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      <DemoModeBanner />
+        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
     </div>
   );
 }
 
-// Main App component with SettingsProvider
+// Main App component with providers
 function App() {
   return (
     <SettingsProvider>
-      <AppContent />
+      <ConfirmDialogProvider>
+        <AppContent />
+      </ConfirmDialogProvider>
     </SettingsProvider>
   );
 }

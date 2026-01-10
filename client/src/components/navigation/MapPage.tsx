@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { ChartView } from './ChartView';
 import { SensorData, GeoPosition } from '../../types';
 import { wsService } from '../../services/websocket';
-import { sensorAPI } from '../../services/api';
+import { sensorAPI, navigationAPI } from '../../services/api';
+import { useSettings } from '../../context/SettingsContext';
 
 interface MapPageProps {
   onClose?: () => void;
@@ -10,34 +11,29 @@ interface MapPageProps {
 
 export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
+  const { demoMode } = useSettings();
 
-  // Dummy drive mode state
-  const [dummyMode, setDummyMode] = useState(false);
-  const [dummyLat, setDummyLat] = useState(52.5); // Default: North Sea
-  const [dummyLon, setDummyLon] = useState(4.5);
+  // Dummy drive mode state - controlled position when in demo mode
+  const [dummyLat, setDummyLat] = useState(43.45); // Default: Adriatic Sea, west of Split
+  const [dummyLon, setDummyLon] = useState(16.20); // In the water, off Croatian coast
   const [dummyHeading, setDummyHeading] = useState(0);
   const [dummySpeed, setDummySpeed] = useState(0); // in knots
+  const [demoValuesLoaded, setDemoValuesLoaded] = useState(false); // Flag to prevent overwriting server values
   const keysPressed = useRef<Set<string>>(new Set());
   const lastUpdateRef = useRef<number>(Date.now());
 
+  // Fetch sensor data on mount
   useEffect(() => {
-    // Fetch initial data
-    const fetchData = async () => {
+    const fetchSensorData = async () => {
       try {
         const response = await sensorAPI.getAllSensors();
         setSensorData(response.data);
-        // Initialize dummy position from actual position
-        if (response.data?.navigation?.position) {
-          setDummyLat(response.data.navigation.position.latitude);
-          setDummyLon(response.data.navigation.position.longitude);
-          setDummyHeading(response.data.navigation.headingMagnetic || 0);
-        }
       } catch (error) {
         console.error('Failed to fetch sensor data:', error);
       }
     };
 
-    fetchData();
+    fetchSensorData();
 
     // Listen for sensor updates via WebSocket
     const handleSensorUpdate = (data: any) => {
@@ -53,29 +49,46 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
     };
   }, []);
 
-  // Handle keyboard input for dummy mode
-  const handleKeyDown = useCallback((e: KeyboardEvent) => {
-    // Toggle dummy mode with Ctrl+D
-    if (e.ctrlKey && e.key === 'd') {
-      e.preventDefault();
-      setDummyMode(prev => !prev);
-      return;
-    }
+  // Fetch demo navigation values from server on mount (when in demo mode)
+  useEffect(() => {
+    if (!demoMode) return;
 
-    if (!dummyMode) return;
+    const fetchDemoNavigation = async () => {
+      try {
+        const demoResponse = await navigationAPI.getDemoNavigation();
+        if (demoResponse.data.navigation) {
+          setDummyLat(demoResponse.data.navigation.latitude);
+          setDummyLon(demoResponse.data.navigation.longitude);
+          setDummyHeading(demoResponse.data.navigation.heading);
+          setDummySpeed(demoResponse.data.navigation.speed);
+        }
+      } catch (error) {
+        console.error('Failed to fetch demo navigation:', error);
+      } finally {
+        // Mark that initial values are loaded, now safe to sync back to server
+        setDemoValuesLoaded(true);
+      }
+    };
+
+    fetchDemoNavigation();
+  }, [demoMode]);
+
+  // Handle keyboard input for demo mode navigation
+  const handleKeyDown = useCallback((e: KeyboardEvent) => {
+    if (!demoMode) return;
 
     keysPressed.current.add(e.key.toLowerCase());
 
-    // Speed control with arrow keys
-    if (e.key === 'ArrowUp') {
+    // Speed control with W/S keys
+    if (e.key.toLowerCase() === 'w') {
       e.preventDefault();
       setDummySpeed(prev => Math.min(prev + 1, 30)); // Max 30 knots
     }
-    if (e.key === 'ArrowDown') {
+    if (e.key.toLowerCase() === 's') {
       e.preventDefault();
       setDummySpeed(prev => Math.max(prev - 1, 0)); // Min 0 knots
     }
-  }, [dummyMode]);
+  }, [demoMode]);
 
   const handleKeyUp = useCallback((e: KeyboardEvent) => {
     keysPressed.current.delete(e.key.toLowerCase());
@@ -83,7 +96,7 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
 
   // Heading control with WASD (continuous while key is held)
   useEffect(() => {
-    if (!dummyMode) return;
+    if (!demoMode) return;
 
     const interval = setInterval(() => {
       const keys = keysPressed.current;
@@ -98,34 +111,60 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
     }, 50); // 20 times per second
 
     return () => clearInterval(interval);
-  }, [dummyMode]);
+  }, [demoMode]);
 
-  // Update position based on speed and heading
+  // Update position based on speed and heading (local calculation)
   useEffect(() => {
-    if (!dummyMode || dummySpeed === 0) return;
+    if (!demoMode) return;
 
+    // If speed is 0, still need to run the interval to send updates to server
     const interval = setInterval(() => {
       const now = Date.now();
       const deltaTime = (now - lastUpdateRef.current) / 1000; // seconds
       lastUpdateRef.current = now;
 
-      // Convert speed from knots to degrees per second
-      // 1 knot = 1.852 km/h = 0.0005144 km/s
-      // At equator, 1 degree of lat ≈ 111 km
-      // So 1 knot ≈ 0.0005144 / 111 ≈ 0.00000463 degrees/second
-      const speedInDegreesPerSecond = dummySpeed * 0.00000463;
+      if (dummySpeed > 0) {
+        // Convert speed from knots to degrees per second
+        // 1 knot = 1.852 km/h = 0.0005144 km/s
+        // At equator, 1 degree of lat ≈ 111 km
+        // So 1 knot ≈ 0.0005144 / 111 ≈ 0.00000463 degrees/second
+        const speedInDegreesPerSecond = dummySpeed * 0.00000463;
 
-      // Calculate movement
-      const headingRad = (dummyHeading * Math.PI) / 180;
-      const deltaLat = Math.cos(headingRad) * speedInDegreesPerSecond * deltaTime;
-      const deltaLon = Math.sin(headingRad) * speedInDegreesPerSecond * deltaTime / Math.cos((dummyLat * Math.PI) / 180);
+        // Calculate movement
+        const headingRad = (dummyHeading * Math.PI) / 180;
+        const deltaLat = Math.cos(headingRad) * speedInDegreesPerSecond * deltaTime;
+        const deltaLon = Math.sin(headingRad) * speedInDegreesPerSecond * deltaTime / Math.cos((dummyLat * Math.PI) / 180);
 
-      setDummyLat(prev => prev + deltaLat);
-      setDummyLon(prev => prev + deltaLon);
+        setDummyLat(prev => prev + deltaLat);
+        setDummyLon(prev => prev + deltaLon);
+      }
     }, 100); // Update position 10 times per second
 
     return () => clearInterval(interval);
-  }, [dummyMode, dummySpeed, dummyHeading, dummyLat]);
+  }, [demoMode, dummySpeed, dummyHeading, dummyLat]);
+
+  // Sync demo values to server (throttled)
+  const lastServerUpdateRef = useRef<number>(0);
+  useEffect(() => {
+    if (!demoMode) return;
+    // Don't sync until we've loaded initial values from server
+    if (!demoValuesLoaded) return;
+
+    const now = Date.now();
+    // Throttle server updates to max 5 times per second
+    if (now - lastServerUpdateRef.current < 200) return;
+    lastServerUpdateRef.current = now;
+
+    // Send current demo values to server
+    navigationAPI.updateDemoNavigation({
+      latitude: dummyLat,
+      longitude: dummyLon,
+      heading: dummyHeading,
+      speed: dummySpeed,
+    }).catch(() => {
+      // Silently ignore errors to avoid spamming console
+    });
+  }, [demoMode, dummyLat, dummyLon, dummyHeading, dummySpeed, demoValuesLoaded]);
 
   // Add/remove keyboard listeners
   useEffect(() => {
@@ -137,7 +176,8 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
     };
   }, [handleKeyDown, handleKeyUp]);
 
-  if (!sensorData) {
+  // Wait for sensor data and (if in demo mode) for demo values to load from server
+  if (!sensorData || (demoMode && !demoValuesLoaded)) {
     return (
       <div style={{
         width: '100%',
@@ -152,17 +192,17 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
     );
   }
 
-  // Build dummy position as GeoPosition type
-  const dummyPosition: GeoPosition = {
+  // Build demo position as GeoPosition type
+  const demoPosition: GeoPosition = {
     latitude: dummyLat,
     longitude: dummyLon,
     timestamp: new Date(),
   };
 
-  // Use dummy values when in dummy mode, otherwise use real sensor data
-  const position = dummyMode ? dummyPosition : sensorData.navigation.position;
-  const heading = dummyMode ? dummyHeading : sensorData.navigation.headingMagnetic;
-  const speed = dummyMode ? dummySpeed : sensorData.navigation.speedOverGround;
+  // Use demo values when in demo mode, otherwise use real sensor data
+  const position = demoMode ? demoPosition : sensorData.navigation.position;
+  const heading = demoMode ? dummyHeading : sensorData.navigation.headingMagnetic;
+  const speed = demoMode ? dummySpeed : sensorData.navigation.speedOverGround;
 
   return (
     <div style={{ width: '100%', height: '100vh', position: 'relative', background: '#0a1929' }}>
@@ -175,29 +215,22 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
         onClose={onClose}
       />
 
-      {/* Dummy mode indicator */}
-      {dummyMode && (
+      {/* Demo mode controls hint */}
+      {demoMode && (
         <div style={{
           position: 'absolute',
-          top: '1rem',
+          bottom: '1rem',
           left: '50%',
           transform: 'translateX(-50%)',
-          background: 'rgba(255, 152, 0, 0.9)',
-          color: '#000',
+          background: 'rgba(0, 0, 0, 0.7)',
+          color: '#fff',
           padding: '0.5rem 1rem',
           borderRadius: '6px',
-          fontSize: '0.85rem',
-          fontWeight: 'bold',
+          fontSize: '0.75rem',
           zIndex: 1000,
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          gap: '0.25rem',
+          whiteSpace: 'nowrap',
         }}>
-          <div>DUMMY MODE</div>
-          <div style={{ fontSize: '0.7rem', fontWeight: 'normal', opacity: 0.8 }}>
-            WASD: steer | ↑↓: speed ({dummySpeed} kt) | Ctrl+D: exit
-          </div>
+          WASD: navigate ({dummySpeed} kt)
         </div>
       )}
     </div>

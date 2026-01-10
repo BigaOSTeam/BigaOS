@@ -70,6 +70,10 @@ interface SettingsContextType {
   currentDepth: number;
   setCurrentDepth: (depth: number) => void;
 
+  // Demo mode
+  demoMode: boolean;
+  setDemoMode: (enabled: boolean) => void;
+
   // Sync status
   isSynced: boolean;
 }
@@ -81,6 +85,7 @@ const defaultSettings = {
   timeFormat: '24h' as TimeFormat,
   depthAlarm: null as number | null,
   soundAlarmEnabled: false,
+  demoMode: true,
   mapTileUrls: {
     streetMap: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     satelliteMap: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
@@ -100,6 +105,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [timeFormat, setTimeFormatState] = useState<TimeFormat>(defaultSettings.timeFormat);
   const [depthAlarm, setDepthAlarmState] = useState<number | null>(defaultSettings.depthAlarm);
   const [soundAlarmEnabled, setSoundAlarmEnabledState] = useState<boolean>(defaultSettings.soundAlarmEnabled);
+  const [demoMode, setDemoModeState] = useState<boolean>(defaultSettings.demoMode);
   const [mapTileUrls, setMapTileUrlsState] = useState<MapTileUrls>(defaultSettings.mapTileUrls);
   const [apiUrls, setApiUrlsState] = useState<ApiUrls>(defaultSettings.apiUrls);
   const [currentDepth, setCurrentDepth] = useState<number>(10);
@@ -130,6 +136,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       if (data.settings.soundAlarmEnabled !== undefined) {
         setSoundAlarmEnabledState(data.settings.soundAlarmEnabled);
+      }
+      if (data.settings.demoMode !== undefined) {
+        setDemoModeState(data.settings.demoMode);
       }
       if (data.settings.mapTileUrls) {
         setMapTileUrlsState(data.settings.mapTileUrls);
@@ -165,6 +174,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           break;
         case 'soundAlarmEnabled':
           setSoundAlarmEnabledState(data.value);
+          break;
+        case 'demoMode':
+          setDemoModeState(data.value);
           break;
         case 'mapTileUrls':
           setMapTileUrlsState(data.value);
@@ -230,6 +242,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     updateServerSetting('soundAlarmEnabled', enabled);
   }, [updateServerSetting]);
 
+  const setDemoMode = useCallback((enabled: boolean) => {
+    setDemoModeState(enabled);
+    updateServerSetting('demoMode', enabled);
+  }, [updateServerSetting]);
+
   const setMapTileUrls = useCallback((urls: MapTileUrls) => {
     setMapTileUrlsState(urls);
     updateServerSetting('mapTileUrls', urls);
@@ -280,6 +297,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     soundAlarmEnabled,
     setSoundAlarmEnabled,
     isDepthAlarmTriggered,
+    demoMode,
+    setDemoMode,
     convertSpeed,
     convertDepth,
     convertDistance,

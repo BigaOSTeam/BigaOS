@@ -1,9 +1,9 @@
 import { Router } from 'express';
 import { stateController } from '../controllers/state.controller';
 import { sensorController } from '../controllers/sensor.controller';
-import { weatherController } from '../controllers/weather.controller';
-import { cameraController } from '../controllers/camera.controller';
 import { DatabaseController } from '../controllers/database.controller';
+import { navigationController } from '../controllers/navigation.controller';
+import { dataManagementController } from '../controllers/data-management.controller';
 
 const router = Router();
 
@@ -19,15 +19,6 @@ router.get('/sensors/history/:category/:sensor', sensorController.getSpecificSen
 router.get('/sensors/:category', sensorController.getSensorCategory.bind(sensorController));
 router.get('/sensors/:category/history', sensorController.getSensorHistory.bind(sensorController));
 
-// Weather routes
-router.get('/weather/current', weatherController.getCurrentWeather.bind(weatherController));
-router.get('/weather/forecast', weatherController.getForecast.bind(weatherController));
-
-// Camera routes
-router.get('/cameras', cameraController.listCameras.bind(cameraController));
-router.get('/cameras/:id', cameraController.getCameraDetails.bind(cameraController));
-router.get('/cameras/:id/stream', cameraController.getCameraStream.bind(cameraController));
-
 // Database routes
 router.get('/database/stats', DatabaseController.getStats);
 router.get('/database/settings', DatabaseController.getSettings);
@@ -41,5 +32,20 @@ router.get('/database/trips', DatabaseController.getTripLog);
 router.post('/database/trips/start', DatabaseController.startTrip);
 router.post('/database/trips/:id/end', DatabaseController.endTrip);
 router.post('/database/cleanup', DatabaseController.cleanupOldData);
+
+// Navigation routes
+router.post('/navigation/route', navigationController.calculateRoute.bind(navigationController));
+router.post('/navigation/check-route', navigationController.checkRoute.bind(navigationController));
+router.get('/navigation/water-type', navigationController.getWaterType.bind(navigationController));
+router.get('/navigation/demo', navigationController.getDemoNavigation.bind(navigationController));
+router.post('/navigation/demo', navigationController.updateDemoNavigation.bind(navigationController));
+
+// Data management routes
+router.get('/data/status', dataManagementController.getStatus.bind(dataManagementController));
+router.get('/data/progress/:fileId', dataManagementController.getDownloadProgress.bind(dataManagementController));
+router.post('/data/download/:fileId', dataManagementController.downloadFile.bind(dataManagementController));
+router.post('/data/cancel/:fileId', dataManagementController.cancelDownload.bind(dataManagementController));
+router.put('/data/:fileId/url', dataManagementController.updateUrl.bind(dataManagementController));
+router.delete('/data/:fileId', dataManagementController.deleteFile.bind(dataManagementController));
 
 export default router;
