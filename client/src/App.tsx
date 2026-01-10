@@ -26,6 +26,9 @@ function AppContent() {
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
   const [activeView, setActiveView] = useState<ActiveView>('dashboard');
   const [, forceUpdate] = useState(0);
+  const [isOfflineMode, setIsOfflineMode] = useState(false);
+  const [showOnlineBanner, setShowOnlineBanner] = useState(false);
+  const wasOfflineRef = useRef<boolean | null>(null);
   const { setCurrentDepth } = useSettings();
   const repaintIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -74,6 +77,21 @@ function AppContent() {
 
     wsService.on('disconnect', () => {
       setConnectionStatus('disconnected');
+    });
+
+    // Listen for connectivity changes from server
+    wsService.on('connectivity_change', (data: { online: boolean }) => {
+      const isOnline = data.online;
+
+      // Detect transition from offline to online
+      if (wasOfflineRef.current === true && isOnline) {
+        // Show "ONLINE" banner briefly
+        setShowOnlineBanner(true);
+        setTimeout(() => setShowOnlineBanner(false), 3000);
+      }
+
+      wasOfflineRef.current = !isOnline;
+      setIsOfflineMode(!isOnline);
     });
 
     fetchInitialData();
@@ -144,6 +162,62 @@ function AppContent() {
     );
   };
 
+  // Connectivity status indicator (offline/online)
+  const ConnectivityBanner = () => {
+    // Show green "ONLINE" banner briefly when coming back online
+    if (showOnlineBanner) {
+      return (
+        <div style={{
+          position: 'fixed',
+          top: '4px',
+          right: '50px',
+          background: 'rgba(34, 197, 94, 0.9)',
+          color: '#fff',
+          padding: '2px 6px',
+          fontSize: '9px',
+          fontWeight: 600,
+          zIndex: 10000,
+          borderRadius: '3px',
+          animation: 'fadeOut 3s ease-in-out forwards',
+        }}>
+          ONLINE
+          <style>
+            {`
+              @keyframes fadeOut {
+                0% { opacity: 1; }
+                70% { opacity: 1; }
+                100% { opacity: 0; }
+              }
+            `}
+          </style>
+        </div>
+      );
+    }
+
+    // Show red "OFFLINE" banner when offline
+    if (isOfflineMode) {
+      return (
+        <div style={{
+          position: 'fixed',
+          top: '4px',
+          right: '50px',
+          background: 'rgba(239, 68, 68, 0.85)',
+          color: '#fff',
+          padding: '2px 6px',
+          fontSize: '9px',
+          fontWeight: 600,
+          zIndex: 10000,
+          borderRadius: '3px',
+          opacity: 0.8,
+        }}>
+          OFFLINE
+        </div>
+      );
+    }
+
+    return null;
+  };
+
   // Disconnection warning overlay
   const DisconnectionWarning = () => (
     <div style={{
@@ -199,6 +273,7 @@ function AppContent() {
       <>
         <MapPage onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -209,6 +284,7 @@ function AppContent() {
       <>
         <WindView sensorData={sensorData} onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -219,6 +295,7 @@ function AppContent() {
       <>
         <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -229,6 +306,7 @@ function AppContent() {
       <>
         <SettingsView onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -239,6 +317,7 @@ function AppContent() {
       <>
         <SpeedView speed={sensorData.navigation.speedOverGround} onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -249,6 +328,7 @@ function AppContent() {
       <>
         <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -259,6 +339,7 @@ function AppContent() {
       <>
         <COGView cog={sensorData.navigation.courseOverGround} onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -269,6 +350,7 @@ function AppContent() {
       <>
         <PositionView position={sensorData.navigation.position} onClose={handleBack} />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -285,6 +367,7 @@ function AppContent() {
           onClose={handleBack}
         />
         <DemoModeBanner />
+        <ConnectivityBanner />
         {connectionStatus === 'disconnected' && <DisconnectionWarning />}
       </>
     );
@@ -301,7 +384,8 @@ function AppContent() {
     }}>
       <Dashboard sensorData={sensorData} onNavigate={handleNavigate} />
       <DemoModeBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      <ConnectivityBanner />
+      {connectionStatus === 'disconnected' && <DisconnectionWarning />}
     </div>
   );
 }

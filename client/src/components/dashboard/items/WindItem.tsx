@@ -1,18 +1,27 @@
 import React from 'react';
+import { useSettings, windConversions } from '../../../context/SettingsContext';
 import { theme } from '../../../styles/theme';
 
 interface WindItemProps {
-  speedApparent: number;
+  speedApparent: number; // Speed in knots
   angleApparent: number;
 }
 
 export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent }) => {
+  const { windUnit, convertWind } = useSettings();
+  const convertedSpeed = convertWind(speedApparent);
+
   const getWindDirection = (angle: number): string => {
     if (angle < 45 || angle > 315) return 'HEAD';
     if (angle >= 45 && angle <= 135) return 'STBD';
     if (angle > 135 && angle < 225) return 'STERN';
     return 'PORT';
   };
+
+  // For Beaufort, show as integer; for others show one decimal
+  const displayValue = windUnit === 'bft'
+    ? convertedSpeed.toFixed(0)
+    : convertedSpeed.toFixed(1);
 
   return (
     <div style={{
@@ -39,9 +48,11 @@ export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent
         lineHeight: 1,
         marginTop: theme.space.xs,
       }}>
-        {speedApparent.toFixed(0)}
+        {displayValue}
       </div>
-      <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>kts AWA</div>
+      <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+        {windConversions[windUnit].label} AWA
+      </div>
       <div style={{
         display: 'flex',
         alignItems: 'center',

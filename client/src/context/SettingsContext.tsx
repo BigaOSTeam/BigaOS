@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import { wsService } from '../services/websocket';
 
 export type SpeedUnit = 'kt' | 'km/h' | 'mph' | 'm/s';
+export type WindUnit = 'kt' | 'km/h' | 'm/s' | 'bft';
 export type DepthUnit = 'm' | 'ft';
 export type DistanceUnit = 'nm' | 'km' | 'mi';
 export type TimeFormat = '12h' | '24h';
@@ -34,13 +35,22 @@ export const distanceConversions: Record<DistanceUnit, { factor: number; label: 
   'mi': { factor: 1.15078, label: 'mi' }
 };
 
+export const windConversions: Record<WindUnit, { factor: number; label: string }> = {
+  'kt': { factor: 1, label: 'kt' },
+  'km/h': { factor: 1.852, label: 'km/h' },
+  'm/s': { factor: 0.514444, label: 'm/s' },
+  'bft': { factor: 1, label: 'bft' } // Beaufort is special - handled separately
+};
+
 interface SettingsContextType {
   // Units
   speedUnit: SpeedUnit;
+  windUnit: WindUnit;
   depthUnit: DepthUnit;
   distanceUnit: DistanceUnit;
   timeFormat: TimeFormat;
   setSpeedUnit: (unit: SpeedUnit) => void;
+  setWindUnit: (unit: WindUnit) => void;
   setDepthUnit: (unit: DepthUnit) => void;
   setDistanceUnit: (unit: DistanceUnit) => void;
   setTimeFormat: (format: TimeFormat) => void;
@@ -63,6 +73,7 @@ interface SettingsContextType {
 
   // Conversion helpers
   convertSpeed: (speedInKnots: number) => number;
+  convertWind: (windInKnots: number) => number;
   convertDepth: (depthInMeters: number) => number;
   convertDistance: (distanceInNm: number) => number;
 
@@ -78,8 +89,12 @@ interface SettingsContextType {
   isSynced: boolean;
 }
 
+// Get API base URL for tile proxy
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+
 const defaultSettings = {
   speedUnit: 'kt' as SpeedUnit,
+  windUnit: 'kt' as WindUnit,
   depthUnit: 'm' as DepthUnit,
   distanceUnit: 'nm' as DistanceUnit,
   timeFormat: '24h' as TimeFormat,
@@ -87,9 +102,10 @@ const defaultSettings = {
   soundAlarmEnabled: false,
   demoMode: true,
   mapTileUrls: {
-    streetMap: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-    satelliteMap: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-    nauticalOverlay: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
+    // All tiles go through server proxy for offline support
+    streetMap: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
+    satelliteMap: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,
+    nauticalOverlay: `${API_BASE_URL}/tiles/nautical/{z}/{x}/{y}`,
   } as MapTileUrls,
   apiUrls: {
     nominatimUrl: 'https://photon.komoot.io',
@@ -100,6 +116,7 @@ const SettingsContext = createContext<SettingsContextType | null>(null);
 
 export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [speedUnit, setSpeedUnitState] = useState<SpeedUnit>(defaultSettings.speedUnit);
+  const [windUnit, setWindUnitState] = useState<WindUnit>(defaultSettings.windUnit);
   const [depthUnit, setDepthUnitState] = useState<DepthUnit>(defaultSettings.depthUnit);
   const [distanceUnit, setDistanceUnitState] = useState<DistanceUnit>(defaultSettings.distanceUnit);
   const [timeFormat, setTimeFormatState] = useState<TimeFormat>(defaultSettings.timeFormat);
@@ -121,6 +138,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       if (data.settings.speedUnit) {
         setSpeedUnitState(data.settings.speedUnit);
+      }
+      if (data.settings.windUnit) {
+        setWindUnitState(data.settings.windUnit);
       }
       if (data.settings.depthUnit) {
         setDepthUnitState(data.settings.depthUnit);
@@ -159,6 +179,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       switch (data.key) {
         case 'speedUnit':
           setSpeedUnitState(data.value);
+          break;
+        case 'windUnit':
+          setWindUnitState(data.value);
           break;
         case 'depthUnit':
           setDepthUnitState(data.value);
@@ -212,6 +235,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const setSpeedUnit = useCallback((unit: SpeedUnit) => {
     setSpeedUnitState(unit);
     updateServerSetting('speedUnit', unit);
+  }, [updateServerSetting]);
+
+  const setWindUnit = useCallback((unit: WindUnit) => {
+    setWindUnitState(unit);
+    updateServerSetting('windUnit', unit);
   }, [updateServerSetting]);
 
   const setDepthUnit = useCallback((unit: DepthUnit) => {
@@ -270,6 +298,26 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return speedInKnots * speedConversions[speedUnit].factor;
   }, [speedUnit]);
 
+  const convertWind = useCallback((windInKnots: number) => {
+    if (windUnit === 'bft') {
+      // Convert knots to Beaufort scale
+      if (windInKnots < 1) return 0;
+      if (windInKnots < 4) return 1;
+      if (windInKnots < 7) return 2;
+      if (windInKnots < 11) return 3;
+      if (windInKnots < 17) return 4;
+      if (windInKnots < 22) return 5;
+      if (windInKnots < 28) return 6;
+      if (windInKnots < 34) return 7;
+      if (windInKnots < 41) return 8;
+      if (windInKnots < 48) return 9;
+      if (windInKnots < 56) return 10;
+      if (windInKnots < 64) return 11;
+      return 12;
+    }
+    return windInKnots * windConversions[windUnit].factor;
+  }, [windUnit]);
+
   const convertDepth = useCallback((depthInMeters: number) => {
     return depthInMeters * depthConversions[depthUnit].factor;
   }, [depthUnit]);
@@ -280,10 +328,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const value: SettingsContextType = {
     speedUnit,
+    windUnit,
     depthUnit,
     distanceUnit,
     timeFormat,
     setSpeedUnit,
+    setWindUnit,
     setDepthUnit,
     setDistanceUnit,
     setTimeFormat,
@@ -300,6 +350,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     demoMode,
     setDemoMode,
     convertSpeed,
+    convertWind,
     convertDepth,
     convertDistance,
     currentDepth,

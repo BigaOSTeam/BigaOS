@@ -1,5 +1,6 @@
 import React from 'react';
 import { SensorData } from '../../types';
+import { useSettings, windConversions } from '../../context/SettingsContext';
 
 interface WindViewProps {
   sensorData: SensorData;
@@ -8,6 +9,7 @@ interface WindViewProps {
 
 export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
   const { wind } = sensorData.environment;
+  const { windUnit, convertWind } = useSettings();
 
   const getWindSector = (angle: number): string => {
     if (angle < 30 || angle > 330) return 'Dead Ahead';
@@ -38,6 +40,18 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
   };
 
   const beaufort = beaufortScale(wind.speedApparent);
+
+  // Convert wind speeds
+  const convertedApparent = convertWind(wind.speedApparent);
+  const convertedTrue = convertWind(wind.speedTrue);
+
+  // Format display value based on unit
+  const formatWindValue = (value: number) => {
+    if (windUnit === 'bft') return value.toFixed(0);
+    return value.toFixed(1);
+  };
+
+  const unitLabel = windConversions[windUnit].label;
 
   return (
     <div style={{
@@ -220,9 +234,9 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
               APPARENT WIND
             </div>
             <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#ffa726' }}>
-              {wind.speedApparent.toFixed(1)}
+              {formatWindValue(convertedApparent)}
             </div>
-            <div style={{ fontSize: '1rem', opacity: 0.6 }}>knots</div>
+            <div style={{ fontSize: '1rem', opacity: 0.6 }}>{unitLabel}</div>
             <div style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#ffa726' }}>
               {wind.angleApparent.toFixed(0)}°
             </div>
@@ -243,9 +257,9 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
               TRUE WIND
             </div>
             <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#4fc3f7' }}>
-              {wind.speedTrue.toFixed(1)}
+              {formatWindValue(convertedTrue)}
             </div>
-            <div style={{ fontSize: '1rem', opacity: 0.6 }}>knots</div>
+            <div style={{ fontSize: '1rem', opacity: 0.6 }}>{unitLabel}</div>
             <div style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#4fc3f7' }}>
               {wind.angleTrue.toFixed(0)}°
             </div>

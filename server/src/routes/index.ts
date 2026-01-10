@@ -4,6 +4,7 @@ import { sensorController } from '../controllers/sensor.controller';
 import { DatabaseController } from '../controllers/database.controller';
 import { navigationController } from '../controllers/navigation.controller';
 import { dataManagementController } from '../controllers/data-management.controller';
+import { tilesController } from '../controllers/tiles.controller';
 
 const router = Router();
 
@@ -47,5 +48,19 @@ router.post('/data/download/:fileId', dataManagementController.downloadFile.bind
 router.post('/data/cancel/:fileId', dataManagementController.cancelDownload.bind(dataManagementController));
 router.put('/data/:fileId/url', dataManagementController.updateUrl.bind(dataManagementController));
 router.delete('/data/:fileId', dataManagementController.deleteFile.bind(dataManagementController));
+
+// Offline tiles routes
+router.get('/tiles/status', tilesController.getStatus.bind(tilesController));
+router.get('/tiles/regions', tilesController.getRegions.bind(tilesController));
+router.post('/tiles/regions', tilesController.createRegion.bind(tilesController));
+router.delete('/tiles/regions/:regionId', tilesController.deleteRegion.bind(tilesController));
+router.post('/tiles/cancel/:regionId', tilesController.cancelDownload.bind(tilesController));
+router.post('/tiles/estimate', tilesController.getEstimate.bind(tilesController));
+router.get('/tiles/storage', tilesController.getStorageStats.bind(tilesController));
+// Tile serving (must be last due to wildcard params)
+router.get('/tiles/:source/:z/:x/:y', tilesController.serveTile.bind(tilesController));
+
+// Geocoding routes (proxied through server for offline awareness)
+router.get('/geocoding/search', tilesController.searchLocations.bind(tilesController));
 
 export default router;

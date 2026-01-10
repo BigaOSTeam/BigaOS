@@ -3,7 +3,7 @@ import cors from 'cors';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
 import routes from './routes';
-import { WebSocketServer } from './websocket/websocket-server';
+import { WebSocketServer, setWsServerInstance } from './websocket/websocket-server';
 import db from './database/database';
 import { waterDetectionService } from './services/water-detection.service';
 
@@ -73,6 +73,7 @@ const httpServer = createServer(app);
 
 // Initialize WebSocket server
 const wsServer = new WebSocketServer(httpServer);
+setWsServerInstance(wsServer);
 
 // Start server
 httpServer.listen(PORT, '0.0.0.0', () => {

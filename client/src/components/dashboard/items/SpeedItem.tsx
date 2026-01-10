@@ -1,11 +1,15 @@
 import React from 'react';
+import { useSettings, speedConversions } from '../../../context/SettingsContext';
 import { theme } from '../../../styles/theme';
 
 interface SpeedItemProps {
-  speed: number;
+  speed: number; // Speed in knots
 }
 
 export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
+  const { speedUnit, convertSpeed } = useSettings();
+  const convertedSpeed = convertSpeed(speed);
+
   return (
     <div style={{
       display: 'flex',
@@ -30,9 +34,11 @@ export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
         lineHeight: 1,
         marginTop: theme.space.xs,
       }}>
-        {speed.toFixed(1)}
+        {convertedSpeed.toFixed(1)}
       </div>
-      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>kts</div>
+      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>
+        {speedConversions[speedUnit].label}
+      </div>
     </div>
   );
 };

@@ -2,22 +2,25 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   useSettings,
   SpeedUnit,
+  WindUnit,
   DepthUnit,
   DistanceUnit,
   TimeFormat,
   speedConversions,
+  windConversions,
   depthConversions,
   distanceConversions,
 } from '../../context/SettingsContext';
 import { theme } from '../../styles/theme';
-import { dataAPI, DataFileInfo } from '../../services/api';
+import { dataAPI, DataFileInfo, offlineMapsAPI, StorageStats } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
+import { OfflineMapsTab } from '../settings/OfflineMapsTab';
 
 interface SettingsViewProps {
   onClose: () => void;
 }
 
-type SettingsTab = 'general' | 'units' | 'downloads' | 'advanced';
+type SettingsTab = 'general' | 'units' | 'downloads' | 'offline-maps' | 'advanced';
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>('general');
@@ -27,8 +30,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
   const [savingUrl, setSavingUrl] = useState<string | null>(null);
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
   const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
+  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm } = useConfirmDialog();
+
+  const fetchStorageStats = useCallback(async () => {
+    try {
+      const response = await offlineMapsAPI.getStorageStats();
+      setStorageStats(response.data);
+    } catch (error) {
+      console.error('Failed to fetch storage stats:', error);
+    }
+  }, []);
 
   const fetchDataStatus = useCallback(async () => {
     try {
@@ -47,6 +60,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
       );
       setDownloadingFiles(new Set(activeDownloads.map(f => f.id)));
 
+      // Also fetch storage stats
+      fetchStorageStats();
+
       return activeDownloads.length > 0;
     } catch (error) {
       console.error('Failed to fetch data status:', error);
@@ -54,7 +70,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     } finally {
       setLoadingFiles(false);
     }
-  }, []);
+  }, [fetchStorageStats]);
 
   useEffect(() => {
     fetchDataStatus();
@@ -196,9 +212,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
 
   const {
     speedUnit,
+    windUnit,
     depthUnit,
     distanceUnit,
     setSpeedUnit,
+    setWindUnit,
     setDepthUnit,
     setDistanceUnit,
     setTimeFormat,
@@ -282,12 +300,21 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     },
     {
       id: 'downloads',
-      label: 'Downloads',
+      label: 'Nav Data',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-          <polyline points="7 10 12 15 17 10" />
-          <line x1="12" y1="15" x2="12" y2="3" />
+          <circle cx="12" cy="12" r="10" />
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+        </svg>
+      ),
+    },
+    {
+      id: 'offline-maps',
+      label: 'Offline Maps',
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
+          <circle cx="12" cy="10" r="3" />
         </svg>
       ),
     },
@@ -382,6 +409,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
         setSpeedUnit
       )}
 
+      {renderUnitSelector<WindUnit>(
+        'Wind',
+        windUnit,
+        ['kt', 'km/h', 'm/s', 'bft'],
+        {
+          'kt': windConversions['kt'].label,
+          'km/h': windConversions['km/h'].label,
+          'm/s': windConversions['m/s'].label,
+          'bft': 'Beaufort',
+        },
+        setWindUnit
+      )}
+
       {renderUnitSelector<DepthUnit>(
         'Depth',
         depthUnit,
@@ -419,16 +459,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     </div>
   );
 
-  // Render Downloads Tab
+  // Render Downloads Tab (Navigation Data)
   const renderDownloadsTab = () => (
     <div>
       <div style={{
         fontSize: theme.fontSize.sm,
         color: theme.colors.textMuted,
-        marginBottom: theme.space.lg,
+        marginBottom: theme.space.md,
       }}>
         Water body datasets for marine navigation and route planning.
       </div>
+
+      {/* Device Storage Info - compact */}
+      {storageStats?.deviceStorage && (
+        <div style={{
+          marginBottom: theme.space.lg,
+          display: 'flex',
+          alignItems: 'center',
+          gap: theme.space.sm,
+        }}>
+          <span style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, whiteSpace: 'nowrap' }}>
+            Storage: {storageStats.deviceStorage.availableFormatted} free
+          </span>
+          <div style={{
+            flex: 1,
+            height: '4px',
+            background: theme.colors.bgCardActive,
+            borderRadius: '2px',
+            overflow: 'hidden',
+          }}>
+            <div style={{
+              height: '100%',
+              width: `${storageStats.deviceStorage.usedPercent}%`,
+              background: storageStats.deviceStorage.usedPercent > 90
+                ? theme.colors.error
+                : storageStats.deviceStorage.usedPercent > 75
+                  ? theme.colors.warning
+                  : theme.colors.primary,
+              borderRadius: '2px',
+            }} />
+          </div>
+        </div>
+      )}
 
       {loadingFiles ? (
         <div style={{ color: theme.colors.textMuted, padding: theme.space.lg }}>
@@ -979,6 +1051,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
         return renderUnitsTab();
       case 'downloads':
         return renderDownloadsTab();
+      case 'offline-maps':
+        return <OfflineMapsTab formatFileSize={formatFileSize} />;
       case 'advanced':
         return renderAdvancedTab();
     }

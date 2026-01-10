@@ -148,4 +148,155 @@ export const dataAPI = {
     api.delete<{ success: boolean; message: string }>(`/data/${fileId}`)
 };
 
+// Offline Maps API
+export type TileLayer = 'street' | 'satellite' | 'nautical';
+
+export interface Bounds {
+  north: number;
+  south: number;
+  east: number;
+  west: number;
+}
+
+export interface OfflineRegion {
+  id: string;
+  name: string;
+  bounds: Bounds;
+  minZoom: number;
+  maxZoom: number;
+  layers: TileLayer[];
+  createdAt: string;
+  status: 'pending' | 'downloading' | 'complete' | 'error';
+  totalTiles: number;
+  downloadedTiles: number;
+  storageBytes: number;
+  error?: string;
+  downloadProgress?: TileDownloadProgress;
+}
+
+export interface TileDownloadProgress {
+  regionId: string;
+  status: 'downloading' | 'complete' | 'error' | 'cancelled';
+  currentLayer: TileLayer;
+  currentZoom: number;
+  tilesDownloaded: number;
+  totalTiles: number;
+  bytesDownloaded: number;
+  errors: number;
+  startTime: number;
+}
+
+export interface TileEstimate {
+  tilesPerLayer: number;
+  totalTiles: number;
+  estimatedSize: string;
+  estimatedBytes: number;
+}
+
+export interface DeviceStorage {
+  total: number;
+  used: number;
+  available: number;
+  totalFormatted: string;
+  usedFormatted: string;
+  availableFormatted: string;
+  usedPercent: number;
+}
+
+export interface StorageStats {
+  totalRegions: number;
+  completeRegions: number;
+  totalBytes: number;
+  totalSize: string;
+  deviceStorage: DeviceStorage;
+}
+
+// Geocoding API (proxied through server for offline awareness)
+export interface GeocodingSearchResult {
+  lat: string;
+  lon: string;
+  display_name: string;
+  type: string;
+  osm_id?: number;
+  osm_type?: string;
+  name?: string;
+  city?: string;
+  country?: string;
+}
+
+export interface GeocodingResponse {
+  results: GeocodingSearchResult[];
+  offline: boolean;
+  message?: string;
+}
+
+export const geocodingAPI = {
+  /**
+   * Search for locations - returns empty results when offline
+   */
+  search: (query: string, limit: number = 5) =>
+    api.get<GeocodingResponse>('/geocoding/search', {
+      params: { q: query, limit }
+    }),
+};
+
+export const offlineMapsAPI = {
+  /**
+   * Get server connectivity status
+   */
+  getStatus: () =>
+    api.get<{ online: boolean; lastCheck: number }>('/tiles/status'),
+
+  /**
+   * Get all saved offline regions
+   */
+  getRegions: () =>
+    api.get<{ regions: OfflineRegion[] }>('/tiles/regions'),
+
+  /**
+   * Create a new region and start downloading
+   */
+  createRegion: (data: {
+    name: string;
+    bounds: Bounds;
+    minZoom?: number;
+    maxZoom?: number;
+    layers?: TileLayer[];
+  }) =>
+    api.post<{
+      message: string;
+      region: OfflineRegion;
+      estimate: TileEstimate;
+    }>('/tiles/regions', data),
+
+  /**
+   * Delete a region and its tiles
+   */
+  deleteRegion: (regionId: string) =>
+    api.delete<{ success: boolean; message: string }>(`/tiles/regions/${regionId}`),
+
+  /**
+   * Cancel an active download
+   */
+  cancelDownload: (regionId: string) =>
+    api.post<{ success: boolean; message: string }>(`/tiles/cancel/${regionId}`),
+
+  /**
+   * Get estimate for a region without creating it
+   */
+  getEstimate: (data: {
+    bounds: Bounds;
+    minZoom?: number;
+    maxZoom?: number;
+    layers?: TileLayer[];
+  }) =>
+    api.post<TileEstimate>('/tiles/estimate', data),
+
+  /**
+   * Get storage statistics
+   */
+  getStorageStats: () =>
+    api.get<StorageStats>('/tiles/storage'),
+};
+
 export default api;

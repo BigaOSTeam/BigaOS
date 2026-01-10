@@ -27,8 +27,8 @@ export class WebSocketServer {
   private initializeDemoMode() {
     try {
       const demoModeSetting = db.getSetting('demoMode');
-      if (demoModeSetting && demoModeSetting.value && demoModeSetting.value !== 'undefined') {
-        const enabled = JSON.parse(demoModeSetting.value);
+      if (demoModeSetting && demoModeSetting !== 'undefined') {
+        const enabled = JSON.parse(demoModeSetting);
         dummyDataService.setDemoMode(enabled);
         console.log(`Demo mode initialized: ${enabled}`);
       } else {
@@ -159,17 +159,6 @@ export class WebSocketServer {
         this.storageCounter = 0;
         this.storeSensorData(sensorData);
       }
-
-      // Occasionally send notifications
-      if (Math.random() < 0.01) { // 1% chance per update
-        this.io.emit('notification', {
-          type: 'notification',
-          severity: 'info',
-          title: 'System Update',
-          message: 'All systems operating normally',
-          timestamp: new Date()
-        });
-      }
     }, 1000);
   }
 
@@ -294,4 +283,21 @@ export class WebSocketServer {
     }
     this.io.close();
   }
+
+  /**
+   * Broadcast connectivity status change to all clients
+   */
+  public broadcastConnectivityChange(online: boolean): void {
+    this.io.emit('connectivity_change', {
+      online,
+      timestamp: new Date()
+    });
+  }
+}
+
+// Export a singleton reference that will be set by index.ts
+export let wsServerInstance: WebSocketServer | null = null;
+
+export function setWsServerInstance(instance: WebSocketServer): void {
+  wsServerInstance = instance;
 }

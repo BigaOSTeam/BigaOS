@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { MapContainer, TileLayer, Marker, Popup, Polyline } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
@@ -7,8 +7,17 @@ import {
   useSettings,
   distanceConversions,
 } from '../../context/SettingsContext';
-import { geocodingService, SearchResult } from '../../services/geocoding';
-import { navigationAPI } from '../../services/api';
+import { SearchResult } from '../../services/geocoding';
+import { navigationAPI, geocodingAPI } from '../../services/api';
+import { wsService } from '../../services/websocket';
+
+// Hardcoded server proxy URLs for tiles - client always fetches through server
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const TILE_URLS = {
+  street: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
+  satellite: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,
+  nautical: `${API_BASE_URL}/tiles/nautical/{z}/{x}/{y}`,
+};
 
 // Import extracted components
 import {
@@ -27,6 +36,57 @@ import {
   DepthSettingsPanel,
   SearchPanel,
 } from './chart';
+
+// Component to refresh tiles when connectivity changes from offline to online
+const ConnectivityRefresher: React.FC = () => {
+  const map = useMap();
+  const wasOfflineRef = useRef<boolean>(false);
+
+  useEffect(() => {
+    const handleConnectivityChange = (data: { online: boolean }) => {
+      // If we were offline and now online, refresh all tile layers
+      if (wasOfflineRef.current && data.online) {
+        console.log('Connectivity restored - refreshing tiles...');
+
+        // Longer delay to ensure server connectivity check has settled
+        // Server checks every 5s, so wait a bit for it to confirm online status
+        setTimeout(() => {
+          map.eachLayer((layer) => {
+            if (layer instanceof L.TileLayer) {
+              // Force reload by removing and re-adding the tile layer's URL
+              // This busts browser cache for placeholder tiles
+              const tileLayer = layer as L.TileLayer;
+              const currentUrl = (tileLayer as any)._url;
+
+              // Add cache-busting parameter to force fresh tiles
+              const cacheBuster = `_cb=${Date.now()}`;
+              const newUrl = currentUrl.includes('?')
+                ? `${currentUrl}&${cacheBuster}`
+                : `${currentUrl}?${cacheBuster}`;
+
+              tileLayer.setUrl(newUrl);
+
+              // After tiles start loading, restore original URL for future requests
+              setTimeout(() => {
+                tileLayer.setUrl(currentUrl);
+              }, 100);
+            }
+          });
+        }, 1500);
+      }
+      wasOfflineRef.current = !data.online;
+    };
+
+    // Listen for connectivity changes via WebSocket
+    wsService.on('connectivity_change', handleConnectivityChange);
+
+    return () => {
+      wsService.off('connectivity_change', handleConnectivityChange);
+    };
+  }, [map]);
+
+  return null;
+};
 
 interface ChartViewProps {
   position: GeoPosition;
@@ -56,6 +116,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [isOffline, setIsOffline] = useState(false);
 
   // Marker state
   const [customMarkers, setCustomMarkers] = useState<CustomMarker[]>(() => {
@@ -104,8 +165,6 @@ export const ChartView: React.FC<ChartViewProps> = ({
     convertSpeed,
     convertDepth,
     convertDistance,
-    mapTileUrls,
-    apiUrls,
   } = useSettings();
 
   const convertedSpeed = convertSpeed(speed);
@@ -313,13 +372,27 @@ export const ChartView: React.FC<ChartViewProps> = ({
     };
   }, [isDepthAlarmTriggered, soundAlarmEnabled, playBeep]);
 
-  // Update geocoding service URL
+  // Track offline state for search panel
   useEffect(() => {
-    geocodingService.setConfig({ nominatimUrl: apiUrls.nominatimUrl });
-  }, [apiUrls.nominatimUrl]);
+    const handleConnectivityChange = (data: { online: boolean }) => {
+      setIsOffline(!data.online);
+    };
 
-  // Debounced search
+    wsService.on('connectivity_change', handleConnectivityChange);
+
+    return () => {
+      wsService.off('connectivity_change', handleConnectivityChange);
+    };
+  }, []);
+
+  // Debounced search - only search when online
   useEffect(() => {
+    // Don't search if offline
+    if (isOffline) {
+      setSearchResults([]);
+      return;
+    }
+
     const timer = setTimeout(() => {
       if (searchQuery.trim().length >= 2) {
         handleSearch(searchQuery);
@@ -328,19 +401,31 @@ export const ChartView: React.FC<ChartViewProps> = ({
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [searchQuery]);
+  }, [searchQuery, isOffline]);
 
-  // Search handler
+  // Search handler - uses server API which handles offline state
   const handleSearch = async (query: string) => {
-    if (query.trim().length < 2) {
+    if (query.trim().length < 2 || isOffline) {
       setSearchResults([]);
       return;
     }
 
     setSearchLoading(true);
     try {
-      const results = await geocodingService.search(query, { limit: 5 });
-      setSearchResults(results);
+      const response = await geocodingAPI.search(query, 5);
+      // Server returns { results, offline } - if offline, results will be empty
+      if (response.data.offline) {
+        setIsOffline(true);
+        setSearchResults([]);
+      } else {
+        // Transform server response to SearchResult format
+        setSearchResults(response.data.results.map(r => ({
+          lat: r.lat,
+          lon: r.lon,
+          display_name: r.display_name,
+          type: r.type,
+        })));
+      }
     } catch (error) {
       console.error('Search error:', error);
       setSearchResults([]);
@@ -455,11 +540,14 @@ export const ChartView: React.FC<ChartViewProps> = ({
         zoomControl={!hideSidebar}
       >
         {useSatellite ? (
-          <TileLayer attribution="" url={mapTileUrls.satelliteMap} />
+          <TileLayer attribution="" url={TILE_URLS.satellite} />
         ) : (
-          <TileLayer attribution="" url={mapTileUrls.streetMap} />
+          <TileLayer attribution="" url={TILE_URLS.street} />
         )}
-        <TileLayer attribution="" url={mapTileUrls.nauticalOverlay} />
+        <TileLayer attribution="" url={TILE_URLS.nautical} />
+
+        {/* Auto-refresh tiles when coming back online */}
+        <ConnectivityRefresher />
 
         {/* Boat marker */}
         <Marker
@@ -733,6 +821,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           searchResults={searchResults}
           searchLoading={searchLoading}
           customMarkers={customMarkers}
+          isOffline={isOffline}
           onSearchChange={setSearchQuery}
           onResultClick={handleSearchResultClick}
           onMarkerClick={handleMarkerSearchClick}
