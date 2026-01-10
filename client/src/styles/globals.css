@@ -237,16 +237,29 @@ html, body {
   box-shadow: none !important;
 }
 
-.leaflet-control-zoom a:not(:active):not(:hover) {
+.leaflet-control-zoom a:not(:active) {
   background-color: var(--color-bg-secondary) !important;
 }
 
-.leaflet-control-zoom a:hover:not(:active) {
-  background-color: var(--color-primary-solid) !important;
+/* Only apply hover styles on devices that support hover (not touch) */
+@media (hover: hover) and (pointer: fine) {
+  .leaflet-control-zoom a:hover:not(:active) {
+    background-color: var(--color-primary-solid) !important;
+  }
+
+  .leaflet-control-zoom a:focus:hover {
+    background-color: var(--color-primary-solid) !important;
+  }
 }
 
 .leaflet-control-zoom a:active {
   background-color: rgba(25, 118, 210, 0.7) !important;
+}
+
+.leaflet-control-zoom a:focus {
+  background-color: var(--color-bg-secondary) !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 .leaflet-control-zoom a.leaflet-disabled,
@@ -451,4 +464,61 @@ html, body {
 .chart-search-results {
   scrollbar-width: thin;
   scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+}
+
+/* ========================================
+   Chart Sidebar Buttons (touch-friendly)
+   ======================================== */
+
+.chart-sidebar-btn {
+  width: 100%;
+  height: 56px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  transition: background 0.2s;
+}
+
+.chart-sidebar-btn.with-label {
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.chart-sidebar-btn.active {
+  background: rgba(25, 118, 210, 0.3);
+}
+
+.chart-sidebar-btn:active {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Only apply hover on devices that support it */
+@media (hover: hover) and (pointer: fine) {
+  .chart-sidebar-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.1);
+  }
+}
+
+/* Generic touch-friendly button */
+.touch-btn {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.touch-btn.active {
+  background: rgba(25, 118, 210, 0.3) !important;
+}
+
+.touch-btn:active {
+  background: rgba(255, 255, 255, 0.15) !important;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .touch-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.1) !important;
+  }
 }

@@ -1,21 +1,17 @@
 import { Request, Response } from 'express';
 import { waterDetectionService } from '../services/water-detection.service';
+import { routeWorkerService } from '../services/route-worker.service';
 import { dummyDataService } from '../services/dummy-data.service';
 
 class NavigationController {
   /**
    * Calculate a water-only route between two points
+   * Uses worker thread to avoid blocking the main event loop
    * POST /api/navigation/route
    */
   async calculateRoute(req: Request, res: Response) {
     try {
       const { startLat, startLon, endLat, endLon } = req.body;
-
-      if (!waterDetectionService.isInitialized()) {
-        return res.status(503).json({
-          error: 'Water detection service not initialized'
-        });
-      }
 
       if (
         typeof startLat !== 'number' ||
@@ -25,6 +21,25 @@ class NavigationController {
       ) {
         return res.status(400).json({
           error: 'Invalid parameters. Required: startLat, startLon, endLat, endLon (all numbers)'
+        });
+      }
+
+      // Use worker thread for route calculation (non-blocking)
+      if (routeWorkerService.isReady()) {
+        const result = await routeWorkerService.findWaterRoute(startLat, startLon, endLat, endLon);
+        return res.json({
+          success: result.success,
+          waypoints: result.waypoints,
+          distance: result.distance,
+          waypointCount: result.waypoints.length,
+          crossesLand: !result.success || result.waypoints.length > 2
+        });
+      }
+
+      // Fallback to main thread if worker not available
+      if (!waterDetectionService.isInitialized()) {
+        return res.status(503).json({
+          error: 'Water detection service not initialized'
         });
       }
 

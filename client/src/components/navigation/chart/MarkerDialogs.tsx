@@ -26,6 +26,7 @@ interface EditMarkerDialogProps extends MarkerDialogBaseProps {
 const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
   <button
     onClick={onClick}
+    className="touch-btn"
     style={{
       position: 'absolute',
       top: '0.75rem',
@@ -40,15 +41,6 @@ const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       justifyContent: 'center',
       borderRadius: '4px',
       color: 'rgba(255, 255, 255, 0.6)',
-      transition: 'color 0.2s, background 0.2s',
-    }}
-    onMouseEnter={(e) => {
-      e.currentTarget.style.color = '#fff';
-      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-    }}
-    onMouseLeave={(e) => {
-      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
-      e.currentTarget.style.background = 'transparent';
     }}
   >
     <svg
@@ -89,6 +81,7 @@ const IconSelector: React.FC<{
         <button
           key={iconKey}
           onClick={() => onSelect(iconKey)}
+          className="touch-btn"
           style={{
             width: '36px',
             height: '36px',
@@ -105,10 +98,7 @@ const IconSelector: React.FC<{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            transition: 'transform 0.2s, background 0.2s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         >
           <svg
             width="24"
@@ -148,6 +138,7 @@ const ColorSelector: React.FC<{
         <button
           key={color}
           onClick={() => onSelect(color)}
+          className="touch-btn"
           style={{
             width: '36px',
             height: '36px',
@@ -158,10 +149,7 @@ const ColorSelector: React.FC<{
                 ? '2px solid #fff'
                 : '1px solid rgba(255,255,255,0.2)',
             cursor: 'pointer',
-            transition: 'transform 0.2s',
           }}
-          onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.1)')}
-          onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
         />
       ))}
     </div>

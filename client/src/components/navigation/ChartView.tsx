@@ -22,6 +22,8 @@ const TILE_URLS = {
 // Import extracted components
 import {
   calculateDistanceNm,
+  calculateRouteDistanceNm,
+  calculateBearing,
   formatETA,
   CustomMarker,
   markerColors,
@@ -143,14 +145,16 @@ export const ChartView: React.FC<ChartViewProps> = ({
   );
   const [routeWaypoints, setRouteWaypoints] = useState<
     Array<{ lat: number; lon: number }>
-  >([]);
+  >(() => {
+    const saved = localStorage.getItem('routeWaypoints');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [routeLoading, setRouteLoading] = useState(false);
 
   // Refs
   const mapRef = useRef<L.Map>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const lastRoutePositionRef = useRef<{ lat: number; lon: number } | null>(null);
 
   // Settings
   const {
@@ -214,32 +218,33 @@ export const ChartView: React.FC<ChartViewProps> = ({
     [isDepthAlarmTriggered]
   );
 
-  // Fetch water-aware route
-  const fetchRoute = useCallback(async () => {
-    if (!navigationTarget) {
-      setRouteWaypoints([]);
-      return;
-    }
-
+  // Fetch water-aware route (called once when navigation starts)
+  const fetchRoute = useCallback(async (
+    startLat: number,
+    startLon: number,
+    endLat: number,
+    endLon: number
+  ) => {
     setRouteLoading(true);
     try {
       const response = await navigationAPI.calculateRoute(
-        position.latitude,
-        position.longitude,
-        navigationTarget.lat,
-        navigationTarget.lon
+        startLat,
+        startLon,
+        endLat,
+        endLon
       );
       setRouteWaypoints(response.data.waypoints);
     } catch (error) {
       console.error('Failed to calculate route:', error);
+      // Fallback to direct line
       setRouteWaypoints([
-        { lat: position.latitude, lon: position.longitude },
-        { lat: navigationTarget.lat, lon: navigationTarget.lon },
+        { lat: startLat, lon: startLon },
+        { lat: endLat, lon: endLon },
       ]);
     } finally {
       setRouteLoading(false);
     }
-  }, [navigationTarget, position.latitude, position.longitude]);
+  }, []);
 
   // Save markers to localStorage
   useEffect(() => {
@@ -252,28 +257,62 @@ export const ChartView: React.FC<ChartViewProps> = ({
       localStorage.setItem('navigationTarget', JSON.stringify(navigationTarget));
     } else {
       localStorage.removeItem('navigationTarget');
+      localStorage.removeItem('routeWaypoints');
       setRouteWaypoints([]);
     }
   }, [navigationTarget]);
 
-  // Fetch route when navigation target or position changes
+  // Save route waypoints to localStorage (separate effect to avoid infinite loop)
   useEffect(() => {
-    if (!navigationTarget) return;
-
-    const lastPos = lastRoutePositionRef.current;
-    const positionChanged =
-      !lastPos ||
-      Math.abs(position.latitude - lastPos.lat) > 0.0001 ||
-      Math.abs(position.longitude - lastPos.lon) > 0.0001;
-
-    if (positionChanged) {
-      lastRoutePositionRef.current = {
-        lat: position.latitude,
-        lon: position.longitude,
-      };
-      fetchRoute();
+    if (navigationTarget && routeWaypoints.length > 0) {
+      localStorage.setItem('routeWaypoints', JSON.stringify(routeWaypoints));
     }
-  }, [navigationTarget?.id, position.latitude, position.longitude, fetchRoute]);
+  }, [routeWaypoints, navigationTarget]);
+
+  // Waypoint arrival detection threshold in nautical miles (about 150 meters)
+  const WAYPOINT_ARRIVAL_THRESHOLD_NM = 0.08;
+
+  // Check for waypoint arrival and update route to follow boat
+  useEffect(() => {
+    if (!navigationTarget || routeWaypoints.length < 2) return;
+
+    // Check all waypoints (except first which is boat position) to find the furthest one we've reached
+    // This handles shortcuts - if we reach waypoint 3 before waypoint 2, skip to 3
+    let furthestReachedIndex = -1;
+
+    for (let i = 1; i < routeWaypoints.length; i++) {
+      const wp = routeWaypoints[i];
+      const distance = calculateDistanceNm(
+        position.latitude,
+        position.longitude,
+        wp.lat,
+        wp.lon
+      );
+
+      if (distance < WAYPOINT_ARRIVAL_THRESHOLD_NM) {
+        furthestReachedIndex = i;
+      }
+    }
+
+    // If we reached any waypoint
+    if (furthestReachedIndex > 0) {
+      // Check if we reached the final destination
+      if (furthestReachedIndex === routeWaypoints.length - 1) {
+        // Arrived at destination!
+        setNavigationTarget(null);
+        return;
+      }
+
+      // Skip to the waypoint after the furthest one we reached
+      const remainingWaypoints = routeWaypoints.slice(furthestReachedIndex + 1);
+
+      // Update waypoints with boat position as first point
+      setRouteWaypoints([
+        { lat: position.latitude, lon: position.longitude },
+        ...remainingWaypoints,
+      ]);
+    }
+  }, [position.latitude, position.longitude, navigationTarget, routeWaypoints]);
 
   // Save satellite view preference
   useEffect(() => {
@@ -473,6 +512,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
     setSearchResults([]);
   };
 
+  // Get next marker ID (continuous incrementing)
+  const getNextMarkerId = (): string => {
+    const existingIds = customMarkers
+      .map((m) => parseInt(m.id, 10))
+      .filter((id) => !isNaN(id));
+    const maxId = existingIds.length > 0 ? Math.max(...existingIds) : 0;
+    return String(maxId + 1);
+  };
+
   // Marker management
   const addMarker = (
     lat: number,
@@ -482,7 +530,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
     icon: string
   ) => {
     const newMarker: CustomMarker = {
-      id: Date.now().toString(),
+      id: getNextMarkerId(),
       lat,
       lon,
       name,
@@ -514,9 +562,13 @@ export const ChartView: React.FC<ChartViewProps> = ({
   };
 
   const navigateToMarker = (marker: CustomMarker) => {
+    setRouteWaypoints([]); // Clear old waypoints
     setNavigationTarget(marker);
     setEditingMarker(null);
     setAutoCenter(false);
+
+    // Calculate route once from current position to marker
+    fetchRoute(position.latitude, position.longitude, marker.lat, marker.lon);
 
     if (mapRef.current) {
       const bounds = L.latLngBounds(
@@ -590,13 +642,54 @@ export const ChartView: React.FC<ChartViewProps> = ({
           />
         ))}
 
-        {/* Navigation route */}
-        {navigationTarget && routeWaypoints.length >= 2 && (
+        {/* Navigation route - always starts from current boat position */}
+        {navigationTarget && routeWaypoints.length >= 2 && (() => {
+          // Build route positions: boat position + remaining waypoints (skip first stored waypoint)
+          const routePositions: [number, number][] = [
+            [position.latitude, position.longitude],
+            ...routeWaypoints.slice(1).map((wp) => [wp.lat, wp.lon] as [number, number]),
+          ];
+          return (
+            <>
+              <Polyline
+                positions={routePositions}
+                pathOptions={{
+                  color: '#ffffff',
+                  weight: 5,
+                  dashArray: '10, 10',
+                  opacity: 0.8,
+                }}
+              />
+              <Polyline
+                positions={routePositions}
+                pathOptions={{
+                  color: '#000000',
+                  weight: 3,
+                  dashArray: '10, 10',
+                  opacity: 0.9,
+                }}
+              />
+              {/* Show intermediate waypoint markers (not start or end) */}
+              {routeWaypoints.length > 2 &&
+                routeWaypoints.slice(1, -1).map((wp, index) => (
+                  <Marker
+                    key={`waypoint-${index}`}
+                    position={[wp.lat, wp.lon]}
+                    icon={createWaypointIcon()}
+                  />
+                ))}
+            </>
+          );
+        })()}
+
+        {/* Fallback direct line when route calculation failed (not while loading) */}
+        {navigationTarget && routeWaypoints.length < 2 && !routeLoading && (
           <>
             <Polyline
-              positions={routeWaypoints.map(
-                (wp) => [wp.lat, wp.lon] as [number, number]
-              )}
+              positions={[
+                [position.latitude, position.longitude],
+                [navigationTarget.lat, navigationTarget.lon],
+              ]}
               pathOptions={{
                 color: '#ffffff',
                 weight: 5,
@@ -605,52 +698,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
               }}
             />
             <Polyline
-              positions={routeWaypoints.map(
-                (wp) => [wp.lat, wp.lon] as [number, number]
-              )}
+              positions={[
+                [position.latitude, position.longitude],
+                [navigationTarget.lat, navigationTarget.lon],
+              ]}
               pathOptions={{
                 color: '#000000',
                 weight: 3,
                 dashArray: '10, 10',
                 opacity: 0.9,
-              }}
-            />
-            {routeWaypoints.length > 2 &&
-              routeWaypoints.slice(1, -1).map((wp, index) => (
-                <Marker
-                  key={`waypoint-${index}`}
-                  position={[wp.lat, wp.lon]}
-                  icon={createWaypointIcon()}
-                />
-              ))}
-          </>
-        )}
-
-        {/* Fallback direct line while loading */}
-        {navigationTarget && routeWaypoints.length < 2 && (
-          <>
-            <Polyline
-              positions={[
-                [position.latitude, position.longitude],
-                [navigationTarget.lat, navigationTarget.lon],
-              ]}
-              pathOptions={{
-                color: '#ffffff',
-                weight: 5,
-                dashArray: '10, 10',
-                opacity: routeLoading ? 0.4 : 0.8,
-              }}
-            />
-            <Polyline
-              positions={[
-                [position.latitude, position.longitude],
-                [navigationTarget.lat, navigationTarget.lon],
-              ]}
-              pathOptions={{
-                color: routeLoading ? '#888888' : '#000000',
-                weight: 3,
-                dashArray: '10, 10',
-                opacity: routeLoading ? 0.5 : 0.9,
               }}
             />
           </>
@@ -663,6 +719,56 @@ export const ChartView: React.FC<ChartViewProps> = ({
         />
         <LongPressHandler onLongPress={handleLongPress} />
       </MapContainer>
+
+      {/* Route calculation loading overlay */}
+      {routeLoading && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1001,
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(30, 30, 30, 0.95)',
+              borderRadius: '8px',
+              padding: '1.5rem 2rem',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '1rem',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.5)',
+            }}
+          >
+            <div
+              style={{
+                width: '40px',
+                height: '40px',
+                border: '3px solid rgba(255, 255, 255, 0.2)',
+                borderTopColor: '#4fc3f7',
+                borderRadius: '50%',
+                animation: 'spin 1s linear infinite',
+              }}
+            />
+            <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 500 }}>
+              Calculating route...
+            </div>
+            <style>{`
+              @keyframes spin {
+                to { transform: rotate(360deg); }
+              }
+            `}</style>
+          </div>
+        </div>
+      )}
 
       {/* Sidebar */}
       {!hideSidebar && (
@@ -678,6 +784,16 @@ export const ChartView: React.FC<ChartViewProps> = ({
           searchOpen={searchOpen}
           useSatellite={useSatellite}
           autoCenter={autoCenter}
+          bearingToTarget={
+            navigationTarget && routeWaypoints.length >= 2
+              ? calculateBearing(
+                  position.latitude,
+                  position.longitude,
+                  routeWaypoints[1].lat,
+                  routeWaypoints[1].lon
+                )
+              : null
+          }
           onClose={onClose}
           onDepthClick={() => setDepthSettingsOpen(!depthSettingsOpen)}
           onSearchClick={() => {
@@ -689,14 +805,14 @@ export const ChartView: React.FC<ChartViewProps> = ({
         />
       )}
 
-      {/* Navigation info banner */}
-      {!hideSidebar && navigationTarget && (() => {
-        const distanceNm = calculateDistanceNm(
-          position.latitude,
-          position.longitude,
-          navigationTarget.lat,
-          navigationTarget.lon
-        );
+      {/* Navigation info banner - only show when route is ready */}
+      {!hideSidebar && navigationTarget && !routeLoading && routeWaypoints.length >= 2 && (() => {
+        // Calculate distance along the actual route from current position
+        const currentRoute = [
+          { lat: position.latitude, lon: position.longitude },
+          ...routeWaypoints.slice(1),
+        ];
+        const distanceNm = calculateRouteDistanceNm(currentRoute);
         const convertedDistance = convertDistance(distanceNm);
         const etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
 
@@ -864,14 +980,14 @@ export const ChartView: React.FC<ChartViewProps> = ({
         />
       )}
 
-      {/* Compact navigation info for dashboard widget */}
-      {hideSidebar && navigationTarget && (() => {
-        const distanceNm = calculateDistanceNm(
-          position.latitude,
-          position.longitude,
-          navigationTarget.lat,
-          navigationTarget.lon
-        );
+      {/* Compact navigation info for dashboard widget - only show when route is ready */}
+      {hideSidebar && navigationTarget && !routeLoading && routeWaypoints.length >= 2 && (() => {
+        // Calculate distance along the actual route from current position
+        const currentRoute = [
+          { lat: position.latitude, lon: position.longitude },
+          ...routeWaypoints.slice(1),
+        ];
+        const distanceNm = calculateRouteDistanceNm(currentRoute);
         const convertedDistance = convertDistance(distanceNm);
         const etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
 
@@ -930,6 +1046,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
             e.stopPropagation();
             handleRecenter();
           }}
+          className={`touch-btn ${autoCenter ? 'active' : ''}`}
           style={{
             position: 'absolute',
             bottom: '1rem',
@@ -939,22 +1056,11 @@ export const ChartView: React.FC<ChartViewProps> = ({
             background: autoCenter ? 'rgba(25, 118, 210, 0.3)' : 'transparent',
             border: '1px solid rgba(255, 255, 255, 0.1)',
             borderRadius: '4px',
-            cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             color: '#fff',
             zIndex: 1000,
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            if (!autoCenter)
-              e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = autoCenter
-              ? 'rgba(25, 118, 210, 0.3)'
-              : 'transparent';
           }}
           title={autoCenter ? 'Auto-centering ON' : 'Click to recenter'}
         >

@@ -6,6 +6,7 @@ import routes from './routes';
 import { WebSocketServer, setWsServerInstance } from './websocket/websocket-server';
 import db from './database/database';
 import { waterDetectionService } from './services/water-detection.service';
+import { routeWorkerService } from './services/route-worker.service';
 
 // Load environment variables
 dotenv.config();
@@ -21,6 +22,11 @@ try {
 // Initialize water detection service (async, non-blocking)
 waterDetectionService.initialize().catch(error => {
   console.error('Failed to initialize water detection service:', error);
+});
+
+// Initialize route worker (async, non-blocking) - runs pathfinding in separate thread
+routeWorkerService.initialize().catch(error => {
+  console.error('Failed to initialize route worker:', error);
 });
 
 const app = express();
@@ -85,9 +91,10 @@ httpServer.listen(PORT, '0.0.0.0', () => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
   wsServer.stop();
+  await routeWorkerService.terminate();
   db.close();
   httpServer.close(() => {
     console.log('Server closed');
@@ -95,9 +102,10 @@ process.on('SIGTERM', () => {
   });
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
   wsServer.stop();
+  await routeWorkerService.terminate();
   db.close();
   httpServer.close(() => {
     console.log('Server closed');

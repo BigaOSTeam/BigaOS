@@ -784,8 +784,11 @@ class TilesController {
       await this.proxyTile(url, res);
     } catch (error) {
       console.error('Error proxying tile:', error);
-      res.setHeader('X-Offline-Mode', 'true');
-      res.status(502).json({ error: 'Failed to fetch tile' });
+      // Only send error response if headers haven't been sent yet
+      if (!res.headersSent) {
+        res.setHeader('X-Offline-Mode', 'true');
+        res.status(502).json({ error: 'Failed to fetch tile' });
+      }
     }
   }
 

@@ -40,6 +40,7 @@ export const DashboardItem: React.FC<DashboardItemProps> = ({
   return (
     <div
       onClick={handleClick}
+      className={editMode ? '' : 'touch-btn'}
       style={{
         width: '100%',
         height: '100%',
@@ -59,18 +60,6 @@ export const DashboardItem: React.FC<DashboardItemProps> = ({
         WebkitUserSelect: 'none',
         touchAction: editMode ? 'none' : 'auto',
       }}
-      onMouseEnter={(e) => {
-        if (!editMode) {
-          e.currentTarget.style.background = theme.colors.bgCardHover;
-          e.currentTarget.style.borderColor = theme.colors.borderHover;
-        }
-      }}
-      onMouseLeave={(e) => {
-        if (!editMode) {
-          e.currentTarget.style.background = theme.colors.bgCard;
-          e.currentTarget.style.borderColor = theme.colors.border;
-        }
-      }}
     >
       {/* Content */}
       <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }}>
@@ -84,6 +73,7 @@ export const DashboardItem: React.FC<DashboardItemProps> = ({
           onTouchStart={handleDeleteMouseDown}
           onClick={handleDeleteClick}
           onTouchEnd={handleDeleteClick}
+          className="touch-btn"
           style={{
             position: 'absolute',
             top: theme.space.sm,
@@ -98,16 +88,7 @@ export const DashboardItem: React.FC<DashboardItemProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             zIndex: theme.zIndex.tooltip,
-            transition: `all ${theme.transition.fast}`,
             boxShadow: theme.shadow.md,
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = '#f44336';
-            e.currentTarget.style.transform = 'scale(1.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = theme.colors.errorSolid;
-            e.currentTarget.style.transform = 'scale(1)';
           }}
           title="Delete widget"
         >

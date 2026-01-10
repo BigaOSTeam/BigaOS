@@ -3,15 +3,18 @@
  *
  * Uses OSM polygon data to determine if a coordinate is on water or land.
  * Supports direct reading of:
- * - Shapefile (.shp) for OSM Water Polygons (oceans/seas)
+ * - Shapefile (.shp) for OSM Water Polygons (oceans/seas) - using spatial index for efficiency
  * - PBF for OSM Water Layer (lakes, rivers, reservoirs)
  *
- * No conversion needed - reads native formats at runtime.
+ * For large shapefiles (>100MB), uses R-tree spatial indexing with on-demand
+ * feature loading to avoid memory issues. Only bounding boxes are kept in memory,
+ * and full polygon geometry is read from disk only when needed for point-in-polygon tests.
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
 import * as shapefile from 'shapefile';
+import { ShapefileSpatialIndex } from './shapefile-spatial-index';
 
 interface GeoJSONPolygon {
   type: 'Polygon';
@@ -37,11 +40,13 @@ interface GeoJSONFeatureCollection {
 export type WaterType = 'ocean' | 'lake' | 'land';
 
 class WaterDetectionService {
-  private waterPolygons: GeoJSONFeatureCollection | null = null; // OSM oceans/seas
+  private waterPolygons: GeoJSONFeatureCollection | null = null; // OSM oceans/seas (small files)
+  private waterSpatialIndex: ShapefileSpatialIndex | null = null; // OSM oceans/seas (large files)
   private lakePolygons: GeoJSONFeatureCollection | null = null;  // OSM lakes/rivers
   private cache = new Map<string, WaterType>();
   private readonly CACHE_SIZE = 10000;
   private initialized = false;
+  private useSpatialIndex = false; // True if using spatial index for water polygons
 
   /**
    * Initialize the service by loading data
@@ -62,12 +67,17 @@ class WaterDetectionService {
 
       // Log data source summary
       console.log('Water detection data sources:');
-      if (this.waterPolygons) console.log(`  - OSM Water Polygons: ${this.waterPolygons.features.length} features (oceans/seas)`);
+      if (this.useSpatialIndex && this.waterSpatialIndex) {
+        const stats = this.waterSpatialIndex.getStats();
+        console.log(`  - OSM Water Polygons: ${stats.featureCount} features (oceans/seas) [spatial index]`);
+      } else if (this.waterPolygons) {
+        console.log(`  - OSM Water Polygons: ${this.waterPolygons.features.length} features (oceans/seas)`);
+      }
       if (this.lakePolygons) console.log(`  - OSM Water Layer: ${this.lakePolygons.features.length} features (lakes/rivers)`);
 
-      if (!this.waterPolygons && !this.lakePolygons) {
+      if (!this.waterPolygons && !this.waterSpatialIndex && !this.lakePolygons) {
         console.warn('  No water detection data loaded!');
-        console.warn('  Place water-polygons-split-4326/ folder or OSM_WaterLayer.pbf in server/src/data/');
+        console.warn('  Place oceans-seas/ folder or OSM_WaterLayer.pbf in server/src/data/');
       }
 
       this.initialized = true;
@@ -79,20 +89,32 @@ class WaterDetectionService {
 
   /**
    * Load OSM Water Polygons from Shapefile
-   * NOTE: Large shapefiles (>100MB) are skipped to avoid memory issues.
-   * For production, use a spatial database like PostGIS instead.
+   * For large shapefiles (>100MB), uses R-tree spatial indexing with on-demand loading.
+   * For smaller files, loads everything into memory for faster queries.
    */
   private async loadWaterPolygons(dataDir: string): Promise<void> {
-    // Check for extracted shapefile folder - but skip if too large
-    const shpPath = path.join(dataDir, 'water-polygons-split-4326', 'water_polygons.shp');
+    // Check for oceans-seas folder first (new location)
+    let shpPath = path.join(dataDir, 'oceans-seas', 'water_polygons.shp');
+
+    // Fallback to old location
+    if (!fs.existsSync(shpPath)) {
+      shpPath = path.join(dataDir, 'water-polygons-split-4326', 'water_polygons.shp');
+    }
 
     if (fs.existsSync(shpPath)) {
       const stats = fs.statSync(shpPath);
       const sizeMB = stats.size / (1024 * 1024);
+
       if (sizeMB > 100) {
-        console.log(`  Skipping large shapefile (${sizeMB.toFixed(0)}MB) - would cause memory issues`);
-        console.log('  For high-resolution water detection, use a spatial database like PostGIS');
+        // Large file: use spatial index with on-demand loading
+        console.log(`  Loading large shapefile (${sizeMB.toFixed(0)}MB) with spatial indexing...`);
+        this.waterSpatialIndex = new ShapefileSpatialIndex();
+        await this.waterSpatialIndex.initialize(shpPath);
+        this.useSpatialIndex = true;
+        console.log(`  Spatial index ready (memory-efficient mode)`);
+        return;
       } else {
+        // Small file: load into memory for faster queries
         console.log('  Loading OSM Water Polygons from Shapefile...');
         const features: GeoJSONFeature[] = [];
 
@@ -263,12 +285,17 @@ class WaterDetectionService {
     // Determine water type
     let result: WaterType = 'land';
 
-    // Check ocean/sea first
-    if (this.waterPolygons && this.isPointInFeatureCollection(lat, lon, this.waterPolygons)) {
+    // Check ocean/sea first (using spatial index if available)
+    if (this.useSpatialIndex && this.waterSpatialIndex) {
+      if (this.waterSpatialIndex.containsPoint(lon, lat)) {
+        result = 'ocean';
+      }
+    } else if (this.waterPolygons && this.isPointInFeatureCollection(lat, lon, this.waterPolygons)) {
       result = 'ocean';
     }
-    // Check lakes/rivers
-    else if (this.lakePolygons && this.isPointInFeatureCollection(lat, lon, this.lakePolygons)) {
+
+    // Check lakes/rivers (only if not already in ocean)
+    if (result === 'land' && this.lakePolygons && this.isPointInFeatureCollection(lat, lon, this.lakePolygons)) {
       result = 'lake';
     }
 
@@ -354,19 +381,63 @@ class WaterDetectionService {
   }
 
   /**
+   * Find a nearby water cell on the grid
+   */
+  private findNearbyWaterCell(
+    lat: number,
+    lon: number,
+    gridSize: number,
+    maxSearchRadius: number = 5
+  ): { lat: number; lon: number } | null {
+    // First check if the exact grid-snapped position is water
+    const snappedLat = Math.round(lat / gridSize) * gridSize;
+    const snappedLon = Math.round(lon / gridSize) * gridSize;
+
+    if (this.isWater(snappedLat, snappedLon)) {
+      return { lat: snappedLat, lon: snappedLon };
+    }
+
+    // Search in expanding rings around the point
+    for (let radius = 1; radius <= maxSearchRadius; radius++) {
+      for (let dLat = -radius; dLat <= radius; dLat++) {
+        for (let dLon = -radius; dLon <= radius; dLon++) {
+          // Only check the perimeter of this ring
+          if (Math.abs(dLat) !== radius && Math.abs(dLon) !== radius) continue;
+
+          const testLat = snappedLat + dLat * gridSize;
+          const testLon = snappedLon + dLon * gridSize;
+
+          if (this.isWater(testLat, testLon)) {
+            return { lat: testLat, lon: testLon };
+          }
+        }
+      }
+    }
+
+    return null;
+  }
+
+  /**
    * Find a water-only route between two points using A* pathfinding
-   * Returns waypoints that avoid land
+   * Returns waypoints that avoid land obstacles using ocean polygon data
    */
   findWaterRoute(
     startLat: number,
     startLon: number,
     endLat: number,
     endLon: number,
-    maxIterations: number = 5000
+    maxIterations: number = 10000
   ): { success: boolean; waypoints: Array<{ lat: number; lon: number }>; distance: number } {
+    // Log input coordinates for debugging
+    const startWater = this.isWater(startLat, startLon);
+    const endWater = this.isWater(endLat, endLon);
+    console.log(`Route request: (${startLat.toFixed(5)}, ${startLon.toFixed(5)}) -> (${endLat.toFixed(5)}, ${endLon.toFixed(5)})`);
+    console.log(`  Start on water: ${startWater}, End on water: ${endWater}`);
+
     // First check if direct route is possible
-    const directCheck = this.checkRouteForLand(startLat, startLon, endLat, endLon);
+    const directCheck = this.checkRouteForLand(startLat, startLon, endLat, endLon, 0.1);
     if (!directCheck.crossesLand) {
+      console.log(`  Direct route is clear`);
       return {
         success: true,
         waypoints: [
@@ -377,38 +448,65 @@ class WaterDetectionService {
       };
     }
 
-    // A* pathfinding with grid-based approach
-    const gridSize = 0.01; // ~1.1km grid cells
-    const startNode = {
-      lat: Math.round(startLat / gridSize) * gridSize,
-      lon: Math.round(startLon / gridSize) * gridSize
-    };
-    const endNode = {
-      lat: Math.round(endLat / gridSize) * gridSize,
-      lon: Math.round(endLon / gridSize) * gridSize
-    };
+    console.log(`  Direct route crosses land at ${directCheck.landPoints.length} points`);
 
-    const openSet = new Map<string, {
+    // Calculate appropriate grid size based on distance
+    const totalDistance = this.calculateDistance(startLat, startLon, endLat, endLon);
+    // Use smaller grid for short distances, larger for long distances
+    // Minimum ~50m grid for finer resolution near coastlines
+    const gridSize = Math.max(0.0005, Math.min(0.02, totalDistance / 500));
+    console.log(`  Distance: ${totalDistance.toFixed(2)} NM, Grid size: ${gridSize.toFixed(5)}° (~${(gridSize * 111000).toFixed(0)}m)`);
+
+    // Find valid water cells near start and end points
+    const startNode = this.findNearbyWaterCell(startLat, startLon, gridSize);
+    const endNode = this.findNearbyWaterCell(endLat, endLon, gridSize);
+
+    if (!startNode) {
+      console.warn(`  Cannot find water cell near start point`);
+      return {
+        success: false,
+        waypoints: [{ lat: startLat, lon: startLon }, { lat: endLat, lon: endLon }],
+        distance: this.calculateDistance(startLat, startLon, endLat, endLon)
+      };
+    }
+
+    if (!endNode) {
+      console.warn(`  Cannot find water cell near end point`);
+      return {
+        success: false,
+        waypoints: [{ lat: startLat, lon: startLon }, { lat: endLat, lon: endLon }],
+        distance: this.calculateDistance(startLat, startLon, endLat, endLon)
+      };
+    }
+
+    console.log(`  Start node: (${startNode.lat.toFixed(5)}, ${startNode.lon.toFixed(5)})`);
+    console.log(`  End node: (${endNode.lat.toFixed(5)}, ${endNode.lon.toFixed(5)})`);
+
+    // Store all visited nodes with their data for path reconstruction
+    const allNodes = new Map<string, {
       lat: number;
       lon: number;
       g: number;
       f: number;
       parent: string | null;
     }>();
+
+    const openSet = new Set<string>();
     const closedSet = new Set<string>();
 
-    const getKey = (lat: number, lon: number) => `${lat.toFixed(4)},${lon.toFixed(4)}`;
+    const getKey = (lat: number, lon: number) => `${lat.toFixed(5)},${lon.toFixed(5)}`;
     const heuristic = (lat: number, lon: number) =>
       this.calculateDistance(lat, lon, endNode.lat, endNode.lon);
 
     const startKey = getKey(startNode.lat, startNode.lon);
-    openSet.set(startKey, {
+    allNodes.set(startKey, {
       lat: startNode.lat,
       lon: startNode.lon,
       g: 0,
       f: heuristic(startNode.lat, startNode.lon),
       parent: null
     });
+    openSet.add(startKey);
 
     // Direction vectors (8 directions)
     const directions = [
@@ -417,6 +515,8 @@ class WaterDetectionService {
     ];
 
     let iterations = 0;
+    let foundPath = false;
+    let goalKey = '';
 
     while (openSet.size > 0 && iterations < maxIterations) {
       iterations++;
@@ -424,54 +524,23 @@ class WaterDetectionService {
       // Find node with lowest f score
       let currentKey = '';
       let lowestF = Infinity;
-      for (const [key, node] of openSet) {
+      for (const key of openSet) {
+        const node = allNodes.get(key)!;
         if (node.f < lowestF) {
           lowestF = node.f;
           currentKey = key;
         }
       }
 
-      const current = openSet.get(currentKey)!;
+      const current = allNodes.get(currentKey)!;
       openSet.delete(currentKey);
       closedSet.add(currentKey);
 
       // Check if we reached the goal
       if (this.calculateDistance(current.lat, current.lon, endNode.lat, endNode.lon) < gridSize * 2) {
-        // Reconstruct path
-        const path: Array<{ lat: number; lon: number }> = [];
-        let node: typeof current | undefined = current;
-        let nodeKey: string | null = currentKey;
-
-        while (node) {
-          path.unshift({ lat: node.lat, lon: node.lon });
-          nodeKey = node.parent;
-          if (nodeKey) {
-            // Find parent in closed set by reconstructing
-            node = undefined;
-            // We need to track parents properly - simplified version
-            break;
-          } else {
-            node = undefined;
-          }
-        }
-
-        // Add start and end points
-        path.unshift({ lat: startLat, lon: startLon });
-        path.push({ lat: endLat, lon: endLon });
-
-        // Simplify path - remove unnecessary waypoints
-        const simplified = this.simplifyPath(path);
-
-        // Calculate total distance
-        let totalDist = 0;
-        for (let i = 1; i < simplified.length; i++) {
-          totalDist += this.calculateDistance(
-            simplified[i - 1].lat, simplified[i - 1].lon,
-            simplified[i].lat, simplified[i].lon
-          );
-        }
-
-        return { success: true, waypoints: simplified, distance: totalDist };
+        foundPath = true;
+        goalKey = currentKey;
+        break;
       }
 
       // Explore neighbors
@@ -483,24 +552,79 @@ class WaterDetectionService {
         if (closedSet.has(newKey)) continue;
         if (!this.isWater(newLat, newLon)) continue;
 
-        const moveCost = Math.abs(dLat) > 0 && Math.abs(dLon) > 0 ? 1.414 : 1;
-        const tentativeG = current.g + moveCost * gridSize * 60; // Approximate NM
+        // Always check intermediate points along the edge to avoid crossing small islands
+        // Check every ~15m for island avoidance (balances accuracy vs performance)
+        const gridMeters = gridSize * 111000;
+        const checkPoints = Math.max(2, Math.ceil(gridMeters / 15)); // Check every ~15m
+        let edgeClear = true;
+        for (let i = 1; i < checkPoints; i++) {
+          const t = i / checkPoints;
+          const checkLat = current.lat + t * (newLat - current.lat);
+          const checkLon = current.lon + t * (newLon - current.lon);
+          if (!this.isWater(checkLat, checkLon)) {
+            edgeClear = false;
+            break;
+          }
+        }
+        if (!edgeClear) continue;
 
-        const existing = openSet.get(newKey);
+        const tentativeG = current.g + this.calculateDistance(current.lat, current.lon, newLat, newLon);
+
+        const existing = allNodes.get(newKey);
         if (!existing || tentativeG < existing.g) {
-          openSet.set(newKey, {
+          allNodes.set(newKey, {
             lat: newLat,
             lon: newLon,
             g: tentativeG,
             f: tentativeG + heuristic(newLat, newLon),
             parent: currentKey
           });
+          openSet.add(newKey);
         }
       }
     }
 
-    // Pathfinding failed - return direct route anyway
+    if (foundPath) {
+      // Reconstruct path from goal to start
+      const path: Array<{ lat: number; lon: number }> = [];
+      let currentKey: string | null = goalKey;
+
+      while (currentKey) {
+        const node = allNodes.get(currentKey);
+        if (node) {
+          path.unshift({ lat: node.lat, lon: node.lon });
+          currentKey = node.parent;
+        } else {
+          break;
+        }
+      }
+
+      // Add actual start and end points
+      path.unshift({ lat: startLat, lon: startLon });
+      path.push({ lat: endLat, lon: endLon });
+
+      // Simplify path - remove unnecessary waypoints where direct route is possible
+      const simplified = this.simplifyPath(path);
+
+      // Calculate total distance
+      let totalDist = 0;
+      for (let i = 1; i < simplified.length; i++) {
+        totalDist += this.calculateDistance(
+          simplified[i - 1].lat, simplified[i - 1].lon,
+          simplified[i].lat, simplified[i].lon
+        );
+      }
+
+      console.log(`Water route found: ${simplified.length} waypoints, ${totalDist.toFixed(1)} NM, ${iterations} iterations`);
+      return { success: true, waypoints: simplified, distance: totalDist };
+    }
+
+    // Pathfinding failed - log debug info
     console.warn(`Water route pathfinding failed after ${iterations} iterations`);
+    console.warn(`  Grid: ${gridSize.toFixed(5)}° (~${(gridSize * 111000).toFixed(0)}m)`);
+    console.warn(`  Open set exhausted: ${openSet.size === 0}`);
+    console.warn(`  Nodes explored: ${closedSet.size}`);
+
     return {
       success: false,
       waypoints: [
@@ -509,6 +633,30 @@ class WaterDetectionService {
       ],
       distance: this.calculateDistance(startLat, startLon, endLat, endLon)
     };
+  }
+
+  /**
+   * Check if a direct line between two points crosses land (fine-grained check)
+   * Checks every ~15 meters for small islands (balances accuracy vs performance)
+   */
+  private isDirectRouteWater(
+    lat1: number,
+    lon1: number,
+    lat2: number,
+    lon2: number
+  ): boolean {
+    const distMeters = this.calculateDistance(lat1, lon1, lat2, lon2) * 1852; // NM to meters
+    const checkPoints = Math.max(2, Math.ceil(distMeters / 15)); // Check every ~15m
+
+    for (let i = 0; i <= checkPoints; i++) {
+      const t = i / checkPoints;
+      const lat = lat1 + t * (lat2 - lat1);
+      const lon = lon1 + t * (lon2 - lon1);
+      if (!this.isWater(lat, lon)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   /**
@@ -523,9 +671,8 @@ class WaterDetectionService {
       const prev = result[result.length - 1];
       const next = path[i + 1];
 
-      // Check if we can skip this waypoint (direct route doesn't cross land)
-      const check = this.checkRouteForLand(prev.lat, prev.lon, next.lat, next.lon, 0.2);
-      if (check.crossesLand) {
+      // Check if we can skip this waypoint (direct route is all water)
+      if (!this.isDirectRouteWater(prev.lat, prev.lon, next.lat, next.lon)) {
         result.push(path[i]);
       }
     }

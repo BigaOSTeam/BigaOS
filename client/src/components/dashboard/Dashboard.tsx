@@ -807,6 +807,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 <button
                   key={type}
                   onClick={() => handleAddItem(type)}
+                  className="touch-btn"
                   style={{
                     width: '100%',
                     aspectRatio: '1',
@@ -822,16 +823,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                     flexDirection: 'column',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transition: `all ${theme.transition.fast}`,
                     overflow: 'hidden',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = theme.colors.bgCardActive;
-                    e.currentTarget.style.borderColor = theme.colors.borderFocus;
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = theme.colors.bgCard;
-                    e.currentTarget.style.borderColor = theme.colors.border;
                   }}
                 >
                   <div style={{

@@ -189,12 +189,14 @@ export const LongPressHandler: React.FC<LongPressHandlerProps> = ({
 
 interface CompassProps {
   heading: number;
+  bearingToTarget?: number | null; // Bearing to next navigation waypoint
 }
 
 /**
  * Compass component with animated cardinal line
+ * Shows a green indicator pointing to the navigation target when active
  */
-export const Compass: React.FC<CompassProps> = ({ heading }) => {
+export const Compass: React.FC<CompassProps> = ({ heading, bearingToTarget }) => {
   const points = [
     { deg: 0, label: 'N' },
     { deg: 45, label: 'NE' },
@@ -214,6 +216,22 @@ export const Compass: React.FC<CompassProps> = ({ heading }) => {
   };
 
   const lineWidth = 80;
+
+  // Calculate the position of the navigation indicator
+  // When bearing matches heading, it should be at center (under the white triangle)
+  const getTargetIndicatorPosition = () => {
+    if (bearingToTarget === null || bearingToTarget === undefined) return null;
+    let diff = bearingToTarget - heading;
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+    // Scale the position - when aligned (diff=0), indicator is at center
+    const pos = diff * (80 / 90);
+    const rawPos = lineWidth / 2 + pos;
+    // Clamp to stay within compass bounds (with small padding)
+    return Math.max(4, Math.min(lineWidth - 4, rawPos));
+  };
+
+  const targetPos = getTargetIndicatorPosition();
 
   return (
     <div style={{ width: '100%', textAlign: 'center' }}>
@@ -236,7 +254,7 @@ export const Compass: React.FC<CompassProps> = ({ heading }) => {
       <div
         style={{
           position: 'relative',
-          height: '20px',
+          height: '24px',
           overflow: 'hidden',
           width: `${lineWidth}px`,
           margin: '0 auto',
@@ -300,6 +318,34 @@ export const Compass: React.FC<CompassProps> = ({ heading }) => {
           })}
         </div>
       </div>
+
+      {/* Navigation target indicator - green triangle at bottom */}
+      {targetPos !== null && (
+        <div
+          style={{
+            position: 'relative',
+            height: '8px',
+            width: `${lineWidth}px`,
+            margin: '2px auto 0 auto',
+            overflow: 'hidden',
+          }}
+        >
+          <div
+            style={{
+              position: 'absolute',
+              left: `${targetPos}px`,
+              top: 0,
+              transform: 'translateX(-50%)',
+              width: '0',
+              height: '0',
+              borderLeft: '4px solid transparent',
+              borderRight: '4px solid transparent',
+              borderBottom: '6px solid #66bb6a',
+              transition: 'left 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 };

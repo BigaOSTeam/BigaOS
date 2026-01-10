@@ -33,6 +33,7 @@ export const sensorAPI = {
 export const navigationAPI = {
   /**
    * Calculate a water-only route between two points
+   * Uses longer timeout since pathfinding can take time for complex routes
    */
   calculateRoute: (startLat: number, startLon: number, endLat: number, endLon: number) =>
     api.post<{
@@ -41,7 +42,7 @@ export const navigationAPI = {
       distance: number;
       waypointCount: number;
       crossesLand: boolean;
-    }>('/navigation/route', { startLat, startLon, endLat, endLon }),
+    }>('/navigation/route', { startLat, startLon, endLat, endLon }, { timeout: 120000 }),
 
   /**
    * Check if a direct route crosses land

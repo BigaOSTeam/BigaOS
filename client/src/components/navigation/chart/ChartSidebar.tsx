@@ -19,6 +19,7 @@ interface ChartSidebarProps {
   searchOpen: boolean;
   useSatellite: boolean;
   autoCenter: boolean;
+  bearingToTarget?: number | null;
   onClose?: () => void;
   onDepthClick: () => void;
   onSearchClick: () => void;
@@ -38,6 +39,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   searchOpen,
   useSatellite,
   autoCenter,
+  bearingToTarget,
   onClose,
   onDepthClick,
   onSearchClick,
@@ -65,24 +67,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       {onClose && (
         <button
           onClick={onClose}
+          className="chart-sidebar-btn"
           style={{
-            width: '100%',
-            height: '56px',
-            background: 'transparent',
-            border: 'none',
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            transition: 'background 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
           }}
           title="Back to Dashboard"
         >
@@ -109,7 +96,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
-        <Compass heading={heading} />
+        <Compass heading={heading} bearingToTarget={bearingToTarget} />
       </div>
 
       {/* Speed */}
@@ -185,29 +172,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       {/* Search button */}
       <button
         onClick={onSearchClick}
+        className={`chart-sidebar-btn with-label ${searchOpen ? 'active' : ''}`}
         style={{
-          width: '100%',
-          height: '56px',
-          background: searchOpen ? 'rgba(25, 118, 210, 0.3)' : 'transparent',
-          border: 'none',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          cursor: 'pointer',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          transition: 'background 0.2s',
-          gap: '0.25rem',
-        }}
-        onMouseEnter={(e) => {
-          if (!searchOpen)
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = searchOpen
-            ? 'rgba(25, 118, 210, 0.3)'
-            : 'transparent';
         }}
         title="Search locations"
       >
@@ -230,26 +197,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       {/* Satellite/Street toggle button */}
       <button
         onClick={onSatelliteToggle}
+        className="chart-sidebar-btn with-label"
         style={{
-          width: '100%',
-          height: '56px',
-          background: 'transparent',
-          border: 'none',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          cursor: 'pointer',
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          transition: 'background 0.2s',
-          gap: '0.25rem',
-        }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
         }}
         title={useSatellite ? 'Switch to Street View' : 'Switch to Satellite View'}
       >
@@ -290,27 +240,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       {/* Recenter button */}
       <button
         onClick={onRecenter}
+        className={`chart-sidebar-btn ${autoCenter ? 'active' : ''}`}
         style={{
-          width: '100%',
-          height: '56px',
-          background: autoCenter ? 'rgba(25, 118, 210, 0.3)' : 'transparent',
-          border: 'none',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          cursor: 'pointer',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          transition: 'background 0.2s',
-        }}
-        onMouseEnter={(e) => {
-          if (!autoCenter)
-            e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = autoCenter
-            ? 'rgba(25, 118, 210, 0.3)'
-            : 'transparent';
         }}
         title={autoCenter ? 'Auto-centering ON' : 'Click to recenter'}
       >

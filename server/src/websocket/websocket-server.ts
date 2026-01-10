@@ -293,6 +293,23 @@ export class WebSocketServer {
       timestamp: new Date()
     });
   }
+
+  /**
+   * Broadcast download progress to all clients
+   */
+  public broadcastDownloadProgress(progress: {
+    fileId: string;
+    status: 'downloading' | 'extracting' | 'completed' | 'error' | 'idle';
+    progress: number;
+    bytesDownloaded: number;
+    totalBytes: number;
+    error?: string;
+  }): void {
+    this.io.emit('download_progress', {
+      ...progress,
+      timestamp: new Date()
+    });
+  }
 }
 
 // Export a singleton reference that will be set by index.ts

@@ -67,3 +67,25 @@ export const calculateBearing = (
   let bearing = (Math.atan2(y, x) * 180) / Math.PI;
   return (bearing + 360) % 360;
 };
+
+/**
+ * Calculate total route distance from an array of waypoints
+ * @param waypoints Array of {lat, lon} points
+ * @returns Total distance in nautical miles
+ */
+export const calculateRouteDistanceNm = (
+  waypoints: Array<{ lat: number; lon: number }>
+): number => {
+  if (waypoints.length < 2) return 0;
+
+  let totalDistance = 0;
+  for (let i = 0; i < waypoints.length - 1; i++) {
+    totalDistance += calculateDistanceNm(
+      waypoints[i].lat,
+      waypoints[i].lon,
+      waypoints[i + 1].lat,
+      waypoints[i + 1].lon
+    );
+  }
+  return totalDistance;
+};

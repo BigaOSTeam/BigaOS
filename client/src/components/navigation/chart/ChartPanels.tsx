@@ -297,6 +297,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                 <button
                   key={`marker-${marker.id}`}
                   onClick={() => onMarkerClick(marker)}
+                  className="touch-btn"
                   style={{
                     width: '100%',
                     padding: '0.75rem',
@@ -307,16 +308,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                     cursor: 'pointer',
                     textAlign: 'left',
                     fontSize: '0.85rem',
-                    transition: 'background 0.2s',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
                   }}
                 >
                   <svg
@@ -372,6 +366,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             <button
               key={`${result.lat}-${result.lon}-${index}`}
               onClick={() => onResultClick(result)}
+              className="touch-btn"
               style={{
                 width: '100%',
                 padding: '0.75rem',
@@ -382,13 +377,6 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                 cursor: 'pointer',
                 textAlign: 'left',
                 fontSize: '0.85rem',
-                transition: 'background 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)';
               }}
             >
               <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>

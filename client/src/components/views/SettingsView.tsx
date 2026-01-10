@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   useSettings,
   SpeedUnit,
@@ -12,9 +12,10 @@ import {
   distanceConversions,
 } from '../../context/SettingsContext';
 import { theme } from '../../styles/theme';
-import { dataAPI, DataFileInfo, offlineMapsAPI, StorageStats } from '../../services/api';
+import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { OfflineMapsTab } from '../settings/OfflineMapsTab';
+import { wsService } from '../../services/websocket';
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -31,7 +32,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
   const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
-  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm } = useConfirmDialog();
 
   const fetchStorageStats = useCallback(async () => {
@@ -76,31 +76,48 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     fetchDataStatus();
   }, [fetchDataStatus]);
 
+  // Listen for WebSocket download progress updates
   useEffect(() => {
-    const startPolling = async () => {
-      const hasActiveDownloads = await fetchDataStatus();
-      if (hasActiveDownloads && !pollIntervalRef.current) {
-        pollIntervalRef.current = setInterval(async () => {
-          const stillActive = await fetchDataStatus();
-          if (!stillActive && pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-        }, 1000);
+    const handleDownloadProgress = (data: DownloadProgress & { timestamp: Date }) => {
+      setDataFiles(prev => prev.map(file => {
+        if (file.id === data.fileId) {
+          return {
+            ...file,
+            downloadStatus: {
+              fileId: data.fileId,
+              status: data.status,
+              progress: data.progress,
+              bytesDownloaded: data.bytesDownloaded,
+              totalBytes: data.totalBytes,
+              error: data.error,
+            }
+          };
+        }
+        return file;
+      }));
+
+      // Update downloadingFiles set based on status
+      if (data.status === 'downloading' || data.status === 'extracting') {
+        setDownloadingFiles(prev => new Set([...prev, data.fileId]));
+      } else {
+        setDownloadingFiles(prev => {
+          const next = new Set(prev);
+          next.delete(data.fileId);
+          return next;
+        });
+        // Refresh full status when download completes or errors
+        if (data.status === 'completed' || data.status === 'error') {
+          fetchDataStatus();
+        }
       }
     };
 
-    if (downloadingFiles.size > 0 && !pollIntervalRef.current) {
-      startPolling();
-    }
+    wsService.on('download_progress', handleDownloadProgress);
 
     return () => {
-      if (pollIntervalRef.current) {
-        clearInterval(pollIntervalRef.current);
-        pollIntervalRef.current = null;
-      }
+      wsService.off('download_progress', handleDownloadProgress);
     };
-  }, [downloadingFiles.size, fetchDataStatus]);
+  }, [fetchDataStatus]);
 
   const { timeFormat } = useSettings();
 
@@ -141,15 +158,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     try {
       setDownloadingFiles(prev => new Set([...prev, file.id]));
       await dataAPI.downloadFile(file.id);
-      if (!pollIntervalRef.current) {
-        pollIntervalRef.current = setInterval(async () => {
-          const stillActive = await fetchDataStatus();
-          if (!stillActive && pollIntervalRef.current) {
-            clearInterval(pollIntervalRef.current);
-            pollIntervalRef.current = null;
-          }
-        }, 1000);
-      }
+      // Progress updates will come via WebSocket
     } catch (error) {
       console.error('Failed to start download:', error);
       setDownloadingFiles(prev => {

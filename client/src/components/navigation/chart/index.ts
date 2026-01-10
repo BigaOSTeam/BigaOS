@@ -1,5 +1,5 @@
 // Navigation utilities
-export { calculateDistanceNm, formatETA, calculateBearing } from './navigation-utils';
+export { calculateDistanceNm, calculateRouteDistanceNm, formatETA, calculateBearing } from './navigation-utils';
 
 // Map icons and types
 export {

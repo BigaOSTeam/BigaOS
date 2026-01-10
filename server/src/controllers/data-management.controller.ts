@@ -13,6 +13,7 @@ import * as http from 'http';
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { createGunzip } from 'zlib';
+import { wsServerInstance } from '../websocket/websocket-server';
 
 // Try to import unzipper, fall back gracefully if not available
 let unzipper: typeof import('unzipper') | null = null;
@@ -98,6 +99,15 @@ class DataManagementController {
     this.dataDir = path.join(__dirname, '..', 'data');
     this.configPath = path.join(this.dataDir, 'urls.json');
     this.metadataPath = path.join(this.dataDir, 'metadata.json');
+  }
+
+  /**
+   * Broadcast download progress via WebSocket
+   */
+  private broadcastProgress(progress: DownloadProgress): void {
+    if (wsServerInstance) {
+      wsServerInstance.broadcastDownloadProgress(progress);
+    }
   }
 
   /**
@@ -196,19 +206,25 @@ class DataManagementController {
               : stats.size;
           }
 
-          // Try to get remote file info (date and size)
-          let remoteDate: string | undefined;
-          let remoteSize: number | undefined;
-          try {
-            const remoteInfo = await this.getRemoteFileInfo(url);
-            remoteDate = remoteInfo.date;
-            remoteSize = remoteInfo.size;
-          } catch {
-            // Ignore errors fetching remote info
-          }
-
           // Include active download status if any
           const activeDownload = this.activeDownloads.get(file.id);
+          const hasActiveDownload = activeDownload &&
+            (activeDownload.progress.status === 'downloading' || activeDownload.progress.status === 'extracting');
+
+          // Try to get remote file info (date and size)
+          // Skip this during active downloads to avoid timeout issues
+          let remoteDate: string | undefined;
+          let remoteSize: number | undefined;
+
+          if (!hasActiveDownload) {
+            try {
+              const remoteInfo = await this.getRemoteFileInfo(url);
+              remoteDate = remoteInfo.date;
+              remoteSize = remoteInfo.size;
+            } catch {
+              // Ignore errors fetching remote info
+            }
+          }
 
           return {
             ...file,
@@ -453,12 +469,14 @@ class DataManagementController {
       case 'zip':
         progress.status = 'extracting';
         progress.progress = 0;
+        this.broadcastProgress(progress);
         await this.extractZip(tempFilePath, targetDir);
         this.cleanupTempFile(tempFilePath);
         break;
 
       case 'gzip':
         progress.status = 'extracting';
+        this.broadcastProgress(progress);
         const extractedFileName = path.basename(url, '.gz');
         await this.extractGzip(tempFilePath, path.join(targetDir, extractedFileName));
         this.cleanupTempFile(tempFilePath);
@@ -504,6 +522,7 @@ class DataManagementController {
 
       progress.status = 'completed';
       progress.progress = 100;
+      this.broadcastProgress(progress);
 
       // Save release date to metadata
       if (remoteReleaseDate) {
@@ -520,6 +539,7 @@ class DataManagementController {
     } catch (error) {
       progress.status = 'error';
       progress.error = error instanceof Error ? error.message : 'Download failed';
+      this.broadcastProgress(progress);
       this.cleanupTempFile(tempFilePath);
       // Also clean up target directory on error/cancel
       if (fs.existsSync(targetDir)) {
@@ -588,12 +608,19 @@ class DataManagementController {
 
           fileStream = createWriteStream(filePath);
           let bytesDownloaded = 0;
+          let lastBroadcast = 0;
 
           response.on('data', (chunk: Buffer) => {
             bytesDownloaded += chunk.length;
             progress.bytesDownloaded = bytesDownloaded;
             if (totalBytes > 0) {
               progress.progress = Math.round((bytesDownloaded / totalBytes) * 100);
+            }
+            // Broadcast progress every 500ms to avoid flooding
+            const now = Date.now();
+            if (now - lastBroadcast >= 500) {
+              lastBroadcast = now;
+              this.broadcastProgress(progress);
             }
           });
 

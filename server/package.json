@@ -12,11 +12,13 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "@types/rbush": "^4.0.0",
     "better-sqlite3": "^12.4.1",
     "cors": "^2.8.5",
     "dotenv": "^16.3.1",
     "express": "^4.18.2",
     "osmtogeojson": "^3.0.0-beta.5",
+    "rbush": "^4.0.1",
     "shapefile": "^0.6.6",
     "socket.io": "^4.6.1",
     "tiny-osmpbf": "^1.0.0-beta.1",
