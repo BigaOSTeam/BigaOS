@@ -73,6 +73,7 @@ Desktop.ini
 
 # Claude Code files (project-specific)
 claude-code/
+.claude/settings.local.json
 
 # Data & Databases
 data/
