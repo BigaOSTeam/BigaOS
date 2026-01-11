@@ -32,8 +32,9 @@ import {
   createWaypointIcon,
   MapController,
   LongPressHandler,
-  AddMarkerDialog,
-  EditMarkerDialog,
+  ContextMenu,
+  ContextMenuOption,
+  MarkerDialog,
   ChartSidebar,
   DepthSettingsPanel,
   SearchPanel,
@@ -128,6 +129,12 @@ export const ChartView: React.FC<ChartViewProps> = ({
   const [contextMenu, setContextMenu] = useState<{
     lat: number;
     lon: number;
+    x: number;
+    y: number;
+  } | null>(null);
+  const [showMarkerDialog, setShowMarkerDialog] = useState(false);
+  const [markerContextMenu, setMarkerContextMenu] = useState<{
+    marker: CustomMarker;
     x: number;
     y: number;
   } | null>(null);
@@ -379,16 +386,21 @@ export const ChartView: React.FC<ChartViewProps> = ({
     };
   }, []);
 
-  // Disable map dragging when dialogs are open
+  // Disable map dragging when dialogs/menus are open
   useEffect(() => {
-    if (mapRef.current) {
-      if (contextMenu || editingMarker) {
-        mapRef.current.dragging.disable();
-      } else {
-        mapRef.current.dragging.enable();
+    const map = mapRef.current;
+    if (map && map.getContainer()) {
+      try {
+        if (contextMenu || markerContextMenu || showMarkerDialog) {
+          map.dragging.disable();
+        } else {
+          map.dragging.enable();
+        }
+      } catch {
+        // Ignore errors if map is in transition state
       }
     }
-  }, [contextMenu, editingMarker]);
+  }, [contextMenu, markerContextMenu, showMarkerDialog]);
 
   // Handle sound alarm
   useEffect(() => {
@@ -521,24 +533,36 @@ export const ChartView: React.FC<ChartViewProps> = ({
     return String(maxId + 1);
   };
 
-  // Marker management
-  const addMarker = (
+  // Marker management - unified save handler for add/edit
+  const saveMarker = (
     lat: number,
     lon: number,
     name: string,
     color: string,
-    icon: string
+    icon: string,
+    id?: string
   ) => {
-    const newMarker: CustomMarker = {
-      id: getNextMarkerId(),
-      lat,
-      lon,
-      name,
-      color,
-      icon,
-    };
-    setCustomMarkers([...customMarkers, newMarker]);
+    if (id) {
+      // Update existing marker
+      setCustomMarkers(
+        customMarkers.map((m) => (m.id === id ? { ...m, name, color, icon } : m))
+      );
+    } else {
+      // Add new marker
+      const newMarker: CustomMarker = {
+        id: getNextMarkerId(),
+        lat,
+        lon,
+        name,
+        color,
+        icon,
+      };
+      setCustomMarkers([...customMarkers, newMarker]);
+    }
+    // Reset state
     setContextMenu(null);
+    setShowMarkerDialog(false);
+    setEditingMarker(null);
     setMarkerName('');
     setMarkerColor(markerColors[0]);
     setMarkerIcon('pin');
@@ -546,25 +570,13 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
   const deleteMarker = (id: string) => {
     setCustomMarkers(customMarkers.filter((m) => m.id !== id));
-    setEditingMarker(null);
-  };
-
-  const updateMarker = (
-    id: string,
-    name: string,
-    color: string,
-    icon: string
-  ) => {
-    setCustomMarkers(
-      customMarkers.map((m) => (m.id === id ? { ...m, name, color, icon } : m))
-    );
-    setEditingMarker(null);
+    setMarkerContextMenu(null);
   };
 
   const navigateToMarker = (marker: CustomMarker) => {
     setRouteWaypoints([]); // Clear old waypoints
     setNavigationTarget(marker);
-    setEditingMarker(null);
+    setMarkerContextMenu(null);
     setAutoCenter(false);
 
     // Calculate route once from current position to marker
@@ -574,6 +586,34 @@ export const ChartView: React.FC<ChartViewProps> = ({
       const bounds = L.latLngBounds(
         [position.latitude, position.longitude],
         [marker.lat, marker.lon]
+      );
+      mapRef.current.fitBounds(bounds, { padding: [120, 120], maxZoom: 15 });
+    }
+  };
+
+  const navigateToCoordinates = (lat: number, lon: number) => {
+    // Create a temporary navigation target for the coordinates
+    const tempTarget: CustomMarker = {
+      id: 'nav-target',
+      lat,
+      lon,
+      name: '',
+      color: '#66bb6a',
+      icon: 'pin',
+    };
+
+    setRouteWaypoints([]); // Clear old waypoints
+    setNavigationTarget(tempTarget);
+    setContextMenu(null);
+    setAutoCenter(false);
+
+    // Calculate route from current position to coordinates
+    fetchRoute(position.latitude, position.longitude, lat, lon);
+
+    if (mapRef.current) {
+      const bounds = L.latLngBounds(
+        [position.latitude, position.longitude],
+        [lat, lon]
       );
       mapRef.current.fitBounds(bounds, { padding: [120, 120], maxZoom: 15 });
     }
@@ -632,11 +672,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
             position={[marker.lat, marker.lon]}
             icon={createCustomMarkerIcon(marker.color, marker.name, marker.icon)}
             eventHandlers={{
-              click: () => {
-                setEditingMarker(marker);
-                setMarkerName(marker.name);
-                setMarkerColor(marker.color);
-                setMarkerIcon(marker.icon || 'pin');
+              click: (e) => {
+                const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
+                if (containerPoint) {
+                  setMarkerContextMenu({
+                    marker,
+                    x: containerPoint.x,
+                    y: containerPoint.y,
+                  });
+                }
               },
             }}
           />
@@ -858,8 +902,12 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 fill="currentColor"
               />
             </svg>
-            <span>{navigationTarget.name}</span>
-            <span style={{ opacity: 0.7 }}>|</span>
+            {navigationTarget.name && (
+              <>
+                <span>{navigationTarget.name}</span>
+                <span style={{ opacity: 0.7 }}>|</span>
+              </>
+            )}
             <span>
               {convertedDistance.toFixed(convertedDistance < 10 ? 2 : 1)}{' '}
               {distanceConversions[distanceUnit].label}
@@ -948,35 +996,115 @@ export const ChartView: React.FC<ChartViewProps> = ({
         />
       )}
 
-      {/* Add Marker Dialog */}
-      {contextMenu && (
-        <AddMarkerDialog
-          position={{ lat: contextMenu.lat, lon: contextMenu.lon }}
-          markerName={markerName}
-          setMarkerName={setMarkerName}
-          markerColor={markerColor}
-          setMarkerColor={setMarkerColor}
-          markerIcon={markerIcon}
-          setMarkerIcon={setMarkerIcon}
+      {/* Context Menu for empty map location */}
+      {contextMenu && !showMarkerDialog && (
+        <ContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          sidebarWidth={sidebarWidth}
+          options={[
+            {
+              label: 'Create Marker',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#4fc3f7" stroke="#fff" strokeWidth="1">
+                  <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
+                </svg>
+              ),
+              onClick: () => setShowMarkerDialog(true),
+            },
+            {
+              label: 'Navigate Here',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#66bb6a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="6" cy="8" r="2" fill="#66bb6a" />
+                  <path d="M6 10v4" />
+                  <path d="M8 12h2" strokeDasharray="2 2" />
+                  <path d="M12 12h2" strokeDasharray="2 2" />
+                  <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="#66bb6a" />
+                </svg>
+              ),
+              onClick: () => navigateToCoordinates(contextMenu.lat, contextMenu.lon),
+            },
+          ]}
           onClose={() => setContextMenu(null)}
-          onAdd={addMarker}
         />
       )}
 
-      {/* Edit Marker Dialog */}
-      {editingMarker && (
-        <EditMarkerDialog
-          marker={editingMarker}
+      {/* Context Menu for existing markers */}
+      {markerContextMenu && !showMarkerDialog && (
+        <ContextMenu
+          x={markerContextMenu.x}
+          y={markerContextMenu.y}
+          sidebarWidth={sidebarWidth}
+          header={markerContextMenu.marker.name}
+          options={[
+            {
+              label: 'Edit Marker',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              ),
+              onClick: () => {
+                setEditingMarker(markerContextMenu.marker);
+                setMarkerName(markerContextMenu.marker.name);
+                setMarkerColor(markerContextMenu.marker.color);
+                setMarkerIcon(markerContextMenu.marker.icon || 'pin');
+                setShowMarkerDialog(true);
+              },
+            },
+            {
+              label: 'Navigate to Marker',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#66bb6a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="6" cy="8" r="2" fill="#66bb6a" />
+                  <path d="M6 10v4" />
+                  <path d="M8 12h2" strokeDasharray="2 2" />
+                  <path d="M12 12h2" strokeDasharray="2 2" />
+                  <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="#66bb6a" />
+                </svg>
+              ),
+              onClick: () => navigateToMarker(markerContextMenu.marker),
+            },
+            {
+              label: 'Delete Marker',
+              icon: (
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef5350" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6" />
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                  <line x1="10" y1="11" x2="10" y2="17" />
+                  <line x1="14" y1="11" x2="14" y2="17" />
+                </svg>
+              ),
+              onClick: () => deleteMarker(markerContextMenu.marker.id),
+            },
+          ]}
+          onClose={() => setMarkerContextMenu(null)}
+        />
+      )}
+
+      {/* Marker Dialog (Add/Edit) */}
+      {showMarkerDialog && (
+        <MarkerDialog
+          marker={editingMarker || undefined}
+          position={contextMenu ? { lat: contextMenu.lat, lon: contextMenu.lon } : undefined}
           markerName={markerName}
           setMarkerName={setMarkerName}
           markerColor={markerColor}
           setMarkerColor={setMarkerColor}
           markerIcon={markerIcon}
           setMarkerIcon={setMarkerIcon}
-          onClose={() => setEditingMarker(null)}
-          onSave={updateMarker}
-          onDelete={deleteMarker}
-          onNavigate={navigateToMarker}
+          onClose={() => {
+            setContextMenu(null);
+            setMarkerContextMenu(null);
+            setShowMarkerDialog(false);
+            setEditingMarker(null);
+            setMarkerName('');
+            setMarkerColor(markerColors[0]);
+            setMarkerIcon('pin');
+          }}
+          onSave={saveMarker}
         />
       )}
 

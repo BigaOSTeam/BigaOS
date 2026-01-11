@@ -12,10 +12,11 @@ export {
 export type { CustomMarker } from './map-icons';
 
 // Map components
-export { MapController, LongPressHandler, Compass } from './MapComponents';
+export { MapController, LongPressHandler, ContextMenu, Compass } from './MapComponents';
+export type { ContextMenuOption } from './MapComponents';
 
 // Dialogs
-export { AddMarkerDialog, EditMarkerDialog } from './MarkerDialogs';
+export { MarkerDialog } from './MarkerDialogs';
 
 // Sidebar
 export { ChartSidebar } from './ChartSidebar';

@@ -1,5 +1,5 @@
-import React, { useEffect, useRef } from 'react';
-import { useMap, useMapEvents } from 'react-leaflet';
+import React, { useEffect } from 'react';
+import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { GeoPosition } from '../../../types';
 
@@ -56,135 +56,186 @@ interface LongPressHandlerProps {
 
 /**
  * Component to handle long press for adding markers
+ * Currently using Leaflet's contextmenu event for testing
  */
 export const LongPressHandler: React.FC<LongPressHandlerProps> = ({
   onLongPress,
 }) => {
-  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const longPressPositionRef = useRef<{
-    lat: number;
-    lon: number;
-    latlng: L.LatLng;
-  } | null>(null);
-  const initialTouchRef = useRef<{ x: number; y: number } | null>(null);
   const map = useMap();
 
   useEffect(() => {
-    const mapContainer = map.getContainer();
+    const handleContextMenu = (e: L.LeafletMouseEvent) => {
+      e.originalEvent.preventDefault();
 
-    const handleTouchStart = (e: TouchEvent) => {
-      if (e.touches.length === 1) {
-        const touch = e.touches[0];
-        const rect = mapContainer.getBoundingClientRect();
-        const x = touch.clientX - rect.left;
-        const y = touch.clientY - rect.top;
-
-        initialTouchRef.current = { x: touch.clientX, y: touch.clientY };
-
-        const point = map.containerPointToLatLng([x, y]);
-        longPressPositionRef.current = {
-          lat: point.lat,
-          lon: point.lng,
-          latlng: point,
-        };
-
-        longPressTimerRef.current = setTimeout(() => {
-          if (longPressPositionRef.current) {
-            onLongPress(
-              longPressPositionRef.current.lat,
-              longPressPositionRef.current.lon,
-              x,
-              y
-            );
-          }
-        }, 500);
-      }
+      const containerPoint = map.latLngToContainerPoint(e.latlng);
+      onLongPress(e.latlng.lat, e.latlng.lng, containerPoint.x, containerPoint.y);
     };
 
-    const handleTouchMove = (e: TouchEvent) => {
-      if (initialTouchRef.current && e.touches[0]) {
-        const touch = e.touches[0];
-        const dx = touch.clientX - initialTouchRef.current.x;
-        const dy = touch.clientY - initialTouchRef.current.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance > 10) {
-          if (longPressTimerRef.current) {
-            clearTimeout(longPressTimerRef.current);
-            longPressTimerRef.current = null;
-          }
-          longPressPositionRef.current = null;
-          initialTouchRef.current = null;
-        }
-      }
-    };
-
-    const handleTouchEnd = () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
-      longPressPositionRef.current = null;
-      initialTouchRef.current = null;
-    };
-
-    mapContainer.addEventListener('touchstart', handleTouchStart, {
-      passive: true,
-    });
-    mapContainer.addEventListener('touchmove', handleTouchMove, {
-      passive: true,
-    });
-    mapContainer.addEventListener('touchend', handleTouchEnd, { passive: true });
-    mapContainer.addEventListener('touchcancel', handleTouchEnd, {
-      passive: true,
-    });
+    map.on('contextmenu', handleContextMenu);
 
     return () => {
-      mapContainer.removeEventListener('touchstart', handleTouchStart);
-      mapContainer.removeEventListener('touchmove', handleTouchMove);
-      mapContainer.removeEventListener('touchend', handleTouchEnd);
-      mapContainer.removeEventListener('touchcancel', handleTouchEnd);
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-      }
+      map.off('contextmenu', handleContextMenu);
     };
   }, [map, onLongPress]);
 
-  // Mouse events for desktop
-  useMapEvents({
-    mousedown: (e) => {
-      longPressPositionRef.current = {
-        lat: e.latlng.lat,
-        lon: e.latlng.lng,
-        latlng: e.latlng,
-      };
-      longPressTimerRef.current = setTimeout(() => {
-        if (longPressPositionRef.current) {
-          const containerPoint = map.latLngToContainerPoint(e.latlng);
-          onLongPress(
-            longPressPositionRef.current.lat,
-            longPressPositionRef.current.lon,
-            containerPoint.x,
-            containerPoint.y
-          );
-        }
-      }, 700);
-    },
-    mouseup: () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
-      longPressPositionRef.current = null;
-    },
-    mousemove: () => {
-      if (longPressTimerRef.current) {
-        clearTimeout(longPressTimerRef.current);
-        longPressTimerRef.current = null;
-      }
-    },
-  });
-
   return null;
+};
+
+export interface ContextMenuOption {
+  label: string;
+  icon: React.ReactNode;
+  onClick: () => void;
+}
+
+interface ContextMenuProps {
+  x: number;
+  y: number;
+  options: ContextMenuOption[];
+  header?: string;
+  onClose: () => void;
+  sidebarWidth?: number;
+}
+
+/**
+ * Reusable context menu component with arrow pointing to target location
+ */
+export const ContextMenu: React.FC<ContextMenuProps> = ({
+  x,
+  y,
+  options,
+  header,
+  onClose,
+  sidebarWidth = 0,
+}) => {
+  const menuWidth = 170;
+  const itemHeight = 44;
+  const headerHeight = header ? 32 : 0;
+  const menuHeight = headerHeight + options.length * itemHeight;
+  const arrowSize = 8;
+  const padding = 10;
+
+  // Determine if menu should appear above or below the point
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+  const availableWidth = viewportWidth - sidebarWidth; // Account for sidebar
+  const showAbove = y + menuHeight + arrowSize + padding > viewportHeight;
+  const showLeft = x + menuWidth / 2 > availableWidth - padding;
+  const showRight = x - menuWidth / 2 < padding;
+
+  // Calculate menu position (don't overlap with sidebar on right)
+  let menuX = x - menuWidth / 2;
+  if (showLeft) menuX = Math.min(availableWidth - menuWidth - padding, x - menuWidth / 2);
+  if (showRight) menuX = padding;
+  // Ensure menu doesn't go past the available width
+  menuX = Math.min(menuX, availableWidth - menuWidth - padding);
+
+  // Calculate arrow position relative to menu
+  let arrowX = x - menuX - arrowSize;
+  arrowX = Math.max(12, Math.min(menuWidth - 24, arrowX));
+
+  // Adjust menu position to account for arrow in total height
+  const totalHeight = menuHeight + arrowSize;
+  const adjustedMenuY = showAbove ? y - totalHeight : y;
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 1100,
+        }}
+      />
+      {/* Container with drop-shadow for unified border effect */}
+      <div
+        style={{
+          position: 'absolute',
+          left: menuX,
+          top: adjustedMenuY,
+          width: menuWidth,
+          filter: 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.15)) drop-shadow(0 4px 20px rgba(0,0,0,0.5))',
+          zIndex: 1101,
+          pointerEvents: 'none',
+        }}
+      >
+        {/* Arrow */}
+        <div
+          style={{
+            position: 'absolute',
+            left: arrowX,
+            top: showAbove ? menuHeight - 4 : 0,
+            width: 0,
+            height: 0,
+            borderLeft: `${arrowSize}px solid transparent`,
+            borderRight: `${arrowSize}px solid transparent`,
+            ...(showAbove
+              ? { borderTop: `${arrowSize}px solid rgba(10, 25, 41, 0.98)` }
+              : { borderBottom: `${arrowSize}px solid rgba(10, 25, 41, 0.98)` }),
+          }}
+        />
+        {/* Menu body */}
+        <div
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: showAbove ? 0 : arrowSize,
+            width: menuWidth,
+            background: 'rgba(10, 25, 41, 0.98)',
+            borderRadius: '8px',
+            overflow: 'hidden',
+            pointerEvents: 'auto',
+          }}
+        >
+          {/* Optional header */}
+          {header && (
+            <div
+              style={{
+                padding: '8px 16px',
+                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                fontSize: '0.75rem',
+                opacity: 0.6,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+              }}
+            >
+              {header}
+            </div>
+          )}
+          {/* Menu items */}
+          {options.map((option, index) => (
+            <button
+              key={index}
+              onClick={option.onClick}
+              className="touch-btn"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                background: 'transparent',
+                border: 'none',
+                borderBottom: index < options.length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
+                color: '#fff',
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                textAlign: 'left',
+              }}
+            >
+              {option.icon}
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+    </>
+  );
 };
 
 interface CompassProps {

@@ -5,12 +5,74 @@
  * This worker receives route requests via parentPort and sends back results.
  */
 
-import { parentPort, workerData } from 'worker_threads';
-import * as fs from 'fs';
-import * as path from 'path';
+import { parentPort } from 'worker_threads';
 import { ShapefileSpatialIndex } from '../services/shapefile-spatial-index';
 
 type WaterType = 'ocean' | 'lake' | 'land';
+
+/**
+ * Binary Min-Heap Priority Queue for O(log n) insert/extract operations
+ */
+class PriorityQueue<T> {
+  private heap: T[] = [];
+  private compare: (a: T, b: T) => number;
+
+  constructor(compare: (a: T, b: T) => number) {
+    this.compare = compare;
+  }
+
+  get size(): number {
+    return this.heap.length;
+  }
+
+  isEmpty(): boolean {
+    return this.heap.length === 0;
+  }
+
+  push(item: T): void {
+    this.heap.push(item);
+    this.bubbleUp(this.heap.length - 1);
+  }
+
+  pop(): T | undefined {
+    if (this.heap.length === 0) return undefined;
+    if (this.heap.length === 1) return this.heap.pop();
+
+    const result = this.heap[0];
+    this.heap[0] = this.heap.pop()!;
+    this.bubbleDown(0);
+    return result;
+  }
+
+  private bubbleUp(index: number): void {
+    while (index > 0) {
+      const parentIndex = (index - 1) >> 1;
+      if (this.compare(this.heap[index], this.heap[parentIndex]) >= 0) break;
+      [this.heap[index], this.heap[parentIndex]] = [this.heap[parentIndex], this.heap[index]];
+      index = parentIndex;
+    }
+  }
+
+  private bubbleDown(index: number): void {
+    const length = this.heap.length;
+    while (true) {
+      const leftChild = (index << 1) + 1;
+      const rightChild = leftChild + 1;
+      let smallest = index;
+
+      if (leftChild < length && this.compare(this.heap[leftChild], this.heap[smallest]) < 0) {
+        smallest = leftChild;
+      }
+      if (rightChild < length && this.compare(this.heap[rightChild], this.heap[smallest]) < 0) {
+        smallest = rightChild;
+      }
+      if (smallest === index) break;
+
+      [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
+      index = smallest;
+    }
+  }
+}
 
 // Worker-local state
 let waterSpatialIndex: ShapefileSpatialIndex | null = null;
@@ -184,8 +246,56 @@ function simplifyPath(pathPoints: Array<{ lat: number; lon: number }>): Array<{ 
   return result;
 }
 
+// Pre-computed constants for distance calculations
+const DEG_TO_RAD = Math.PI / 180;
+
+// Pre-computed diagonal distance multiplier (sqrt(2))
+const DIAGONAL_MULT = Math.SQRT2;
+
 /**
- * Find a water-only route between two points using A* pathfinding
+ * Fast approximate distance for A* heuristic (no trig functions)
+ * Uses equirectangular approximation - accurate enough for grid-based pathfinding
+ */
+function fastDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const dLat = (lat2 - lat1) * 60; // Convert to nautical miles directly
+  const dLon = (lon2 - lon1) * 60 * Math.cos(((lat1 + lat2) / 2) * DEG_TO_RAD);
+  return Math.sqrt(dLat * dLat + dLon * dLon);
+}
+
+/**
+ * Integer-based key for faster Map operations
+ * Encodes lat/lon into a single number (faster than string keys)
+ */
+function getIntKey(lat: number, lon: number, invGridSize: number): number {
+  // Convert to grid coordinates and pack into a single integer
+  const latGrid = Math.round(lat * invGridSize) | 0;
+  const lonGrid = Math.round(lon * invGridSize) | 0;
+  // Pack into 64-bit safe integer (32 bits each, offset to handle negatives)
+  return (latGrid + 0x7FFFFFFF) * 0x100000 + (lonGrid + 0x7FFFFFFF);
+}
+
+/**
+ * A* Node structure optimized for cache locality
+ */
+interface AStarNode {
+  lat: number;
+  lon: number;
+  g: number;
+  f: number;
+  parentKey: number;
+  key: number;
+}
+
+/**
+ * Find a water-only route between two points using optimized A* pathfinding
+ *
+ * Optimizations applied:
+ * - Binary heap priority queue for O(log n) operations instead of O(n) linear scan
+ * - Integer keys for faster Map lookups
+ * - Fast equirectangular distance approximation for heuristic
+ * - Pre-computed direction offsets with distance costs
+ * - Reduced edge checking with adaptive sampling
+ * - Early termination with goal proximity check
  */
 function findWaterRoute(
   startLat: number,
@@ -215,6 +325,7 @@ function findWaterRoute(
   // Calculate appropriate grid size based on distance
   const totalDistance = calculateDistance(startLat, startLon, endLat, endLon);
   const gridSize = Math.max(0.0005, Math.min(0.02, totalDistance / 500));
+  const invGridSize = 1 / gridSize; // Pre-compute inverse for faster multiplication
   console.log(`[Worker] Distance: ${totalDistance.toFixed(2)} NM, Grid size: ${gridSize.toFixed(5)}° (~${(gridSize * 111000).toFixed(0)}m)`);
 
   // Find valid water cells near start and end points
@@ -239,81 +350,88 @@ function findWaterRoute(
     };
   }
 
-  // A* pathfinding
-  const allNodes = new Map<string, {
-    lat: number;
-    lon: number;
-    g: number;
-    f: number;
-    parent: string | null;
-  }>();
+  // Pre-compute goal threshold
+  const goalThreshold = gridSize * 2;
+  const goalThresholdSq = goalThreshold * goalThreshold;
 
-  const openSet = new Set<string>();
-  const closedSet = new Set<string>();
+  // A* data structures
+  const allNodes = new Map<number, AStarNode>();
+  const closedSet = new Set<number>();
 
-  const getKey = (lat: number, lon: number) => `${lat.toFixed(5)},${lon.toFixed(5)}`;
-  const heuristic = (lat: number, lon: number) =>
-    calculateDistance(lat, lon, endNode.lat, endNode.lon);
+  // Priority queue with f-score comparison
+  const openQueue = new PriorityQueue<AStarNode>((a, b) => a.f - b.f);
 
-  const startKey = getKey(startNode.lat, startNode.lon);
-  allNodes.set(startKey, {
+  // Pre-compute direction offsets with approximate costs (in grid units)
+  // Cardinals cost 1, diagonals cost sqrt(2)
+  const gridDistNm = gridSize * 60; // Approximate NM per grid cell
+  const directions: Array<[number, number, number]> = [
+    [gridSize, 0, gridDistNm],           // N
+    [-gridSize, 0, gridDistNm],          // S
+    [0, gridSize, gridDistNm],           // E
+    [0, -gridSize, gridDistNm],          // W
+    [gridSize, gridSize, gridDistNm * DIAGONAL_MULT],    // NE
+    [gridSize, -gridSize, gridDistNm * DIAGONAL_MULT],   // NW
+    [-gridSize, gridSize, gridDistNm * DIAGONAL_MULT],   // SE
+    [-gridSize, -gridSize, gridDistNm * DIAGONAL_MULT]   // SW
+  ];
+
+  // Adaptive edge checking - fewer checks for smaller grids
+  const gridMeters = gridSize * 111000;
+  const edgeCheckPoints = Math.max(2, Math.min(5, Math.ceil(gridMeters / 50)));
+
+  // Initialize start node
+  const startKey = getIntKey(startNode.lat, startNode.lon, invGridSize);
+  const startH = fastDistance(startNode.lat, startNode.lon, endNode.lat, endNode.lon);
+  const startAStarNode: AStarNode = {
     lat: startNode.lat,
     lon: startNode.lon,
     g: 0,
-    f: heuristic(startNode.lat, startNode.lon),
-    parent: null
-  });
-  openSet.add(startKey);
-
-  const directions = [
-    [gridSize, 0], [-gridSize, 0], [0, gridSize], [0, -gridSize],
-    [gridSize, gridSize], [gridSize, -gridSize], [-gridSize, gridSize], [-gridSize, -gridSize]
-  ];
+    f: startH,
+    parentKey: -1,
+    key: startKey
+  };
+  allNodes.set(startKey, startAStarNode);
+  openQueue.push(startAStarNode);
 
   let iterations = 0;
   let foundPath = false;
-  let goalKey = '';
+  let goalNode: AStarNode | null = null;
 
-  while (openSet.size > 0 && iterations < maxIterations) {
+  while (!openQueue.isEmpty() && iterations < maxIterations) {
     iterations++;
 
-    // Find node with lowest f score
-    let currentKey = '';
-    let lowestF = Infinity;
-    for (const key of openSet) {
-      const node = allNodes.get(key)!;
-      if (node.f < lowestF) {
-        lowestF = node.f;
-        currentKey = key;
-      }
-    }
+    const current = openQueue.pop()!;
 
-    const current = allNodes.get(currentKey)!;
-    openSet.delete(currentKey);
-    closedSet.add(currentKey);
+    // Skip if we've already processed this node with a better path
+    if (closedSet.has(current.key)) continue;
+    closedSet.add(current.key);
 
-    // Check if we reached the goal
-    if (calculateDistance(current.lat, current.lon, endNode.lat, endNode.lon) < gridSize * 2) {
+    // Fast goal check using squared distance approximation
+    const dLatGoal = current.lat - endNode.lat;
+    const dLonGoal = current.lon - endNode.lon;
+    if (dLatGoal * dLatGoal + dLonGoal * dLonGoal < goalThresholdSq) {
       foundPath = true;
-      goalKey = currentKey;
+      goalNode = current;
       break;
     }
 
     // Explore neighbors
-    for (const [dLat, dLon] of directions) {
-      const newLat = Math.round((current.lat + dLat) / gridSize) * gridSize;
-      const newLon = Math.round((current.lon + dLon) / gridSize) * gridSize;
-      const newKey = getKey(newLat, newLon);
+    for (let i = 0; i < 8; i++) {
+      const [dLat, dLon, moveCost] = directions[i];
+      const newLat = Math.round((current.lat + dLat) * invGridSize) * gridSize;
+      const newLon = Math.round((current.lon + dLon) * invGridSize) * gridSize;
+      const newKey = getIntKey(newLat, newLon, invGridSize);
 
+      // Skip if already in closed set
       if (closedSet.has(newKey)) continue;
+
+      // Check if destination is water
       if (!isWater(newLat, newLon)) continue;
 
-      // Check intermediate points along the edge
-      const gridMeters = gridSize * 111000;
-      const checkPoints = Math.max(2, Math.ceil(gridMeters / 15));
+      // Check intermediate points along the edge (adaptive sampling)
       let edgeClear = true;
-      for (let i = 1; i < checkPoints; i++) {
-        const t = i / checkPoints;
+      for (let j = 1; j < edgeCheckPoints; j++) {
+        const t = j / edgeCheckPoints;
         const checkLat = current.lat + t * (newLat - current.lat);
         const checkLon = current.lon + t * (newLon - current.lon);
         if (!isWater(checkLat, checkLon)) {
@@ -323,37 +441,37 @@ function findWaterRoute(
       }
       if (!edgeClear) continue;
 
-      const tentativeG = current.g + calculateDistance(current.lat, current.lon, newLat, newLon);
+      const tentativeG = current.g + moveCost;
 
       const existing = allNodes.get(newKey);
       if (!existing || tentativeG < existing.g) {
-        allNodes.set(newKey, {
+        const h = fastDistance(newLat, newLon, endNode.lat, endNode.lon);
+        const newNode: AStarNode = {
           lat: newLat,
           lon: newLon,
           g: tentativeG,
-          f: tentativeG + heuristic(newLat, newLon),
-          parent: currentKey
-        });
-        openSet.add(newKey);
+          f: tentativeG + h,
+          parentKey: current.key,
+          key: newKey
+        };
+        allNodes.set(newKey, newNode);
+        openQueue.push(newNode);
       }
     }
   }
 
-  if (foundPath) {
+  if (foundPath && goalNode) {
     // Reconstruct path
     const routePath: Array<{ lat: number; lon: number }> = [];
-    let currentKey: string | null = goalKey;
+    let currentNode: AStarNode | undefined = goalNode;
 
-    while (currentKey) {
-      const node = allNodes.get(currentKey);
-      if (node) {
-        routePath.unshift({ lat: node.lat, lon: node.lon });
-        currentKey = node.parent;
-      } else {
-        break;
-      }
+    while (currentNode) {
+      routePath.unshift({ lat: currentNode.lat, lon: currentNode.lon });
+      if (currentNode.parentKey === -1) break;
+      currentNode = allNodes.get(currentNode.parentKey);
     }
 
+    // Add actual start and end points
     routePath.unshift({ lat: startLat, lon: startLon });
     routePath.push({ lat: endLat, lon: endLon });
 

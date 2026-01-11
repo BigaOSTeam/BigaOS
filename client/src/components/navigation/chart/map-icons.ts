@@ -93,7 +93,7 @@ export const createCustomMarkerIcon = (
 
   return L.divIcon({
     html: markerHtml,
-    className: 'custom-marker-icon-with-label',
+    className: '',
     iconSize: [32, 32],
     iconAnchor: [16, 32],
     popupAnchor: [0, -40],

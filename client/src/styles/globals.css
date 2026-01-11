@@ -291,6 +291,17 @@ html, body {
   -webkit-transform: translateZ(0);
 }
 
+/* Ensure custom marker icons are clickable */
+.leaflet-marker-icon {
+  cursor: pointer !important;
+}
+
+.leaflet-div-icon {
+  background: transparent !important;
+  border: none !important;
+}
+
+
 /* ========================================
    Animations
    ======================================== */

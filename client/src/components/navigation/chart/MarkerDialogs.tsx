@@ -1,7 +1,9 @@
 import React from 'react';
 import { CustomMarker, markerIcons, markerColors } from './map-icons';
 
-interface MarkerDialogBaseProps {
+interface MarkerDialogProps {
+  marker?: CustomMarker; // If provided, editing existing marker
+  position?: { lat: number; lon: number }; // If provided (and no marker), creating new marker
   markerName: string;
   setMarkerName: (name: string) => void;
   markerColor: string;
@@ -9,18 +11,7 @@ interface MarkerDialogBaseProps {
   markerIcon: string;
   setMarkerIcon: (icon: string) => void;
   onClose: () => void;
-}
-
-interface AddMarkerDialogProps extends MarkerDialogBaseProps {
-  position: { lat: number; lon: number };
-  onAdd: (lat: number, lon: number, name: string, color: string, icon: string) => void;
-}
-
-interface EditMarkerDialogProps extends MarkerDialogBaseProps {
-  marker: CustomMarker;
-  onSave: (id: string, name: string, color: string, icon: string) => void;
-  onDelete: (id: string) => void;
-  onNavigate: (marker: CustomMarker) => void;
+  onSave: (lat: number, lon: number, name: string, color: string, icon: string, id?: string) => void;
 }
 
 const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
@@ -119,8 +110,7 @@ const IconSelector: React.FC<{
 const ColorSelector: React.FC<{
   selectedColor: string;
   onSelect: (color: string) => void;
-  marginBottom?: string;
-}> = ({ selectedColor, onSelect, marginBottom = '1.5rem' }) => (
+}> = ({ selectedColor, onSelect }) => (
   <>
     <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
       COLOR
@@ -129,7 +119,7 @@ const ColorSelector: React.FC<{
       style={{
         display: 'flex',
         gap: '0.4rem',
-        marginBottom,
+        marginBottom: '1.5rem',
         justifyContent: 'center',
         flexWrap: 'wrap',
       }}
@@ -158,9 +148,8 @@ const ColorSelector: React.FC<{
 
 const DialogOverlay: React.FC<{
   onClick: () => void;
-  zIndex: number;
   children: React.ReactNode;
-}> = ({ onClick, zIndex, children }) => (
+}> = ({ onClick, children }) => (
   <>
     <div
       onClick={onClick}
@@ -171,7 +160,7 @@ const DialogOverlay: React.FC<{
         right: 0,
         bottom: 0,
         background: 'rgba(0, 0, 0, 0.5)',
-        zIndex,
+        zIndex: 1100,
       }}
     />
     <div
@@ -184,7 +173,7 @@ const DialogOverlay: React.FC<{
         border: '1px solid rgba(255, 255, 255, 0.15)',
         borderRadius: '6px',
         padding: '1.5rem',
-        zIndex: zIndex + 1,
+        zIndex: 1101,
         boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
         minWidth: '300px',
       }}
@@ -218,7 +207,8 @@ const NameInput: React.FC<{
   />
 );
 
-export const AddMarkerDialog: React.FC<AddMarkerDialogProps> = ({
+export const MarkerDialog: React.FC<MarkerDialogProps> = ({
+  marker,
   position,
   markerName,
   setMarkerName,
@@ -227,10 +217,14 @@ export const AddMarkerDialog: React.FC<AddMarkerDialogProps> = ({
   markerIcon,
   setMarkerIcon,
   onClose,
-  onAdd,
+  onSave,
 }) => {
+  const isEditing = !!marker;
+  const lat = marker?.lat ?? position?.lat ?? 0;
+  const lon = marker?.lon ?? position?.lon ?? 0;
+
   return (
-    <DialogOverlay onClick={onClose} zIndex={1100}>
+    <DialogOverlay onClick={onClose}>
       <CloseButton onClick={onClose} />
       <div
         style={{
@@ -240,7 +234,7 @@ export const AddMarkerDialog: React.FC<AddMarkerDialogProps> = ({
           textAlign: 'center',
         }}
       >
-        Add Marker
+        {isEditing ? 'Edit Marker' : 'Add Marker'}
       </div>
       <NameInput value={markerName} onChange={setMarkerName} />
       <IconSelector
@@ -252,7 +246,7 @@ export const AddMarkerDialog: React.FC<AddMarkerDialogProps> = ({
       <button
         onClick={() => {
           if (markerName.trim()) {
-            onAdd(position.lat, position.lon, markerName, markerColor, markerIcon);
+            onSave(lat, lon, markerName, markerColor, markerIcon, marker?.id);
           }
         }}
         disabled={!markerName.trim()}
@@ -271,132 +265,8 @@ export const AddMarkerDialog: React.FC<AddMarkerDialogProps> = ({
           opacity: markerName.trim() ? 1 : 0.5,
         }}
       >
-        Add Marker
+        {isEditing ? 'Save' : 'Add Marker'}
       </button>
-    </DialogOverlay>
-  );
-};
-
-export const EditMarkerDialog: React.FC<EditMarkerDialogProps> = ({
-  marker,
-  markerName,
-  setMarkerName,
-  markerColor,
-  setMarkerColor,
-  markerIcon,
-  setMarkerIcon,
-  onClose,
-  onSave,
-  onDelete,
-  onNavigate,
-}) => {
-  return (
-    <DialogOverlay onClick={onClose} zIndex={1200}>
-      <CloseButton onClick={onClose} />
-      <div
-        style={{
-          fontSize: '1rem',
-          fontWeight: 'bold',
-          marginBottom: '1rem',
-          textAlign: 'center',
-        }}
-      >
-        Edit Marker
-      </div>
-      <NameInput value={markerName} onChange={setMarkerName} />
-      <IconSelector
-        selectedIcon={markerIcon}
-        selectedColor={markerColor}
-        onSelect={setMarkerIcon}
-      />
-      <ColorSelector
-        selectedColor={markerColor}
-        onSelect={setMarkerColor}
-        marginBottom="1rem"
-      />
-
-      {/* Navigate to Marker button */}
-      <button
-        onClick={() => onNavigate(marker)}
-        style={{
-          width: '100%',
-          padding: '0.75rem',
-          marginBottom: '0.75rem',
-          background: 'rgba(39, 174, 96, 0.5)',
-          border: 'none',
-          borderRadius: '6px',
-          color: '#fff',
-          cursor: 'pointer',
-          fontSize: '0.9rem',
-          fontWeight: 'bold',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: '0.5rem',
-        }}
-      >
-        <svg
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        >
-          <circle cx="6" cy="8" r="2" fill="currentColor" />
-          <path d="M6 10v4" />
-          <path d="M8 12h2" strokeDasharray="2 2" />
-          <path d="M12 12h2" strokeDasharray="2 2" />
-          <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="currentColor" />
-          <circle cx="18" cy="6" r="1" fill="rgba(10, 25, 41, 0.95)" />
-        </svg>
-        Navigate to Marker
-      </button>
-
-      <div style={{ display: 'flex', gap: '0.75rem' }}>
-        <button
-          onClick={() => onDelete(marker.id)}
-          style={{
-            flex: 1,
-            padding: '0.75rem',
-            background: 'rgba(239, 83, 80, 0.5)',
-            border: 'none',
-            borderRadius: '6px',
-            color: '#fff',
-            cursor: 'pointer',
-            fontSize: '0.9rem',
-            fontWeight: 'bold',
-          }}
-        >
-          Delete
-        </button>
-        <button
-          onClick={() => {
-            if (markerName.trim()) {
-              onSave(marker.id, markerName, markerColor, markerIcon);
-            }
-          }}
-          disabled={!markerName.trim()}
-          style={{
-            flex: 1,
-            padding: '0.75rem',
-            background: markerName.trim()
-              ? 'rgba(79, 195, 247, 0.5)'
-              : 'rgba(255, 255, 255, 0.05)',
-            border: 'none',
-            borderRadius: '6px',
-            color: '#fff',
-            cursor: markerName.trim() ? 'pointer' : 'not-allowed',
-            fontSize: '0.9rem',
-            fontWeight: 'bold',
-            opacity: markerName.trim() ? 1 : 0.5,
-          }}
-        >
-          Save
-        </button>
-      </div>
     </DialogOverlay>
   );
 };

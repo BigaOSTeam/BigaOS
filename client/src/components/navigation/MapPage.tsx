@@ -77,6 +77,12 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
   const handleKeyDown = useCallback((e: KeyboardEvent) => {
     if (!demoMode) return;
 
+    // Don't capture keys when user is typing in an input field
+    const target = e.target as HTMLElement;
+    if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) {
+      return;
+    }
+
     keysPressed.current.add(e.key.toLowerCase());
 
     // Speed control with W/S keys
