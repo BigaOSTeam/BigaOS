@@ -5,19 +5,25 @@ import dotenv from 'dotenv';
 import routes from './routes';
 import { WebSocketServer, setWsServerInstance } from './websocket/websocket-server';
 import db from './database/database';
+import { dbWorker } from './services/database-worker.service';
 import { waterDetectionService } from './services/water-detection.service';
 import { routeWorkerService } from './services/route-worker.service';
 
 // Load environment variables
 dotenv.config();
 
-// Initialize database
+// Initialize synchronous database (for backwards compatibility with routes)
 try {
   db.initialize();
 } catch (error) {
   console.error('Failed to initialize database:', error);
   process.exit(1);
 }
+
+// Initialize database worker (async operations run in separate thread)
+dbWorker.initialize().catch(error => {
+  console.error('Failed to initialize database worker:', error);
+});
 
 // Initialize water detection service (async, non-blocking)
 waterDetectionService.initialize().catch(error => {
@@ -95,6 +101,7 @@ process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
   wsServer.stop();
   await routeWorkerService.terminate();
+  await dbWorker.terminate();
   db.close();
   httpServer.close(() => {
     console.log('Server closed');
@@ -106,6 +113,7 @@ process.on('SIGINT', async () => {
   console.log('SIGINT received, shutting down gracefully...');
   wsServer.stop();
   await routeWorkerService.terminate();
+  await dbWorker.terminate();
   db.close();
   httpServer.close(() => {
     console.log('Server closed');

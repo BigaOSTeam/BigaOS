@@ -1,13 +1,13 @@
 import { Server as SocketIOServer } from 'socket.io';
 import { Server as HttpServer } from 'http';
 import { dummyDataService } from '../services/dummy-data.service';
-import db from '../database/database';
+import { dbWorker } from '../services/database-worker.service';
 
 export class WebSocketServer {
   private io: SocketIOServer;
   private updateInterval: NodeJS.Timeout | null = null;
   private storageCounter: number = 0;
-  private readonly STORAGE_INTERVAL: number = 5; // Store to DB every 5 seconds
+  private readonly STORAGE_INTERVAL: number = 1; // Store to DB every second
 
   constructor(httpServer: HttpServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -24,9 +24,9 @@ export class WebSocketServer {
     this.startDataBroadcast();
   }
 
-  private initializeDemoMode() {
+  private async initializeDemoMode() {
     try {
-      const demoModeSetting = db.getSetting('demoMode');
+      const demoModeSetting = await dbWorker.getSetting('demoMode');
       if (demoModeSetting && demoModeSetting !== 'undefined') {
         const enabled = JSON.parse(demoModeSetting);
         dummyDataService.setDemoMode(enabled);
@@ -67,27 +67,26 @@ export class WebSocketServer {
       socket.on('settings_update', (data) => {
         console.log('Settings update received:', data);
 
-        try {
-          // Save setting to database
-          if (data.key && data.value !== undefined) {
-            db.setSetting(data.key, JSON.stringify(data.value), data.description);
+        // Save setting to database (async, fire-and-forget for non-critical settings)
+        if (data.key && data.value !== undefined) {
+          dbWorker.setSetting(data.key, JSON.stringify(data.value), data.description)
+            .catch((error) => {
+              console.error('Error saving setting:', error);
+              socket.emit('settings_error', { error: 'Failed to save setting' });
+            });
 
-            // Update dummy data service demo mode when demoMode setting changes
-            if (data.key === 'demoMode') {
-              dummyDataService.setDemoMode(data.value);
-            }
+          // Update dummy data service demo mode when demoMode setting changes
+          if (data.key === 'demoMode') {
+            dummyDataService.setDemoMode(data.value);
           }
-
-          // Broadcast to ALL clients (including sender) so everyone stays in sync
-          this.io.emit('settings_changed', {
-            key: data.key,
-            value: data.value,
-            timestamp: new Date()
-          });
-        } catch (error) {
-          console.error('Error saving setting:', error);
-          socket.emit('settings_error', { error: 'Failed to save setting' });
         }
+
+        // Broadcast to ALL clients (including sender) so everyone stays in sync
+        this.io.emit('settings_changed', {
+          key: data.key,
+          value: data.value,
+          timestamp: new Date()
+        });
       });
 
       // Handle request for all settings
@@ -120,9 +119,9 @@ export class WebSocketServer {
     });
   }
 
-  private sendSettings(socket: any) {
+  private async sendSettings(socket: any) {
     try {
-      const allSettings = db.getAllSettings();
+      const allSettings = await dbWorker.getAllSettings();
       const settingsObj: Record<string, any> = {};
 
       for (const setting of allSettings) {
@@ -163,117 +162,121 @@ export class WebSocketServer {
   }
 
   private storeSensorData(sensorData: any) {
-    try {
-      // Navigation data
-      if (sensorData.navigation) {
-        const nav = sensorData.navigation;
-        if (nav.position) {
-          db.addSensorData('navigation', 'latitude', nav.position.latitude, 'deg');
-          db.addSensorData('navigation', 'longitude', nav.position.longitude, 'deg');
+    // Collect all sensor readings into a batch
+    const readings: Array<{ category: string; sensorName: string; value: number; unit?: string }> = [];
+
+    // Navigation data
+    if (sensorData.navigation) {
+      const nav = sensorData.navigation;
+      if (nav.position) {
+        readings.push({ category: 'navigation', sensorName: 'latitude', value: nav.position.latitude, unit: 'deg' });
+        readings.push({ category: 'navigation', sensorName: 'longitude', value: nav.position.longitude, unit: 'deg' });
+      }
+      if (nav.speedOverGround !== undefined) {
+        readings.push({ category: 'navigation', sensorName: 'speedOverGround', value: nav.speedOverGround, unit: 'kt' });
+      }
+      if (nav.courseOverGround !== undefined) {
+        readings.push({ category: 'navigation', sensorName: 'courseOverGround', value: nav.courseOverGround, unit: 'deg' });
+      }
+      // Handle both heading and headingMagnetic
+      const heading = nav.heading ?? nav.headingMagnetic;
+      if (heading !== undefined) {
+        readings.push({ category: 'navigation', sensorName: 'heading', value: heading, unit: 'deg' });
+      }
+    }
+
+    // Environment data
+    if (sensorData.environment) {
+      const env = sensorData.environment;
+      // Handle nested depth object (depth.belowTransducer) or direct depth value
+      const depthValue = env.depth?.belowTransducer ?? env.depth;
+      if (typeof depthValue === 'number') {
+        readings.push({ category: 'environment', sensorName: 'depth', value: depthValue, unit: 'm' });
+      }
+      if (env.waterTemperature !== undefined) {
+        readings.push({ category: 'environment', sensorName: 'waterTemperature', value: env.waterTemperature, unit: 'C' });
+      }
+      // Handle wind data - might be nested
+      const windSpeed = env.wind?.speedApparent ?? env.windSpeed;
+      const windDirection = env.wind?.angleApparent ?? env.windDirection;
+      if (windSpeed !== undefined) {
+        readings.push({ category: 'environment', sensorName: 'windSpeed', value: windSpeed, unit: 'kt' });
+      }
+      if (windDirection !== undefined) {
+        readings.push({ category: 'environment', sensorName: 'windDirection', value: windDirection, unit: 'deg' });
+      }
+    }
+
+    // Electrical data - handle both singular 'battery' and plural 'batteries'
+    if (sensorData.electrical) {
+      const elec = sensorData.electrical;
+
+      // Handle singular battery object
+      if (elec.battery) {
+        const battery = elec.battery;
+        if (battery.voltage !== undefined) {
+          readings.push({ category: 'electrical', sensorName: 'house_voltage', value: battery.voltage, unit: 'V' });
         }
-        if (nav.speedOverGround !== undefined) {
-          db.addSensorData('navigation', 'speedOverGround', nav.speedOverGround, 'kt');
+        if (battery.current !== undefined) {
+          readings.push({ category: 'electrical', sensorName: 'house_current', value: battery.current, unit: 'A' });
         }
-        if (nav.courseOverGround !== undefined) {
-          db.addSensorData('navigation', 'courseOverGround', nav.courseOverGround, 'deg');
+        if (battery.stateOfCharge !== undefined) {
+          readings.push({ category: 'electrical', sensorName: 'house_stateOfCharge', value: battery.stateOfCharge, unit: '%' });
         }
-        // Handle both heading and headingMagnetic
-        const heading = nav.heading ?? nav.headingMagnetic;
-        if (heading !== undefined) {
-          db.addSensorData('navigation', 'heading', heading, 'deg');
+        if (battery.temperature !== undefined) {
+          readings.push({ category: 'electrical', sensorName: 'house_temperature', value: battery.temperature, unit: 'C' });
         }
       }
 
-      // Environment data
-      if (sensorData.environment) {
-        const env = sensorData.environment;
-        // Handle nested depth object (depth.belowTransducer) or direct depth value
-        const depthValue = env.depth?.belowTransducer ?? env.depth;
-        if (typeof depthValue === 'number') {
-          db.addSensorData('environment', 'depth', depthValue, 'm');
-        }
-        if (env.waterTemperature !== undefined) {
-          db.addSensorData('environment', 'waterTemperature', env.waterTemperature, 'C');
-        }
-        // Handle wind data - might be nested
-        const windSpeed = env.wind?.speedApparent ?? env.windSpeed;
-        const windDirection = env.wind?.angleApparent ?? env.windDirection;
-        if (windSpeed !== undefined) {
-          db.addSensorData('environment', 'windSpeed', windSpeed, 'kt');
-        }
-        if (windDirection !== undefined) {
-          db.addSensorData('environment', 'windDirection', windDirection, 'deg');
-        }
-      }
-
-      // Electrical data - handle both singular 'battery' and plural 'batteries'
-      if (sensorData.electrical) {
-        const elec = sensorData.electrical;
-
-        // Handle singular battery object
-        if (elec.battery) {
-          const battery = elec.battery;
+      // Handle plural batteries object
+      if (elec.batteries) {
+        for (const [batteryId, battery] of Object.entries(elec.batteries) as [string, any][]) {
           if (battery.voltage !== undefined) {
-            db.addSensorData('electrical', 'house_voltage', battery.voltage, 'V');
+            readings.push({ category: 'electrical', sensorName: `${batteryId}_voltage`, value: battery.voltage, unit: 'V' });
           }
           if (battery.current !== undefined) {
-            db.addSensorData('electrical', 'house_current', battery.current, 'A');
+            readings.push({ category: 'electrical', sensorName: `${batteryId}_current`, value: battery.current, unit: 'A' });
           }
           if (battery.stateOfCharge !== undefined) {
-            db.addSensorData('electrical', 'house_stateOfCharge', battery.stateOfCharge, '%');
+            readings.push({ category: 'electrical', sensorName: `${batteryId}_stateOfCharge`, value: battery.stateOfCharge, unit: '%' });
           }
           if (battery.temperature !== undefined) {
-            db.addSensorData('electrical', 'house_temperature', battery.temperature, 'C');
-          }
-        }
-
-        // Handle plural batteries object
-        if (elec.batteries) {
-          for (const [batteryId, battery] of Object.entries(elec.batteries) as [string, any][]) {
-            if (battery.voltage !== undefined) {
-              db.addSensorData('electrical', `${batteryId}_voltage`, battery.voltage, 'V');
-            }
-            if (battery.current !== undefined) {
-              db.addSensorData('electrical', `${batteryId}_current`, battery.current, 'A');
-            }
-            if (battery.stateOfCharge !== undefined) {
-              db.addSensorData('electrical', `${batteryId}_stateOfCharge`, battery.stateOfCharge, '%');
-            }
-            if (battery.temperature !== undefined) {
-              db.addSensorData('electrical', `${batteryId}_temperature`, battery.temperature, 'C');
-            }
+            readings.push({ category: 'electrical', sensorName: `${batteryId}_temperature`, value: battery.temperature, unit: 'C' });
           }
         }
       }
+    }
 
-      // Engine/Motor data
-      if (sensorData.propulsion) {
-        for (const [engineId, engine] of Object.entries(sensorData.propulsion) as [string, any][]) {
-          if (engine.rpm !== undefined) {
-            db.addSensorData('propulsion', `${engineId}_rpm`, engine.rpm, 'rpm');
-          }
-          if (engine.temperature !== undefined) {
-            db.addSensorData('propulsion', `${engineId}_temperature`, engine.temperature, 'C');
-          }
-          if (engine.oilPressure !== undefined) {
-            db.addSensorData('propulsion', `${engineId}_oilPressure`, engine.oilPressure, 'kPa');
-          }
-          if (engine.fuelRate !== undefined) {
-            db.addSensorData('propulsion', `${engineId}_fuelRate`, engine.fuelRate, 'L/h');
-          }
+    // Engine/Motor data
+    if (sensorData.propulsion) {
+      for (const [engineId, engine] of Object.entries(sensorData.propulsion) as [string, any][]) {
+        if (engine.rpm !== undefined) {
+          readings.push({ category: 'propulsion', sensorName: `${engineId}_rpm`, value: engine.rpm, unit: 'rpm' });
+        }
+        if (engine.temperature !== undefined) {
+          readings.push({ category: 'propulsion', sensorName: `${engineId}_temperature`, value: engine.temperature, unit: 'C' });
+        }
+        if (engine.oilPressure !== undefined) {
+          readings.push({ category: 'propulsion', sensorName: `${engineId}_oilPressure`, value: engine.oilPressure, unit: 'kPa' });
+        }
+        if (engine.fuelRate !== undefined) {
+          readings.push({ category: 'propulsion', sensorName: `${engineId}_fuelRate`, value: engine.fuelRate, unit: 'L/h' });
         }
       }
+    }
 
-      // Tank data
-      if (sensorData.tanks) {
-        for (const [tankId, tank] of Object.entries(sensorData.tanks) as [string, any][]) {
-          if (tank.currentLevel !== undefined) {
-            db.addSensorData('tanks', `${tankId}_level`, tank.currentLevel, '%');
-          }
+    // Tank data
+    if (sensorData.tanks) {
+      for (const [tankId, tank] of Object.entries(sensorData.tanks) as [string, any][]) {
+        if (tank.currentLevel !== undefined) {
+          readings.push({ category: 'tanks', sensorName: `${tankId}_level`, value: tank.currentLevel, unit: '%' });
         }
       }
-    } catch (error) {
-      console.error('Error storing sensor data:', error);
+    }
+
+    // Send all readings as a single batch to the worker (non-blocking)
+    if (readings.length > 0) {
+      dbWorker.addSensorDataBatch(readings);
     }
   }
 

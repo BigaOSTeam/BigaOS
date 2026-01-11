@@ -68,13 +68,8 @@ export const createCustomMarkerIcon = (
 ): L.DivIcon => {
   const iconPath = markerIcons[icon] || markerIcons.pin;
   const markerHtml = `
-    <div style="position: relative; width: 32px; height: 32px;">
+    <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
       <div style="
-        position: absolute;
-        bottom: 100%;
-        left: 50%;
-        transform: translateX(-50%);
-        margin-bottom: 4px;
         background: rgba(10, 25, 41, 0.95);
         border: 1px solid ${color};
         border-radius: 4px;
@@ -84,6 +79,7 @@ export const createCustomMarkerIcon = (
         font-weight: bold;
         white-space: nowrap;
         box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        margin-bottom: 4px;
       ">${name}</div>
       <svg width="32" height="32" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
         <path d="${iconPath}" fill="${color}" stroke="#fff" stroke-width="1.5"/>
@@ -91,12 +87,15 @@ export const createCustomMarkerIcon = (
     </div>
   `;
 
+  // Label height: 12px font + 8px padding + 2px border + 4px margin = ~26px
+  // Icon anchor at lower third of 32px icon = ~21px into icon
+  // Total: 26 + 21 = 47px from top
   return L.divIcon({
     html: markerHtml,
     className: '',
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -40],
+    iconSize: [32, 58],
+    iconAnchor: [16, 53],
+    popupAnchor: [0, -58],
   });
 };
 

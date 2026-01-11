@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
@@ -142,6 +142,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
   const [markerName, setMarkerName] = useState('');
   const [markerColor, setMarkerColor] = useState(markerColors[0]);
   const [markerIcon, setMarkerIcon] = useState('pin');
+
+  // Memoize marker icons to prevent constant re-rendering
+  const markerIcons = useMemo(() => {
+    const icons: Record<string, L.DivIcon> = {};
+    customMarkers.forEach((marker) => {
+      icons[marker.id] = createCustomMarkerIcon(marker.color, marker.name, marker.icon);
+    });
+    return icons;
+  }, [customMarkers]);
 
   // Navigation state
   const [navigationTarget, setNavigationTarget] = useState<CustomMarker | null>(
@@ -670,7 +679,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           <Marker
             key={marker.id}
             position={[marker.lat, marker.lon]}
-            icon={createCustomMarkerIcon(marker.color, marker.name, marker.icon)}
+            icon={markerIcons[marker.id]}
             eventHandlers={{
               click: (e) => {
                 const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
