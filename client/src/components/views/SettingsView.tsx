@@ -17,14 +17,15 @@ import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { OfflineMapsTab } from '../settings/OfflineMapsTab';
 import { wsService } from '../../services/websocket';
 
-interface SettingsViewProps {
-  onClose: () => void;
-}
-
 type SettingsTab = 'general' | 'units' | 'downloads' | 'offline-maps' | 'advanced';
 
-export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('general');
+interface SettingsViewProps {
+  onClose: () => void;
+  initialTab?: SettingsTab;
+}
+
+export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab }) => {
+  const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'general');
   const [dataFiles, setDataFiles] = useState<DataFileInfo[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
   const [editingUrls, setEditingUrls] = useState<Record<string, string>>({});
@@ -56,7 +57,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
       });
 
       const activeDownloads = response.data.files.filter(
-        f => f.downloadStatus && (f.downloadStatus.status === 'downloading' || f.downloadStatus.status === 'extracting')
+        f => f.downloadStatus && (f.downloadStatus.status === 'downloading' || f.downloadStatus.status === 'extracting' || f.downloadStatus.status === 'converting' || f.downloadStatus.status === 'indexing')
       );
       setDownloadingFiles(new Set(activeDownloads.map(f => f.id)));
 
@@ -97,7 +98,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
       }));
 
       // Update downloadingFiles set based on status
-      if (data.status === 'downloading' || data.status === 'extracting') {
+      if (data.status === 'downloading' || data.status === 'extracting' || data.status === 'converting' || data.status === 'indexing') {
         setDownloadingFiles(prev => new Set([...prev, data.fileId]));
       } else {
         setDownloadingFiles(prev => {
@@ -309,7 +310,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
     },
     {
       id: 'downloads',
-      label: 'Nav Data',
+      label: 'Navigation Data',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <circle cx="12" cy="12" r="10" />
@@ -524,25 +525,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
             borderRadius: theme.radius.md,
             border: `1px solid ${file.exists ? theme.colors.success + '40' : theme.colors.border}`,
           }}>
-            {/* Header with name and status */}
+            {/* Header with name */}
             <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              fontSize: theme.fontSize.base,
+              fontWeight: theme.fontWeight.bold,
+              color: theme.colors.textPrimary,
               marginBottom: theme.space.sm,
             }}>
-              <div style={{
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.bold,
-                color: theme.colors.textPrimary,
-              }}>
-                {file.name}
-              </div>
-              {file.remoteSize && (
-                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
-                  {formatFileSize(file.remoteSize)}
-                </span>
-              )}
+              {file.name}
             </div>
 
             {/* File info */}
@@ -557,7 +547,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
               {file.exists && (
                 <>
                   <span>Installed:</span>
-                  <span>{formatDate(getInstalledDate(file))} ({formatFileSize(file.size)})</span>
+                  <span>{formatDate(getInstalledDate(file))}</span>
                 </>
               )}
               {hasUpdate(file) && file.remoteDate && (
@@ -676,7 +666,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
             </div>
 
             {/* Download Progress or Actions */}
-            {file.downloadStatus && (file.downloadStatus.status === 'downloading' || file.downloadStatus.status === 'extracting') ? (
+            {file.downloadStatus && (file.downloadStatus.status === 'downloading' || file.downloadStatus.status === 'extracting' || file.downloadStatus.status === 'converting' || file.downloadStatus.status === 'indexing') ? (
               <div style={{ marginTop: theme.space.sm }}>
                 <div style={{
                   marginBottom: theme.space.sm,
@@ -686,14 +676,14 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
                   height: '8px',
                   position: 'relative',
                 }}>
-                  {file.downloadStatus.status === 'extracting' ? (
+                  {file.downloadStatus.status === 'extracting' || file.downloadStatus.status === 'converting' || file.downloadStatus.status === 'indexing' ? (
                     <div style={{
                       position: 'absolute',
                       top: 0,
                       left: 0,
                       right: 0,
                       bottom: 0,
-                      background: `linear-gradient(90deg, transparent 0%, ${theme.colors.warning} 50%, transparent 100%)`,
+                      background: `linear-gradient(90deg, transparent 0%, ${file.downloadStatus.status === 'converting' ? theme.colors.info : file.downloadStatus.status === 'indexing' ? theme.colors.success : theme.colors.warning} 50%, transparent 100%)`,
                       animation: 'extracting 1.5s ease-in-out infinite',
                     }} />
                   ) : (
@@ -714,11 +704,13 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
                   marginBottom: theme.space.sm,
                 }}>
                   <span>
-                    {file.downloadStatus.status === 'extracting' ? 'Extracting...' : (
+                    {file.downloadStatus.status === 'extracting' ? 'Extracting...' :
+                     file.downloadStatus.status === 'converting' ? 'Converting to shapefile...' :
+                     file.downloadStatus.status === 'indexing' ? 'Indexing navigation data...' : (
                       `${formatFileSize(file.downloadStatus.bytesDownloaded)} / ${formatFileSize(file.downloadStatus.totalBytes)}`
                     )}
                   </span>
-                  <span>{file.downloadStatus.status === 'extracting' ? '' : `${file.downloadStatus.progress}%`}</span>
+                  <span>{file.downloadStatus.status === 'extracting' || file.downloadStatus.status === 'converting' || file.downloadStatus.status === 'indexing' ? '' : `${file.downloadStatus.progress}%`}</span>
                 </div>
                 <button
                   onClick={() => handleCancelDownload(file)}
@@ -795,7 +787,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
                       <polyline points="7 10 12 15 17 10" />
                       <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
-                    {downloadingFiles.has(file.id) ? 'Starting...' : 'Download'}
+                    {downloadingFiles.has(file.id) ? 'Starting...' : `Download${file.remoteSize ? ` (${formatFileSize(file.remoteSize)})` : ''}`}
                   </button>
                 ) : hasUpdate(file) ? (
                   <button
@@ -823,7 +815,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
                       <polyline points="7 10 12 15 17 10" />
                       <line x1="12" y1="15" x2="12" y2="3" />
                     </svg>
-                    {downloadingFiles.has(file.id) ? 'Starting...' : 'Update'}
+                    {downloadingFiles.has(file.id) ? 'Starting...' : `Update${file.remoteSize ? ` (${formatFileSize(file.remoteSize)})` : ''}`}
                   </button>
                 ) : (
                   <div style={{
@@ -842,7 +834,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose }) => {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
-                    Installed
+                    Installed{file.size ? ` (${formatFileSize(file.size)})` : ''}
                   </div>
                 )}
                 {file.exists && (

@@ -76,6 +76,7 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
   const [downloadingRegions, setDownloadingRegions] = useState<Set<string>>(new Set());
   const [mapRef, setMapRef] = useState<LeafletMap | null>(null);
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [includeSatellite, setIncludeSatellite] = useState(true);
   const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const estimateTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { confirm } = useConfirmDialog();
@@ -152,7 +153,16 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
     };
   }, [downloadingRegions.size, fetchRegions]);
 
-  // Fetch estimate when bounds change (debounced)
+  // Build layers array based on toggle
+  const getSelectedLayers = useCallback(() => {
+    const layers: ('street' | 'satellite' | 'nautical')[] = ['street', 'nautical'];
+    if (includeSatellite) {
+      layers.splice(1, 0, 'satellite'); // Insert satellite between street and nautical
+    }
+    return layers;
+  }, [includeSatellite]);
+
+  // Fetch estimate when bounds change (debounced) - satellite toggle is handled client-side
   useEffect(() => {
     if (!selectedBounds) {
       setEstimate(null);
@@ -168,6 +178,7 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
     estimateTimeoutRef.current = setTimeout(async () => {
       setEstimateLoading(true);
       try {
+        // Always fetch with all layers - we'll calculate totals client-side based on toggle
         const response = await offlineMapsAPI.getEstimate({
           bounds: selectedBounds,
           minZoom: 0,
@@ -198,7 +209,7 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
         bounds: selectedBounds,
         minZoom: 0,
         maxZoom: 16,
-        layers: ['street', 'satellite', 'nautical'],
+        layers: getSelectedLayers(),
       });
 
       // Reset form
@@ -450,72 +461,116 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
             {estimateLoading ? (
               <div style={{ color: theme.colors.textMuted }}>Calculating...</div>
             ) : estimate ? (
-              <>
-                {/* Per-layer breakdown */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
-                  {/* Street Maps - ~18KB avg per tile */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: `${theme.space.xs} 0`,
-                    borderBottom: `1px solid ${theme.colors.border}`,
-                  }}>
-                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
-                      Street Maps
-                    </span>
-                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
-                      ~{formatFileSize(estimate.tilesPerLayer * 18000)}
-                    </span>
-                  </div>
-                  {/* Satellite - ~40KB avg per tile */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: `${theme.space.xs} 0`,
-                    borderBottom: `1px solid ${theme.colors.border}`,
-                  }}>
-                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
-                      Satellite
-                    </span>
-                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
-                      ~{formatFileSize(estimate.tilesPerLayer * 40000)}
-                    </span>
-                  </div>
-                  {/* Sea Charts - ~8KB avg per tile */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: `${theme.space.xs} 0`,
-                  }}>
-                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
-                      Sea Charts
-                    </span>
-                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
-                      ~{formatFileSize(estimate.tilesPerLayer * 8000)}
-                    </span>
-                  </div>
-                </div>
+              (() => {
+                // Calculate per-layer sizes
+                const streetBytes = estimate.tilesPerLayer * 18000;
+                const satelliteBytes = estimate.tilesPerLayer * 40000;
+                const nauticalBytes = estimate.tilesPerLayer * 8000;
+                const totalBytes = streetBytes + (includeSatellite ? satelliteBytes : 0) + nauticalBytes;
 
-                {/* Total summary */}
-                <div style={{
-                  marginTop: theme.space.md,
-                  paddingTop: theme.space.sm,
-                  borderTop: `1px solid ${theme.colors.borderHover}`,
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}>
-                  <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
-                    Total
-                  </span>
-                  <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
-                    ~{estimate.estimatedSize}
-                  </span>
-                </div>
-              </>
+                return (
+                  <>
+                    {/* Per-layer breakdown */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
+                      {/* Street Maps - ~18KB avg per tile */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: `${theme.space.xs} 0`,
+                        borderBottom: `1px solid ${theme.colors.border}`,
+                      }}>
+                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
+                          Street Maps
+                        </span>
+                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
+                          ~{formatFileSize(streetBytes)}
+                        </span>
+                      </div>
+                      {/* Satellite - ~40KB avg per tile - with toggle */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: `${theme.space.xs} 0`,
+                        borderBottom: `1px solid ${theme.colors.border}`,
+                        opacity: includeSatellite ? 1 : 0.5,
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: theme.space.sm,
+                        }}>
+                          <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
+                            Satellite
+                          </span>
+                          {/* Toggle switch */}
+                          <button
+                            onClick={() => setIncludeSatellite(!includeSatellite)}
+                            style={{
+                              width: '32px',
+                              height: '18px',
+                              borderRadius: '9px',
+                              border: 'none',
+                              background: includeSatellite ? theme.colors.primary : theme.colors.bgCardActive,
+                              cursor: 'pointer',
+                              position: 'relative',
+                              transition: 'background 0.2s ease',
+                              padding: 0,
+                            }}
+                          >
+                            <div style={{
+                              width: '14px',
+                              height: '14px',
+                              borderRadius: '50%',
+                              background: '#fff',
+                              position: 'absolute',
+                              top: '2px',
+                              left: includeSatellite ? '16px' : '2px',
+                              transition: 'left 0.2s ease',
+                              boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                            }} />
+                          </button>
+                        </div>
+                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
+                          ~{formatFileSize(satelliteBytes)}
+                        </span>
+                      </div>
+                      {/* Sea Charts - ~8KB avg per tile */}
+                      <div style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        padding: `${theme.space.xs} 0`,
+                      }}>
+                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
+                          Sea Charts
+                        </span>
+                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
+                          ~{formatFileSize(nauticalBytes)}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Total summary */}
+                    <div style={{
+                      marginTop: theme.space.md,
+                      paddingTop: theme.space.sm,
+                      borderTop: `1px solid ${theme.colors.borderHover}`,
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
+                        Total
+                      </span>
+                      <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
+                        ~{formatFileSize(totalBytes)}
+                      </span>
+                    </div>
+                  </>
+                );
+              })()
             ) : (
               <div style={{ color: theme.colors.textMuted }}>Move the map to see estimate</div>
             )}
@@ -630,34 +685,53 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
               <div style={{
                 display: 'flex',
                 justifyContent: 'space-between',
-                alignItems: 'flex-start',
+                alignItems: 'center',
                 marginBottom: theme.space.md,
               }}>
-                <div>
+                <div style={{
+                  fontWeight: theme.fontWeight.medium,
+                }}>
+                  {region.name}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: theme.space.sm }}>
+                  {/* Only show status for error regions */}
+                  {region.status === 'error' && (
+                    <div style={{
+                      fontSize: theme.fontSize.xs,
+                      color: getStatusColor(region.status),
+                      fontWeight: theme.fontWeight.medium,
+                    }}>
+                      {getStatusText(region)}
+                    </div>
+                  )}
+                  {/* Satellite indicator */}
                   <div style={{
-                    fontWeight: theme.fontWeight.medium,
-                    marginBottom: theme.space.xs,
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    background: region.layers?.includes('satellite')
+                      ? `${theme.colors.success}20`
+                      : `${theme.colors.error}20`,
+                    border: `1px solid ${region.layers?.includes('satellite') ? theme.colors.success : theme.colors.error}40`,
                   }}>
-                    {region.name}
-                  </div>
-                  <div style={{
-                    fontSize: theme.fontSize.xs,
-                    color: theme.colors.textMuted,
-                  }}>
-                    {region.totalTiles.toLocaleString()} tiles
-                    {region.storageBytes > 0 && ` • ${formatFileSize(region.storageBytes)}`}
+                    {region.layers?.includes('satellite') ? (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={theme.colors.success} strokeWidth="3">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    ) : (
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke={theme.colors.error} strokeWidth="3">
+                        <line x1="18" y1="6" x2="6" y2="18" />
+                        <line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    )}
+                    <span style={{
+                      fontSize: '10px',
+                      color: region.layers?.includes('satellite') ? theme.colors.success : theme.colors.error,
+                    }}>Satellite</span>
                   </div>
                 </div>
-                {/* Only show status for non-complete regions */}
-                {region.status !== 'complete' && (
-                  <div style={{
-                    fontSize: theme.fontSize.xs,
-                    color: getStatusColor(region.status),
-                    fontWeight: theme.fontWeight.medium,
-                  }}>
-                    {getStatusText(region)}
-                  </div>
-                )}
               </div>
 
               {/* Progress bar for downloading regions */}
@@ -679,15 +753,12 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                     }} />
                   </div>
                   <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
                     fontSize: theme.fontSize.xs,
                     color: theme.colors.textMuted,
                     marginBottom: theme.space.sm,
+                    textAlign: 'right',
                   }}>
-                    <span>{region.downloadedTiles.toLocaleString()} / {region.totalTiles.toLocaleString()} tiles</span>
-                    <span>{getProgressPercent(region)}%</span>
+                    {getProgressPercent(region)}%
                   </div>
                 </>
               )}
@@ -729,7 +800,7 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <polyline points="20 6 9 17 4 12" />
                       </svg>
-                      Downloaded
+                      Downloaded{region.storageBytes > 0 ? ` (${formatFileSize(region.storageBytes)})` : ''}
                     </div>
                     <button
                       onClick={() => handleDeleteRegion(region)}

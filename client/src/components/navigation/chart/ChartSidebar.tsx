@@ -20,13 +20,11 @@ interface ChartSidebarProps {
   useSatellite: boolean;
   autoCenter: boolean;
   bearingToTarget?: number | null;
-  debugMode?: boolean;
   onClose?: () => void;
   onDepthClick: () => void;
   onSearchClick: () => void;
   onSatelliteToggle: () => void;
   onRecenter: () => void;
-  onDebugToggle?: () => void;
 }
 
 export const ChartSidebar: React.FC<ChartSidebarProps> = ({
@@ -42,13 +40,11 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   useSatellite,
   autoCenter,
   bearingToTarget,
-  debugMode,
   onClose,
   onDepthClick,
   onSearchClick,
   onSatelliteToggle,
   onRecenter,
-  onDebugToggle,
 }) => {
   const sidebarWidth = 100;
 
@@ -240,34 +236,6 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           {useSatellite ? 'STREET' : 'SATELLITE'}
         </span>
       </button>
-
-      {/* Water Debug overlay toggle */}
-      {onDebugToggle && (
-        <button
-          onClick={onDebugToggle}
-          className={`chart-sidebar-btn with-label ${debugMode ? 'active' : ''}`}
-          style={{
-            borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          }}
-          title="Toggle water detection debug overlay"
-        >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke={debugMode ? '#4fc3f7' : 'currentColor'}
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-            <path d="M2 17l10 5 10-5" />
-            <path d="M2 12l10 5 10-5" />
-          </svg>
-          <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>DEBUG</span>
-        </button>
-      )}
 
       {/* Recenter button */}
       <button

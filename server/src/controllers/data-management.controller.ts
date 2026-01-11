@@ -13,7 +13,10 @@ import * as http from 'http';
 import { createWriteStream } from 'fs';
 import { pipeline } from 'stream/promises';
 import { createGunzip } from 'zlib';
+import * as tar from 'tar';
 import { wsServerInstance } from '../websocket/websocket-server';
+import { waterDetectionService } from '../services/water-detection.service';
+import { routeWorkerService } from '../services/route-worker.service';
 
 // Try to import unzipper, fall back gracefully if not available
 let unzipper: typeof import('unzipper') | null = null;
@@ -52,7 +55,7 @@ interface FileMetadata {
 
 interface DownloadProgress {
   fileId: string;
-  status: 'downloading' | 'extracting' | 'completed' | 'error';
+  status: 'downloading' | 'extracting' | 'indexing' | 'completed' | 'error';
   progress: number; // 0-100
   bytesDownloaded: number;
   totalBytes: number;
@@ -68,24 +71,14 @@ interface ActiveDownload {
 }
 
 // Default file configurations
-// Each download gets its own folder based on the id (e.g., oceans-seas/, lakes-rivers/)
 const DEFAULT_FILES: DataFileConfig[] = [
   {
-    id: 'oceans-seas',
-    name: 'Oceans & Seas',
-    description: '',
+    id: 'water-data',
+    name: 'Water Data',
+    description: 'OSM Water Layer - oceans, lakes, rivers (90m resolution)',
     category: 'navigation',
-    defaultUrl: 'https://osmdata.openstreetmap.de/download/water-polygons-split-4326.zip',
-    localPath: 'oceans-seas',
-    extractTo: 'oceans-seas'
-  },
-  {
-    id: 'lakes-rivers',
-    name: 'Lakes & Rivers',
-    description: '',
-    category: 'navigation',
-    defaultUrl: 'https://hydro.iis.u-tokyo.ac.jp/~yamadai/OSM_water/v2.0_2021Feb/OSM_WaterLayer.pbf',
-    localPath: 'lakes-rivers'
+    defaultUrl: 'http://hydro.iis.u-tokyo.ac.jp/~yamadai/OSM_water/v2.0_2021Feb/OSM_WaterLayer_tif.tar.gz',
+    localPath: 'water-data'
   }
 ];
 
@@ -417,8 +410,9 @@ class DataManagementController {
   /**
    * Determine file type from URL
    */
-  private getFileType(url: string): 'zip' | 'gzip' | 'raw' {
+  private getFileType(url: string): 'zip' | 'tar.gz' | 'gzip' | 'raw' {
     if (url.endsWith('.zip')) return 'zip';
+    if (url.endsWith('.tar.gz') || url.endsWith('.tgz')) return 'tar.gz';
     if (url.endsWith('.gz')) return 'gzip';
     return 'raw';
   }
@@ -426,8 +420,8 @@ class DataManagementController {
   /**
    * Get temp file path for download
    */
-  private getTempFilePath(fileId: string, fileType: 'zip' | 'gzip' | 'raw', url: string): string {
-    const ext = fileType === 'zip' ? '.zip' : fileType === 'gzip' ? '.gz' : '';
+  private getTempFilePath(fileId: string, fileType: 'zip' | 'tar.gz' | 'gzip' | 'raw', url: string): string {
+    const ext = fileType === 'zip' ? '.zip' : fileType === 'tar.gz' ? '.tar.gz' : fileType === 'gzip' ? '.gz' : '';
     const fileName = ext ? `${fileId}${ext}` : path.basename(url);
     return path.join(this.dataDir, fileName);
   }
@@ -461,7 +455,7 @@ class DataManagementController {
   private async processDownloadedFile(
     tempFilePath: string,
     targetDir: string,
-    fileType: 'zip' | 'gzip' | 'raw',
+    fileType: 'zip' | 'tar.gz' | 'gzip' | 'raw',
     url: string,
     progress: DownloadProgress
   ): Promise<void> {
@@ -471,6 +465,14 @@ class DataManagementController {
         progress.progress = 0;
         this.broadcastProgress(progress);
         await this.extractZip(tempFilePath, targetDir);
+        this.cleanupTempFile(tempFilePath);
+        break;
+
+      case 'tar.gz':
+        progress.status = 'extracting';
+        progress.progress = 0;
+        this.broadcastProgress(progress);
+        await this.extractTarGz(tempFilePath, targetDir);
         this.cleanupTempFile(tempFilePath);
         break;
 
@@ -520,10 +522,6 @@ class DataManagementController {
 
       await this.processDownloadedFile(tempFilePath, targetDir, fileType, url, progress);
 
-      progress.status = 'completed';
-      progress.progress = 100;
-      this.broadcastProgress(progress);
-
       // Save release date to metadata
       if (remoteReleaseDate) {
         const metadata = this.loadMetadata();
@@ -532,6 +530,20 @@ class DataManagementController {
       }
 
       console.log(`Download completed: ${fileId}`);
+
+      // Reload navigation data if this was the water data file
+      if (fileId === 'water-data') {
+        progress.status = 'indexing';
+        this.broadcastProgress(progress);
+        console.log('Navigation data downloaded, reloading water detection service...');
+        await waterDetectionService.reload();
+        // Also reinitialize route worker if needed
+        await routeWorkerService.reinitialize();
+      }
+
+      progress.status = 'completed';
+      progress.progress = 100;
+      this.broadcastProgress(progress);
 
       // Clean up progress after delay
       setTimeout(() => this.activeDownloads.delete(fileId), 30000);
@@ -697,6 +709,20 @@ class DataManagementController {
       createGunzip(),
       createWriteStream(extractTo)
     );
+  }
+
+  /**
+   * Extract a tar.gz file
+   */
+  private async extractTarGz(tarGzPath: string, extractTo: string): Promise<void> {
+    await tar.extract({
+      file: tarGzPath,
+      cwd: extractTo,
+      strip: 1 // Strip the first directory level if present
+    });
+
+    // Flatten nested directory structure if needed
+    this.flattenSingleNestedDir(extractTo);
   }
 
   /**

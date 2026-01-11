@@ -100,6 +100,7 @@ export const navigationAPI = {
     api.get<{
       initialized: boolean;
       usingSpatialIndex: boolean;
+      usingLakeSpatialIndex: boolean;
       cacheStats: { size: number; maxSize: number };
     }>('/navigation/debug/info')
 };
@@ -107,12 +108,13 @@ export const navigationAPI = {
 // Data Management API
 export interface DownloadProgress {
   fileId: string;
-  status: 'downloading' | 'extracting' | 'completed' | 'error' | 'idle';
+  status: 'downloading' | 'extracting' | 'converting' | 'indexing' | 'completed' | 'error' | 'idle';
   progress: number;
   bytesDownloaded: number;
   totalBytes: number;
   error?: string;
   startTime?: number;
+  conversionProgress?: number;
 }
 
 export interface DataFileInfo {

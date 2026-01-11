@@ -2,16 +2,26 @@
  * Route Worker Service
  *
  * Manages a worker thread for route calculations to avoid blocking the main thread.
+ * Uses GeoTIFF water data for water detection.
  */
 
 import { Worker } from 'worker_threads';
 import * as path from 'path';
 import * as fs from 'fs';
 
+type RouteFailureReason =
+  | 'START_ON_LAND'
+  | 'END_ON_LAND'
+  | 'NO_PATH_FOUND'
+  | 'DISTANCE_TOO_LONG'
+  | 'NARROW_CHANNEL'
+  | 'MAX_ITERATIONS';
+
 interface RouteResult {
   success: boolean;
   waypoints: Array<{ lat: number; lon: number }>;
   distance: number;
+  failureReason?: RouteFailureReason;
 }
 
 interface PendingRequest {
@@ -25,34 +35,40 @@ class RouteWorkerService {
   private initializing = false;
   private pendingRequests = new Map<string, PendingRequest>();
   private requestCounter = 0;
-  private shpPath: string = '';
+  private restartAttempts = 0;
+  private readonly MAX_RESTART_ATTEMPTS = 3;
+  private readonly RESTART_DELAY_MS = 1000;
 
   /**
-   * Initialize the worker with the shapefile path
+   * Initialize the worker
    */
   async initialize(): Promise<void> {
     if (this.initialized || this.initializing) return;
     this.initializing = true;
 
-    const dataDir = path.join(__dirname, '..', 'data');
+    const dataDir = path.join(__dirname, '..', 'data', 'water-data');
 
-    // Find shapefile path
-    let shpPath = path.join(dataDir, 'oceans-seas', 'water_polygons.shp');
-    if (!fs.existsSync(shpPath)) {
-      shpPath = path.join(dataDir, 'water-polygons-split-4326', 'water_polygons.shp');
-    }
-
-    if (!fs.existsSync(shpPath)) {
-      console.warn('[RouteWorker] Shapefile not found, worker will not be initialized');
+    // Check if water data exists
+    if (!fs.existsSync(dataDir)) {
+      console.warn('[RouteWorker] Water data not found, worker will not be initialized');
       this.initializing = false;
       return;
     }
 
-    this.shpPath = shpPath;
+    // Check for any .tif files
+    const files = fs.readdirSync(dataDir);
+    const hasTifFiles = files.some(f => f.endsWith('.tif') || f.endsWith('.tiff'));
+
+    if (!hasTifFiles) {
+      console.warn('[RouteWorker] No GeoTIFF files found, worker will not be initialized');
+      this.initializing = false;
+      return;
+    }
 
     try {
       await this.startWorker();
       this.initialized = true;
+      this.restartAttempts = 0; // Reset on successful init
       console.log('[RouteWorker] Worker initialized successfully');
     } catch (error) {
       console.error('[RouteWorker] Failed to initialize worker:', error);
@@ -66,10 +82,8 @@ class RouteWorkerService {
    */
   private async startWorker(): Promise<void> {
     return new Promise((resolve, reject) => {
-      // Use ts-node to run TypeScript worker directly in dev
       const workerPath = path.join(__dirname, '..', 'workers', 'route-calculation.worker.ts');
 
-      // Check if we're running compiled JS or TS
       const isCompiled = __filename.endsWith('.js');
       const actualWorkerPath = isCompiled
         ? workerPath.replace('.ts', '.js')
@@ -97,8 +111,7 @@ class RouteWorkerService {
 
       this.worker.on('error', (error) => {
         console.error('[RouteWorker] Worker error:', error);
-        // Reject all pending requests
-        for (const [id, pending] of this.pendingRequests) {
+        for (const [, pending] of this.pendingRequests) {
           pending.reject(error);
         }
         this.pendingRequests.clear();
@@ -110,16 +123,27 @@ class RouteWorkerService {
         }
         this.initialized = false;
         this.worker = null;
+
+        // Auto-restart worker if it crashed unexpectedly
+        if (code !== 0 && this.restartAttempts < this.MAX_RESTART_ATTEMPTS) {
+          this.restartAttempts++;
+          console.log(`[RouteWorker] Attempting restart ${this.restartAttempts}/${this.MAX_RESTART_ATTEMPTS}...`);
+          setTimeout(() => {
+            this.initializing = false;
+            this.initialize().catch(err => {
+              console.error('[RouteWorker] Restart failed:', err);
+            });
+          }, this.RESTART_DELAY_MS);
+        }
       });
 
-      // Initialize the worker with shapefile path
+      // Initialize the worker
       const initId = `init-${Date.now()}`;
       this.pendingRequests.set(initId, { resolve: () => resolve(), reject });
 
       this.worker.postMessage({
         type: 'init',
-        id: initId,
-        data: { shpPath: this.shpPath }
+        id: initId
       });
     });
   }
@@ -135,7 +159,6 @@ class RouteWorkerService {
     maxIterations: number = 10000
   ): Promise<RouteResult> {
     if (!this.initialized || !this.worker) {
-      // Fallback: return direct route if worker not available
       console.warn('[RouteWorker] Worker not available, returning direct route');
       const distance = this.calculateDistance(startLat, startLon, endLat, endLon);
       return {
@@ -158,7 +181,6 @@ class RouteWorkerService {
         data: { startLat, startLon, endLat, endLon, maxIterations }
       });
 
-      // Timeout after 120 seconds
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
@@ -199,6 +221,17 @@ class RouteWorkerService {
       this.worker = null;
       this.initialized = false;
     }
+  }
+
+  /**
+   * Reinitialize the worker (called after new navigation data is downloaded)
+   */
+  async reinitialize(): Promise<void> {
+    console.log('[RouteWorker] Reinitializing worker with new data...');
+    await this.terminate();
+    this.initialized = false;
+    this.initializing = false;
+    await this.initialize();
   }
 }
 

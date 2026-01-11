@@ -13,23 +13,22 @@ import { PositionView } from './components/views/PositionView';
 import { BatteryView } from './components/views/BatteryView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
+import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { wsService } from './services/websocket';
 import { sensorAPI } from './services/api';
 import './styles/globals.css';
-
-type ActiveView = 'dashboard' | ViewType;
 
 // Inner app component that uses settings context
 function AppContent() {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
-  const [connectionStatus, setConnectionStatus] = useState<'connected' | 'disconnected'>('disconnected');
-  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [serverReachable, setServerReachable] = useState(true);
   const [, forceUpdate] = useState(0);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showOnlineBanner, setShowOnlineBanner] = useState(false);
   const wasOfflineRef = useRef<boolean | null>(null);
   const { setCurrentDepth } = useSettings();
+  const { activeView, navigationParams, navigate, goBack } = useNavigation();
   const repaintIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Force a repaint periodically to recover from rendering freezes
@@ -68,18 +67,9 @@ function AppContent() {
           setCurrentDepth(data.data.environment.depth.belowTransducer);
         }
       }
-      setConnectionStatus('connected');
     });
 
-    wsService.on('connect', () => {
-      setConnectionStatus('connected');
-    });
-
-    wsService.on('disconnect', () => {
-      setConnectionStatus('disconnected');
-    });
-
-    // Listen for connectivity changes from server
+    // Listen for connectivity changes from server (internet connectivity)
     wsService.on('connectivity_change', (data: { online: boolean }) => {
       const isOnline = data.online;
 
@@ -92,6 +82,11 @@ function AppContent() {
 
       wasOfflineRef.current = !isOnline;
       setIsOfflineMode(!isOnline);
+    });
+
+    // Listen for server reachability changes (WebSocket connection health)
+    wsService.on('server_reachability', (data: { reachable: boolean }) => {
+      setServerReachable(data.reachable);
     });
 
     fetchInitialData();
@@ -117,11 +112,7 @@ function AppContent() {
   };
 
   const handleNavigate = (view: ViewType) => {
-    setActiveView(view);
-  };
-
-  const handleBack = () => {
-    setActiveView('dashboard');
+    navigate(view);
   };
 
   if (loading || !sensorData) {
@@ -218,63 +209,56 @@ function AppContent() {
     return null;
   };
 
-  // Disconnection warning overlay
-  const DisconnectionWarning = () => (
-    <div style={{
-      position: 'fixed',
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      background: 'rgba(0, 0, 0, 0.85)',
-      display: 'flex',
-      flexDirection: 'column',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 9999,
-    }}>
+  // Server unreachable banner (shown at top of screen)
+  const ServerUnreachableBanner = () => {
+    if (serverReachable) return null;
+
+    return (
       <div style={{
-        fontSize: '4rem',
-        marginBottom: '1rem',
-        animation: 'pulse 1.5s infinite',
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        background: 'rgba(239, 68, 68, 0.95)',
+        color: '#fff',
+        padding: '8px 16px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: '8px',
+        zIndex: 10001,
+        fontSize: '14px',
+        fontWeight: 500,
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
       }}>
-        ⚠️
+        <div style={{
+          width: '8px',
+          height: '8px',
+          borderRadius: '50%',
+          background: '#fff',
+          animation: 'blink 1s ease-in-out infinite',
+        }} />
+        <span>Server unreachable - Reconnecting...</span>
+        <style>
+          {`
+            @keyframes blink {
+              0%, 100% { opacity: 1; }
+              50% { opacity: 0.3; }
+            }
+          `}
+        </style>
       </div>
-      <div style={{
-        fontSize: '2rem',
-        fontWeight: 'bold',
-        color: '#ef5350',
-        textTransform: 'uppercase',
-        letterSpacing: '0.2em',
-      }}>
-        Connection Lost
-      </div>
-      <div style={{
-        fontSize: '1rem',
-        color: '#999',
-        marginTop: '1rem',
-      }}>
-        Attempting to reconnect...
-      </div>
-      <style>
-        {`
-          @keyframes pulse {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.5; transform: scale(1.1); }
-          }
-        `}
-      </style>
-    </div>
-  );
+    );
+  };
 
   // Render full-screen views
   if (activeView === 'chart') {
     return (
       <>
-        <MapPage onClose={handleBack} />
+        <MapPage onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -282,10 +266,10 @@ function AppContent() {
   if (activeView === 'wind') {
     return (
       <>
-        <WindView sensorData={sensorData} onClose={handleBack} />
+        <WindView sensorData={sensorData} onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -293,10 +277,10 @@ function AppContent() {
   if (activeView === 'depth') {
     return (
       <>
-        <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={handleBack} />
+        <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -304,10 +288,10 @@ function AppContent() {
   if (activeView === 'settings') {
     return (
       <>
-        <SettingsView onClose={handleBack} />
+        <SettingsView onClose={goBack} initialTab={navigationParams.settings?.tab} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -315,10 +299,10 @@ function AppContent() {
   if (activeView === 'speed') {
     return (
       <>
-        <SpeedView speed={sensorData.navigation.speedOverGround} onClose={handleBack} />
+        <SpeedView speed={sensorData.navigation.speedOverGround} onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -326,10 +310,10 @@ function AppContent() {
   if (activeView === 'heading') {
     return (
       <>
-        <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={handleBack} />
+        <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -337,10 +321,10 @@ function AppContent() {
   if (activeView === 'cog') {
     return (
       <>
-        <COGView cog={sensorData.navigation.courseOverGround} onClose={handleBack} />
+        <COGView cog={sensorData.navigation.courseOverGround} onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -348,10 +332,10 @@ function AppContent() {
   if (activeView === 'position') {
     return (
       <>
-        <PositionView position={sensorData.navigation.position} onClose={handleBack} />
+        <PositionView position={sensorData.navigation.position} onClose={goBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -364,11 +348,11 @@ function AppContent() {
           current={sensorData.electrical.battery.current}
           temperature={sensorData.electrical.battery.temperature}
           stateOfCharge={sensorData.electrical.battery.stateOfCharge}
-          onClose={handleBack}
+          onClose={goBack}
         />
         <DemoModeBanner />
         <ConnectivityBanner />
-        {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+        <ServerUnreachableBanner />
       </>
     );
   }
@@ -385,7 +369,7 @@ function AppContent() {
       <Dashboard sensorData={sensorData} onNavigate={handleNavigate} />
       <DemoModeBanner />
       <ConnectivityBanner />
-      {connectionStatus === 'disconnected' && <DisconnectionWarning />}
+      <ServerUnreachableBanner />
     </div>
   );
 }
@@ -393,11 +377,13 @@ function AppContent() {
 // Main App component with providers
 function App() {
   return (
-    <SettingsProvider>
-      <ConfirmDialogProvider>
-        <AppContent />
-      </ConfirmDialogProvider>
-    </SettingsProvider>
+    <NavigationProvider>
+      <SettingsProvider>
+        <ConfirmDialogProvider>
+          <AppContent />
+        </ConfirmDialogProvider>
+      </SettingsProvider>
+    </NavigationProvider>
   );
 }
 

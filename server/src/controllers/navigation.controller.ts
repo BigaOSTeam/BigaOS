@@ -24,33 +24,48 @@ class NavigationController {
         });
       }
 
-      // Use worker thread for route calculation (non-blocking)
-      if (routeWorkerService.isReady()) {
-        const result = await routeWorkerService.findWaterRoute(startLat, startLon, endLat, endLon);
-        return res.json({
-          success: result.success,
-          waypoints: result.waypoints,
-          distance: result.distance,
-          waypointCount: result.waypoints.length,
-          crossesLand: !result.success || result.waypoints.length > 2
-        });
-      }
-
-      // Fallback to main thread if worker not available
-      if (!waterDetectionService.isInitialized()) {
+      // Check if navigation data is loaded
+      if (!waterDetectionService.hasNavigationData()) {
         return res.status(503).json({
-          error: 'Water detection service not initialized'
+          error: 'NO_NAVIGATION_DATA',
+          message: 'Navigation data not loaded. Please download ocean/lake data in Settings > Data Management.'
         });
       }
 
-      const result = waterDetectionService.findWaterRoute(startLat, startLon, endLat, endLon);
+      // Use worker thread for route calculation (non-blocking)
+      if (!routeWorkerService.isReady()) {
+        // Don't fall back to main thread - it blocks and causes disconnects
+        // Return a simple direct route instead
+        console.warn('[Navigation] Route worker not ready, returning direct route');
+        const R = 3440.065; // Earth radius in nautical miles
+        const dLat = (endLat - startLat) * Math.PI / 180;
+        const dLon = (endLon - startLon) * Math.PI / 180;
+        const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+          Math.cos(startLat * Math.PI / 180) * Math.cos(endLat * Math.PI / 180) *
+          Math.sin(dLon / 2) * Math.sin(dLon / 2);
+        const distance = R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
+        return res.json({
+          success: true,
+          waypoints: [
+            { lat: startLat, lon: startLon },
+            { lat: endLat, lon: endLon }
+          ],
+          distance,
+          waypointCount: 2,
+          crossesLand: false,
+          workerUnavailable: true
+        });
+      }
+
+      const result = await routeWorkerService.findWaterRoute(startLat, startLon, endLat, endLon);
       res.json({
         success: result.success,
         waypoints: result.waypoints,
         distance: result.distance,
         waypointCount: result.waypoints.length,
-        crossesLand: !result.success || result.waypoints.length > 2
+        crossesLand: !result.success || result.waypoints.length > 2,
+        failureReason: result.failureReason
       });
     } catch (error) {
       console.error('Route calculation error:', error);
@@ -83,7 +98,7 @@ class NavigationController {
         });
       }
 
-      const result = waterDetectionService.checkRouteForLand(startLat, startLon, endLat, endLon);
+      const result = await waterDetectionService.checkRouteForLandAsync(startLat, startLon, endLat, endLon);
 
       res.json({
         crossesLand: result.crossesLand,
@@ -116,7 +131,7 @@ class NavigationController {
         });
       }
 
-      const waterType = waterDetectionService.getWaterType(lat, lon);
+      const waterType = await waterDetectionService.getWaterTypeAsync(lat, lon);
       const isWater = waterType === 'ocean' || waterType === 'lake';
 
       res.json({
@@ -196,7 +211,7 @@ class NavigationController {
         });
       }
 
-      const grid = waterDetectionService.getWaterGrid(minLat, maxLat, minLon, maxLon, gridSize);
+      const grid = await waterDetectionService.getWaterGrid(minLat, maxLat, minLon, maxLon, gridSize);
 
       res.json({
         grid,
@@ -218,13 +233,12 @@ class NavigationController {
     try {
       const cacheStats = waterDetectionService.getCacheStats();
       const initialized = waterDetectionService.isInitialized();
-      const usingSpatialIndex = waterDetectionService.isUsingSpatialIndex();
+      const hasData = waterDetectionService.hasNavigationData();
 
       res.json({
         initialized,
-        usingSpatialIndex,
-        cacheStats,
-        polygonsAvailable: !usingSpatialIndex
+        hasData,
+        cacheStats
       });
     } catch (error) {
       console.error('Debug info error:', error);

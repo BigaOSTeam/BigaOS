@@ -172,19 +172,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       return;
     }
 
-    if (pullDistance >= PULL_THRESHOLD) {
-      // Open the menu
-      setMenuOpen(true);
-      setPullDistance(MENU_HEIGHT);
-    } else {
-      // Snap back
-      setPullDistance(0);
-    }
+    // Use functional update to get current pullDistance value
+    setPullDistance(currentPullDistance => {
+      if (currentPullDistance >= PULL_THRESHOLD) {
+        // Open the menu
+        setMenuOpen(true);
+        return MENU_HEIGHT;
+      } else {
+        // Snap back
+        return 0;
+      }
+    });
 
     setIsPulling(false);
     touchStartY.current = null;
     isValidPullStart.current = false;
-  }, [pullDistance, menuOpen]);
+  }, [menuOpen]);
 
   const handleSettingsClick = useCallback(() => {
     setMenuOpen(false);
@@ -321,6 +324,33 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     setEditMode(false);
     setShowAddMenu(false);
   }, []);
+
+  // Handle Escape key to toggle/close settings menu
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (showColsPicker) {
+          setShowColsPicker(false);
+        } else if (showRowsPicker) {
+          setShowRowsPicker(false);
+        } else if (showAddMenu) {
+          setShowAddMenu(false);
+        } else if (editMode) {
+          handleExitEditMode();
+        } else if (menuOpen) {
+          // Close menu
+          setMenuOpen(false);
+          setPullDistance(0);
+        } else {
+          // Open menu
+          setMenuOpen(true);
+          setPullDistance(MENU_HEIGHT);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [menuOpen, showColsPicker, showRowsPicker, showAddMenu, editMode, handleExitEditMode]);
 
   const renderItemContent = (item: DashboardItemConfig) => {
     switch (item.type) {

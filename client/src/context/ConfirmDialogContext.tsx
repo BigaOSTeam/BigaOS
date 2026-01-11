@@ -67,12 +67,13 @@ export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({
         >
           <div
             style={{
-              background: theme.colors.bgCard,
+              background: '#1a1a2e',
               borderRadius: theme.radius.lg,
               padding: theme.space.xl,
               minWidth: '280px',
               maxWidth: '90vw',
-              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.6)',
+              border: `1px solid ${theme.colors.border}`,
             }}
             onClick={(e) => e.stopPropagation()}
           >

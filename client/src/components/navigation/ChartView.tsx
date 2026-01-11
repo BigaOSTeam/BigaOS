@@ -7,6 +7,7 @@ import {
   useSettings,
   distanceConversions,
 } from '../../context/SettingsContext';
+import { useNavigation } from '../../context/NavigationContext';
 import { SearchResult } from '../../services/geocoding';
 import { navigationAPI, geocodingAPI } from '../../services/api';
 import { wsService } from '../../services/websocket';
@@ -124,6 +125,13 @@ export const ChartView: React.FC<ChartViewProps> = ({
   const [searchLoading, setSearchLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [debugMode, setDebugMode] = useState<DebugMode>('off');
+  const [navDataError, setNavDataError] = useState<string | null>(null);
+  const [routeError, setRouteError] = useState<{
+    reason: string;
+    title: string;
+    message: string;
+    suggestions: string[];
+  } | null>(null);
 
   // Marker state
   const [customMarkers, setCustomMarkers] = useState<CustomMarker[]>(() => {
@@ -178,6 +186,9 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
   // Water debug grid hook
   const { gridPoints, loading: debugLoading, generateGrid, clearGrid, currentResolution } = useWaterDebugGrid(mapRef);
+
+  // Navigation context for navigating to other views
+  const { navigate } = useNavigation();
 
   // Settings
   const {
@@ -241,6 +252,81 @@ export const ChartView: React.FC<ChartViewProps> = ({
     [isDepthAlarmTriggered]
   );
 
+  // Helper to get user-friendly route error info
+  const getRouteErrorInfo = (failureReason: string): { title: string; message: string; suggestions: string[] } => {
+    switch (failureReason) {
+      case 'START_ON_LAND':
+        return {
+          title: 'Start Point Not on Water',
+          message: 'Your current position appears to be on land according to the navigation data.',
+          suggestions: [
+            'Move to deeper water away from shore',
+            'Small harbors and marinas may not be recognized by the water detection',
+            'Try navigating from a position further out'
+          ]
+        };
+      case 'END_ON_LAND':
+        return {
+          title: 'Destination Not on Water',
+          message: 'The destination point appears to be on land.',
+          suggestions: [
+            'Select a destination further from shore',
+            'Small harbors and marinas may not be recognized',
+            'Try selecting a point in deeper water near your intended destination'
+          ]
+        };
+      case 'NO_PATH_FOUND':
+        return {
+          title: 'No Water Route Found',
+          message: 'Unable to find a navigable water route between these points. Land appears to block the path.',
+          suggestions: [
+            'The route may require going around a landmass',
+            'Try breaking the journey into shorter segments',
+            'Check if there is actually a water connection between these points'
+          ]
+        };
+      case 'DISTANCE_TOO_LONG':
+        return {
+          title: 'Route Too Long',
+          message: 'The distance between these points is too long for automatic route calculation.',
+          suggestions: [
+            'Try breaking the journey into shorter segments (under 100 NM each)',
+            'Navigate to an intermediate waypoint first',
+            'For ocean crossings, create waypoints manually'
+          ]
+        };
+      case 'NARROW_CHANNEL':
+        return {
+          title: 'Channel Too Narrow',
+          message: 'The route may pass through channels that are too narrow to be detected.',
+          suggestions: [
+            'Small rivers, canals, and narrow passages may not be recognized',
+            'Try navigating through wider waterways',
+            'Use local charts for navigation in tight areas'
+          ]
+        };
+      case 'MAX_ITERATIONS':
+        return {
+          title: 'Route Calculation Timeout',
+          message: 'The route calculation took too long and was stopped.',
+          suggestions: [
+            'Try a shorter distance',
+            'The area may have complex coastlines requiring manual waypoints',
+            'Break the route into smaller segments'
+          ]
+        };
+      default:
+        return {
+          title: 'Route Calculation Failed',
+          message: 'Unable to calculate a water route between these points.',
+          suggestions: [
+            'Try selecting points that are clearly in open water',
+            'Check that both start and destination are navigable'
+          ]
+        };
+    }
+  };
+
   // Fetch water-aware route (called once when navigation starts)
   const fetchRoute = useCallback(async (
     startLat: number,
@@ -249,6 +335,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
     endLon: number
   ) => {
     setRouteLoading(true);
+    setRouteError(null);
     try {
       const response = await navigationAPI.calculateRoute(
         startLat,
@@ -256,10 +343,35 @@ export const ChartView: React.FC<ChartViewProps> = ({
         endLat,
         endLon
       );
+
+      // Check if route calculation failed with a reason
+      if (!response.data.success && response.data.failureReason) {
+        const errorInfo = getRouteErrorInfo(response.data.failureReason);
+        setRouteError({
+          reason: response.data.failureReason,
+          ...errorInfo
+        });
+        // Cancel the navigation attempt
+        setNavigationTarget(null);
+        setRouteWaypoints([]);
+        return;
+      }
+
       setRouteWaypoints(response.data.waypoints);
-    } catch (error) {
+    } catch (error: unknown) {
       console.error('Failed to calculate route:', error);
-      // Fallback to direct line
+
+      // Check if this is a "no navigation data" error
+      const axiosError = error as { response?: { data?: { error?: string; message?: string } } };
+      if (axiosError.response?.data?.error === 'NO_NAVIGATION_DATA') {
+        setNavDataError(axiosError.response.data.message || 'Navigation data not loaded.');
+        // Cancel the navigation attempt
+        setNavigationTarget(null);
+        setRouteWaypoints([]);
+        return;
+      }
+
+      // Fallback to direct line for other errors
       setRouteWaypoints([
         { lat: startLat, lon: startLon },
         { lat: endLat, lon: endLon },
@@ -378,7 +490,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Periodic check every 2 seconds as a fallback
+    // Periodic check every 30 seconds as a fallback (reduced from 2 seconds)
     const periodicCheck = setInterval(() => {
       if (mapRef.current) {
         const container = mapRef.current.getContainer();
@@ -386,7 +498,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           invalidateMap();
         }
       }
-    }, 2000);
+    }, 30000);
 
     return () => {
       clearTimeout(timer1);
@@ -844,6 +956,158 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 to { transform: rotate(360deg); }
               }
             `}</style>
+          </div>
+        </div>
+      )}
+
+      {/* No navigation data error dialog */}
+      {navDataError && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1002,
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(30, 30, 30, 0.98)',
+              borderRadius: '12px',
+              padding: '2rem',
+              maxWidth: '400px',
+              margin: '1rem',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(244, 67, 54, 0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#f44336" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <circle cx="12" cy="16" r="0.5" fill="#f44336" />
+              </svg>
+              <h3 style={{ color: '#f44336', margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
+                Navigation Data Missing
+              </h3>
+            </div>
+            <p style={{ color: '#ccc', margin: '0 0 1.5rem 0', lineHeight: 1.6 }}>
+              {navDataError}
+            </p>
+            <p style={{ color: '#999', margin: '0 0 1.5rem 0', fontSize: '0.9rem', lineHeight: 1.5 }}>
+              Go to <strong style={{ color: '#4fc3f7' }}>Settings &gt; Navigation Data</strong> to download the required ocean and lake data files.
+            </p>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setNavDataError(null)}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                }}
+              >
+                Dismiss
+              </button>
+              <button
+                onClick={() => {
+                  setNavDataError(null);
+                  navigate('settings', { settings: { tab: 'downloads' } });
+                }}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  background: '#f44336',
+                  border: 'none',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 600,
+                }}
+              >
+                Go to Settings
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Route calculation failed error dialog */}
+      {routeError && (
+        <div
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1002,
+          }}
+        >
+          <div
+            style={{
+              background: 'rgba(30, 30, 30, 0.98)',
+              borderRadius: '12px',
+              padding: '2rem',
+              maxWidth: '450px',
+              margin: '1rem',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              border: '1px solid rgba(255, 152, 0, 0.3)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#ff9800" strokeWidth="2">
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <circle cx="12" cy="17" r="0.5" fill="#ff9800" />
+              </svg>
+              <h3 style={{ color: '#ff9800', margin: 0, fontSize: '1.25rem', fontWeight: 600 }}>
+                {routeError.title}
+              </h3>
+            </div>
+            <p style={{ color: '#ccc', margin: '0 0 1rem 0', lineHeight: 1.6 }}>
+              {routeError.message}
+            </p>
+            <div style={{ marginBottom: '1.5rem' }}>
+              <p style={{ color: '#999', margin: '0 0 0.5rem 0', fontSize: '0.85rem', fontWeight: 500 }}>
+                Suggestions:
+              </p>
+              <ul style={{ color: '#aaa', margin: 0, paddingLeft: '1.25rem', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                {routeError.suggestions.map((suggestion, index) => (
+                  <li key={index} style={{ marginBottom: '0.25rem' }}>{suggestion}</li>
+                ))}
+              </ul>
+            </div>
+            <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => setRouteError(null)}
+                style={{
+                  padding: '0.6rem 1.25rem',
+                  background: 'rgba(255, 152, 0, 0.2)',
+                  border: '1px solid rgba(255, 152, 0, 0.4)',
+                  borderRadius: '6px',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '0.9rem',
+                  fontWeight: 500,
+                }}
+              >
+                OK
+              </button>
+            </div>
           </div>
         </div>
       )}

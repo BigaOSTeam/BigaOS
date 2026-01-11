@@ -76,11 +76,19 @@ class TilesController {
   private tileRefsPath: string;
   private activeDownloads: Map<string, ActiveTileDownload> = new Map();
 
+  // Failed tile cache - stores tile URLs that failed with timestamp
+  // Prevents re-requesting tiles that timed out or failed
+  private failedTileCache: Map<string, number> = new Map();
+  private readonly FAILED_TILE_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+
   // Download settings
   private readonly CONCURRENT_DOWNLOADS = 4;
   private readonly DELAY_BETWEEN_BATCHES_MS = 100;
   private readonly REQUEST_TIMEOUT_MS = 30000;
   private readonly MAX_RETRIES = 3;
+
+  // Cleanup interval (every 6 hours)
+  private readonly CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
 
   constructor() {
     this.dataDir = path.join(__dirname, '..', 'data');
@@ -93,6 +101,58 @@ class TilesController {
 
     // Clean up any stuck downloads from previous server runs
     this.cleanupStuckDownloads();
+
+    // Clean up orphaned tiles on startup and periodically
+    this.cleanupOrphanedTiles();
+    setInterval(() => {
+      this.cleanupStuckDownloads();
+      this.cleanupOrphanedTiles();
+    }, this.CLEANUP_INTERVAL_MS);
+
+    // Clean up expired failed tile cache entries every minute
+    setInterval(() => {
+      this.cleanupFailedTileCache();
+    }, 60 * 1000);
+  }
+
+  /**
+   * Clean up expired entries from the failed tile cache
+   */
+  private cleanupFailedTileCache(): void {
+    const now = Date.now();
+    let cleaned = 0;
+    for (const [url, timestamp] of this.failedTileCache) {
+      if (now - timestamp > this.FAILED_TILE_CACHE_DURATION_MS) {
+        this.failedTileCache.delete(url);
+        cleaned++;
+      }
+    }
+    if (cleaned > 0) {
+      console.log(`Cleaned ${cleaned} expired entries from failed tile cache`);
+    }
+  }
+
+  /**
+   * Check if a tile URL is in the failed cache (and not expired)
+   */
+  private isFailedTile(url: string): boolean {
+    const timestamp = this.failedTileCache.get(url);
+    if (!timestamp) return false;
+
+    const now = Date.now();
+    if (now - timestamp > this.FAILED_TILE_CACHE_DURATION_MS) {
+      // Expired, remove and allow retry
+      this.failedTileCache.delete(url);
+      return false;
+    }
+    return true;
+  }
+
+  /**
+   * Mark a tile URL as failed
+   */
+  private markTileFailed(url: string): void {
+    this.failedTileCache.set(url, Date.now());
   }
 
   /**
@@ -124,6 +184,87 @@ class TilesController {
   private ensureDirectories(): void {
     if (!fs.existsSync(this.tilesDir)) {
       fs.mkdirSync(this.tilesDir, { recursive: true });
+    }
+  }
+
+  /**
+   * Clean up orphaned tiles that are not referenced by any region
+   * This handles tiles from before the tile reference tracking was added
+   */
+  private cleanupOrphanedTiles(): void {
+    try {
+      const refs = this.loadTileRefs();
+      const referencedTiles = new Set(Object.keys(refs));
+
+      // Scan all tile directories
+      const layers: TileLayer[] = ['street', 'satellite', 'nautical'];
+      let deletedCount = 0;
+
+      for (const layer of layers) {
+        const layerDir = path.join(this.tilesDir, layer);
+        if (!fs.existsSync(layerDir)) continue;
+
+        // Walk through z/x/y.png structure
+        const zDirs = fs.readdirSync(layerDir);
+        for (const z of zDirs) {
+          const zPath = path.join(layerDir, z);
+          if (!fs.statSync(zPath).isDirectory()) continue;
+
+          const xDirs = fs.readdirSync(zPath);
+          for (const x of xDirs) {
+            const xPath = path.join(zPath, x);
+            if (!fs.statSync(xPath).isDirectory()) continue;
+
+            const tiles = fs.readdirSync(xPath);
+            for (const tile of tiles) {
+              if (!tile.endsWith('.png')) continue;
+              const y = tile.replace('.png', '');
+              const relativePath = `${layer}/${z}/${x}/${y}.png`;
+
+              // If tile is not referenced, delete it
+              if (!referencedTiles.has(relativePath)) {
+                const tilePath = path.join(xPath, tile);
+                try {
+                  fs.unlinkSync(tilePath);
+                  deletedCount++;
+                } catch (e) {
+                  // Ignore deletion errors
+                }
+              }
+            }
+
+            // Remove empty x directory
+            try {
+              const remaining = fs.readdirSync(xPath);
+              if (remaining.length === 0) {
+                fs.rmdirSync(xPath);
+              }
+            } catch (e) {}
+          }
+
+          // Remove empty z directory
+          try {
+            const remaining = fs.readdirSync(zPath);
+            if (remaining.length === 0) {
+              fs.rmdirSync(zPath);
+            }
+          } catch (e) {}
+        }
+
+        // Remove empty layer directory
+        try {
+          const remaining = fs.readdirSync(layerDir);
+          if (remaining.length === 0) {
+            fs.rmdirSync(layerDir);
+          }
+        } catch (e) {}
+      }
+
+      if (deletedCount > 0) {
+        console.log(`🧹 Cleaned up ${deletedCount} orphaned tiles`);
+      }
+    } catch (error) {
+      console.error('Error cleaning up orphaned tiles:', error);
     }
   }
 
@@ -780,14 +921,40 @@ class TilesController {
     // Proxy to remote tile server
     try {
       const url = getTileUrl(source as TileLayer, parseInt(z), parseInt(x), parseInt(yValue));
+
+      // Check if this tile recently failed - return placeholder without trying again
+      if (this.isFailedTile(url)) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('X-Tile-Source', 'cached-failure');
+        res.setHeader('X-Offline-Mode', 'false');
+        // Short cache to avoid flooding with requests
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        const placeholderBuffer = Buffer.from(PLACEHOLDER_TILE_BASE64, 'base64');
+        res.send(placeholderBuffer);
+        return;
+      }
+
       res.setHeader('X-Offline-Mode', 'false');
       await this.proxyTile(url, res);
     } catch (error) {
-      console.error('Error proxying tile:', error);
-      // Only send error response if headers haven't been sent yet
+      // Mark this tile as failed to avoid re-requesting
+      const url = getTileUrl(source as TileLayer, parseInt(z), parseInt(x), parseInt(yValue));
+      this.markTileFailed(url);
+
+      // Only log non-timeout errors (timeouts are expected when servers are slow)
+      const isTimeout = error instanceof Error && error.message === 'Timeout';
+      if (!isTimeout) {
+        console.error('Error proxying tile:', error);
+      }
+
+      // Return placeholder tile instead of error for better UX
       if (!res.headersSent) {
+        res.setHeader('Content-Type', 'image/png');
+        res.setHeader('X-Tile-Source', 'error-fallback');
         res.setHeader('X-Offline-Mode', 'true');
-        res.status(502).json({ error: 'Failed to fetch tile' });
+        res.setHeader('Cache-Control', 'public, max-age=60');
+        const placeholderBuffer = Buffer.from(PLACEHOLDER_TILE_BASE64, 'base64');
+        res.send(placeholderBuffer);
       }
     }
   }
@@ -869,22 +1036,40 @@ class TilesController {
 
       try {
         const { execSync } = require('child_process');
-        // Use df command (works on Linux/Mac/Git Bash on Windows)
-        const dfOutput = execSync('df -B1 .', { encoding: 'utf-8' });
-        const lines = dfOutput.trim().split('\n');
-        if (lines.length >= 2) {
-          const parts = lines[1].split(/\s+/);
-          // df -B1 output: Filesystem 1B-blocks Used Available Use% Mounted
-          if (parts.length >= 4) {
-            deviceStorage.total = parseInt(parts[1]) || 0;
-            deviceStorage.used = parseInt(parts[2]) || 0;
-            deviceStorage.available = parseInt(parts[3]) || 0;
-            deviceStorage.totalFormatted = formatBytes(deviceStorage.total);
-            deviceStorage.usedFormatted = formatBytes(deviceStorage.used);
-            deviceStorage.availableFormatted = formatBytes(deviceStorage.available);
-            deviceStorage.usedPercent = deviceStorage.total > 0
-              ? Math.round((deviceStorage.used / deviceStorage.total) * 100)
-              : 0;
+        const os = require('os');
+
+        if (os.platform() === 'win32') {
+          // Windows: use PowerShell to get disk space
+          const drive = process.cwd().charAt(0).toUpperCase();
+          const psOutput = execSync(`powershell -Command "Get-PSDrive ${drive} | Select-Object Used,Free | ConvertTo-Json"`, { encoding: 'utf-8' });
+          const driveInfo = JSON.parse(psOutput.trim());
+          deviceStorage.used = driveInfo.Used || 0;
+          deviceStorage.available = driveInfo.Free || 0;
+          deviceStorage.total = deviceStorage.used + deviceStorage.available;
+          deviceStorage.totalFormatted = formatBytes(deviceStorage.total);
+          deviceStorage.usedFormatted = formatBytes(deviceStorage.used);
+          deviceStorage.availableFormatted = formatBytes(deviceStorage.available);
+          deviceStorage.usedPercent = deviceStorage.total > 0
+            ? Math.round((deviceStorage.used / deviceStorage.total) * 100)
+            : 0;
+        } else {
+          // Linux/Mac: use df command
+          const dfOutput = execSync('df -B1 .', { encoding: 'utf-8' });
+          const lines = dfOutput.trim().split('\n');
+          if (lines.length >= 2) {
+            const parts = lines[1].split(/\s+/);
+            // df -B1 output: Filesystem 1B-blocks Used Available Use% Mounted
+            if (parts.length >= 4) {
+              deviceStorage.total = parseInt(parts[1]) || 0;
+              deviceStorage.used = parseInt(parts[2]) || 0;
+              deviceStorage.available = parseInt(parts[3]) || 0;
+              deviceStorage.totalFormatted = formatBytes(deviceStorage.total);
+              deviceStorage.usedFormatted = formatBytes(deviceStorage.used);
+              deviceStorage.availableFormatted = formatBytes(deviceStorage.available);
+              deviceStorage.usedPercent = deviceStorage.total > 0
+                ? Math.round((deviceStorage.used / deviceStorage.total) * 100)
+                : 0;
+            }
           }
         }
       } catch (err) {

@@ -14,7 +14,10 @@ export class WebSocketServer {
       cors: {
         origin: '*',
         methods: ['GET', 'POST']
-      }
+      },
+      // Faster ping/pong for quicker disconnect detection
+      pingTimeout: 5000,    // Time to wait for pong response before considering connection dead
+      pingInterval: 3000,   // How often to send ping
     });
 
     // Initialize demo mode from database
@@ -302,7 +305,7 @@ export class WebSocketServer {
    */
   public broadcastDownloadProgress(progress: {
     fileId: string;
-    status: 'downloading' | 'extracting' | 'completed' | 'error' | 'idle';
+    status: 'downloading' | 'extracting' | 'indexing' | 'completed' | 'error' | 'idle';
     progress: number;
     bytesDownloaded: number;
     totalBytes: number;
