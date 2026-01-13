@@ -4,8 +4,8 @@
  * Uses OSM Water Layer GeoTIFF tiles (90m resolution) for water detection.
  * Covers oceans, seas, lakes, rivers, canals, and streams globally.
  *
- * Data files location: server/src/data/water-data/
- * Download from: Settings > Navigation Data > Water Data
+ * Data files location: server/src/data/navigation-data/
+ * Download from: Settings > Navigation Data
  */
 
 import { geoTiffWaterService, GeoTiffWaterType } from './geotiff-water.service';
@@ -56,8 +56,8 @@ class WaterDetectionService {
         const stats = geoTiffWaterService.getStats();
         console.log(`  OSM Water Layer: ${stats.tileCount} GeoTIFF tiles [90m resolution]`);
       } else {
-        console.warn('  Water data NOT LOADED');
-        console.warn('  Download from Settings > Navigation Data > Water Data');
+        console.warn('  Navigation data NOT LOADED');
+        console.warn('  Download from Settings > Navigation Data');
       }
 
       this.initialized = true;

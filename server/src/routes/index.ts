@@ -3,7 +3,7 @@ import { stateController } from '../controllers/state.controller';
 import { sensorController } from '../controllers/sensor.controller';
 import { DatabaseController } from '../controllers/database.controller';
 import { navigationController } from '../controllers/navigation.controller';
-import { dataManagementController } from '../controllers/data-management.controller';
+import { navigationDataController } from '../controllers/navigation-data.controller';
 import { tilesController } from '../controllers/tiles.controller';
 
 const router = Router();
@@ -44,13 +44,13 @@ router.post('/navigation/demo', navigationController.updateDemoNavigation.bind(n
 router.get('/navigation/debug/water-grid', navigationController.getWaterGrid.bind(navigationController));
 router.get('/navigation/debug/info', navigationController.getDebugInfo.bind(navigationController));
 
-// Data management routes
-router.get('/data/status', dataManagementController.getStatus.bind(dataManagementController));
-router.get('/data/progress/:fileId', dataManagementController.getDownloadProgress.bind(dataManagementController));
-router.post('/data/download/:fileId', dataManagementController.downloadFile.bind(dataManagementController));
-router.post('/data/cancel/:fileId', dataManagementController.cancelDownload.bind(dataManagementController));
-router.put('/data/:fileId/url', dataManagementController.updateUrl.bind(dataManagementController));
-router.delete('/data/:fileId', dataManagementController.deleteFile.bind(dataManagementController));
+// Navigation data management routes
+router.get('/data/status', navigationDataController.getStatus.bind(navigationDataController));
+router.get('/data/progress/:fileId', navigationDataController.getDownloadProgress.bind(navigationDataController));
+router.post('/data/download/:fileId', navigationDataController.downloadFile.bind(navigationDataController));
+router.post('/data/cancel/:fileId', navigationDataController.cancelDownload.bind(navigationDataController));
+router.put('/data/:fileId/url', navigationDataController.updateUrl.bind(navigationDataController));
+router.delete('/data/:fileId', navigationDataController.deleteFile.bind(navigationDataController));
 
 // Offline tiles routes
 router.get('/tiles/status', tilesController.getStatus.bind(tilesController));

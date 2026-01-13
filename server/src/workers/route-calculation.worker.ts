@@ -3,7 +3,7 @@
  *
  * Runs A* pathfinding in a separate thread to avoid blocking the main event loop.
  * This worker receives route requests via parentPort and sends back results.
- * Uses GeoTIFF water data for water detection.
+ * Uses GeoTIFF navigation data for water detection.
  */
 
 import { parentPort } from 'worker_threads';
@@ -143,6 +143,39 @@ function isWater(lat: number, lon: number): boolean {
   cache.set(cacheKey, result);
 
   return result !== 'land';
+}
+
+/**
+ * Calculate distance to nearest land (for coastal navigation penalty)
+ * Returns approximate distance in grid units, or -1 if no land nearby
+ */
+function getDistanceToLand(lat: number, lon: number, gridSize: number, maxCheckRadius: number = 3): number {
+  // Check if current position is water first
+  if (!isWater(lat, lon)) {
+    return 0;
+  }
+
+  // Check in expanding squares around the position
+  for (let radius = 1; radius <= maxCheckRadius; radius++) {
+    for (let dLat = -radius; dLat <= radius; dLat++) {
+      for (let dLon = -radius; dLon <= radius; dLon++) {
+        // Only check the outer edge of the square
+        if (Math.abs(dLat) !== radius && Math.abs(dLon) !== radius) continue;
+
+        const checkLat = lat + dLat * gridSize;
+        const checkLon = lon + dLon * gridSize;
+
+        if (!isWater(checkLat, checkLon)) {
+          // Calculate actual distance to this land cell
+          const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+          return dist;
+        }
+      }
+    }
+  }
+
+  // No land found within check radius - far from coast
+  return maxCheckRadius + 1;
 }
 
 /**
@@ -301,7 +334,7 @@ async function findWaterRoute(
   startLon: number,
   endLat: number,
   endLon: number,
-  maxIterations: number = 10000
+  maxIterations: number = 100000
 ): Promise<{ success: boolean; waypoints: Array<{ lat: number; lon: number }>; distance: number; failureReason?: RouteFailureReason }> {
   console.log(`[Worker] Route request: (${startLat.toFixed(5)}, ${startLon.toFixed(5)}) -> (${endLat.toFixed(5)}, ${endLon.toFixed(5)})`);
 
@@ -359,7 +392,7 @@ async function findWaterRoute(
   const totalDistance = calculateDistance(startLat, startLon, endLat, endLon);
 
   // Check if route is too long for reliable pathfinding
-  if (totalDistance > 100) {
+  if (totalDistance > 200) {
     console.warn(`[Worker] Route distance (${totalDistance.toFixed(1)} NM) exceeds limit for pathfinding`);
     return {
       success: false,
@@ -369,7 +402,8 @@ async function findWaterRoute(
     };
   }
 
-  const gridSize = Math.max(0.0005, Math.min(0.02, totalDistance / 500));
+  // Use 90m grid to match GeoTIFF data resolution (0.0008° ≈ 90 meters)
+  const gridSize = 0.0008;
   const invGridSize = 1 / gridSize;
   console.log(`[Worker] Distance: ${totalDistance.toFixed(2)} NM, Grid size: ${gridSize.toFixed(5)}° (~${(gridSize * 111000).toFixed(0)}m)`);
 
@@ -472,7 +506,24 @@ async function findWaterRoute(
       }
       if (!edgeClear) continue;
 
-      const tentativeG = current.g + moveCost;
+      // Calculate distance to nearest land for coastal preference
+      const distToLand = getDistanceToLand(newLat, newLon, gridSize, 5);
+
+      // Land proximity penalty: maintain safe distance from land
+      // At 90m grid: 2 grids = 180m minimum safe distance
+      // Allow routes to stray far from coast with minimal penalty
+      let landPenalty = 0;
+      if (distToLand < 2) {
+        // Too close to land - very strong penalty to maintain minimum 180m distance
+        landPenalty = (2 - distToLand) * 20; // 0-40 NM penalty for being too close
+      } else if (distToLand > 10) {
+        // Far from coast - minimal penalty to allow open water crossing
+        const excessDist = distToLand - 10;
+        landPenalty = Math.min(excessDist * 0.01, 0.2); // Max 0.2 NM penalty (very light)
+      }
+      // Ideal range (2-10 grid units ≈ 180m-900m): no penalty, free to roam
+
+      const tentativeG = current.g + moveCost + landPenalty;
 
       const existing = allNodes.get(newKey);
       if (!existing || tentativeG < existing.g) {
@@ -506,16 +557,35 @@ async function findWaterRoute(
 
     const simplified = simplifyPath(routePath);
 
+    // Validate and adjust waypoints that might be too close to land
+    const validated: Array<{ lat: number; lon: number }> = [];
+    for (const waypoint of simplified) {
+      if (isWater(waypoint.lat, waypoint.lon)) {
+        validated.push(waypoint);
+      } else {
+        // Waypoint ended up on land - try to find nearby water
+        const nearbyWater = findNearbyWaterCell(waypoint.lat, waypoint.lon, gridSize, 10);
+        if (nearbyWater) {
+          console.warn(`[Worker] Adjusted waypoint from (${waypoint.lat.toFixed(5)}, ${waypoint.lon.toFixed(5)}) to water`);
+          validated.push(nearbyWater);
+        } else {
+          // Keep original if we can't find water nearby (shouldn't happen often)
+          console.warn(`[Worker] Could not adjust waypoint on land: (${waypoint.lat.toFixed(5)}, ${waypoint.lon.toFixed(5)})`);
+          validated.push(waypoint);
+        }
+      }
+    }
+
     let totalDist = 0;
-    for (let i = 1; i < simplified.length; i++) {
+    for (let i = 1; i < validated.length; i++) {
       totalDist += calculateDistance(
-        simplified[i - 1].lat, simplified[i - 1].lon,
-        simplified[i].lat, simplified[i].lon
+        validated[i - 1].lat, validated[i - 1].lon,
+        validated[i].lat, validated[i].lon
       );
     }
 
-    console.log(`[Worker] Water route found: ${simplified.length} waypoints, ${totalDist.toFixed(1)} NM, ${iterations} iterations`);
-    return { success: true, waypoints: simplified, distance: totalDist };
+    console.log(`[Worker] Water route found: ${validated.length} waypoints, ${totalDist.toFixed(1)} NM, ${iterations} iterations`);
+    return { success: true, waypoints: validated, distance: totalDist };
   }
 
   // Determine the most likely failure reason

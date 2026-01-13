@@ -2,7 +2,7 @@
  * Route Worker Service
  *
  * Manages a worker thread for route calculations to avoid blocking the main thread.
- * Uses GeoTIFF water data for water detection.
+ * Uses GeoTIFF navigation data for water detection.
  */
 
 import { Worker } from 'worker_threads';
@@ -46,11 +46,11 @@ class RouteWorkerService {
     if (this.initialized || this.initializing) return;
     this.initializing = true;
 
-    const dataDir = path.join(__dirname, '..', 'data', 'water-data');
+    const dataDir = path.join(__dirname, '..', 'data', 'navigation-data');
 
-    // Check if water data exists
+    // Check if navigation data exists
     if (!fs.existsSync(dataDir)) {
-      console.warn('[RouteWorker] Water data not found, worker will not be initialized');
+      console.warn('[RouteWorker] Navigation data not found, worker will not be initialized');
       this.initializing = false;
       return;
     }
@@ -156,7 +156,7 @@ class RouteWorkerService {
     startLon: number,
     endLat: number,
     endLon: number,
-    maxIterations: number = 10000
+    maxIterations: number = 100000
   ): Promise<RouteResult> {
     if (!this.initialized || !this.worker) {
       console.warn('[RouteWorker] Worker not available, returning direct route');
@@ -181,12 +181,13 @@ class RouteWorkerService {
         data: { startLat, startLon, endLat, endLon, maxIterations }
       });
 
+      // Allow up to 5 minutes for complex route calculations
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error('Route calculation timeout'));
         }
-      }, 120000);
+      }, 300000);
     });
   }
 

@@ -77,7 +77,7 @@ class GeoTiffWaterService {
   private tileCount = 0;
 
   constructor() {
-    this.dataDir = path.join(__dirname, '..', 'data', 'water-data');
+    this.dataDir = path.join(__dirname, '..', 'data', 'navigation-data');
   }
 
   /**

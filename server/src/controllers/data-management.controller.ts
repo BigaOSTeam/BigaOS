@@ -1,8 +1,8 @@
 /**
  * Data Management Controller
  *
- * Handles checking status of data files, downloading, and extraction.
- * URLs are configurable and stored in a JSON config file.
+ * Generic controller for handling data file downloads, extraction, and management.
+ * This is a base controller that can be extended for specific data types.
  */
 
 import { Request, Response } from 'express';
@@ -15,8 +15,6 @@ import { pipeline } from 'stream/promises';
 import { createGunzip } from 'zlib';
 import * as tar from 'tar';
 import { wsServerInstance } from '../websocket/websocket-server';
-import { waterDetectionService } from '../services/water-detection.service';
-import { routeWorkerService } from '../services/route-worker.service';
 
 // Try to import unzipper, fall back gracefully if not available
 let unzipper: typeof import('unzipper') | null = null;
@@ -26,17 +24,17 @@ try {
   console.warn('unzipper not installed - ZIP extraction will not be available');
 }
 
-interface DataFileConfig {
+export interface DataFileConfig {
   id: string;
   name: string;
   description: string;
-  category: 'navigation' | 'other';
+  category: string;
   defaultUrl: string;
   localPath: string;
   extractTo?: string;
 }
 
-interface DataFileInfo extends DataFileConfig {
+export interface DataFileInfo extends DataFileConfig {
   url: string;
   exists: boolean;
   localDate?: string;
@@ -53,7 +51,7 @@ interface FileMetadata {
   [fileId: string]: string; // The remote Last-Modified date at time of download
 }
 
-interface DownloadProgress {
+export interface DownloadProgress {
   fileId: string;
   status: 'downloading' | 'extracting' | 'indexing' | 'completed' | 'error';
   progress: number; // 0-100
@@ -70,43 +68,46 @@ interface ActiveDownload {
   targetDir?: string;
 }
 
-// Default file configurations
-const DEFAULT_FILES: DataFileConfig[] = [
-  {
-    id: 'water-data',
-    name: 'Water Data',
-    description: 'OSM Water Layer - oceans, lakes, rivers (90m resolution)',
-    category: 'navigation',
-    defaultUrl: 'http://hydro.iis.u-tokyo.ac.jp/~yamadai/OSM_water/v2.0_2021Feb/OSM_WaterLayer_tif.tar.gz',
-    localPath: 'water-data'
-  }
-];
+/**
+ * Generic Data Management Controller
+ * Handles downloading, extracting, and managing data files.
+ */
+export class DataManagementController {
+  protected dataDir: string;
+  protected configPath: string;
+  protected metadataPath: string;
+  protected activeDownloads: Map<string, ActiveDownload> = new Map();
+  protected fileConfigs: DataFileConfig[] = [];
 
-class DataManagementController {
-  private dataDir: string;
-  private configPath: string;
-  private metadataPath: string;
-  private activeDownloads: Map<string, ActiveDownload> = new Map();
-
-  constructor() {
-    this.dataDir = path.join(__dirname, '..', 'data');
+  constructor(dataDir: string, fileConfigs: DataFileConfig[] = []) {
+    this.dataDir = dataDir;
     this.configPath = path.join(this.dataDir, 'urls.json');
     this.metadataPath = path.join(this.dataDir, 'metadata.json');
+    this.fileConfigs = fileConfigs;
   }
 
   /**
    * Broadcast download progress via WebSocket
    */
-  private broadcastProgress(progress: DownloadProgress): void {
+  protected broadcastProgress(progress: DownloadProgress): void {
     if (wsServerInstance) {
       wsServerInstance.broadcastDownloadProgress(progress);
     }
   }
 
   /**
+   * Hook called after a file is successfully downloaded and extracted
+   * Override this in subclasses to perform post-download actions
+   */
+  protected async onFileDownloaded(fileId: string): Promise<void> {
+    // Default implementation does nothing
+    // Subclasses can override this to reload services, etc.
+  }
+
+  /**
    * Load custom URL configuration
    */
-  private loadUrlConfig(): UrlConfig {
+  protected loadUrlConfig(): UrlConfig {
     try {
       if (fs.existsSync(this.configPath)) {
         const content = fs.readFileSync(this.configPath, 'utf-8');
@@ -121,7 +122,7 @@ class DataManagementController {
   /**
    * Save custom URL configuration
    */
-  private saveUrlConfig(config: UrlConfig): void {
+  protected saveUrlConfig(config: UrlConfig): void {
     try {
       // Ensure data directory exists
       if (!fs.existsSync(this.dataDir)) {
@@ -137,7 +138,7 @@ class DataManagementController {
   /**
    * Load file metadata (release dates)
    */
-  private loadMetadata(): FileMetadata {
+  protected loadMetadata(): FileMetadata {
     try {
       if (fs.existsSync(this.metadataPath)) {
         const content = fs.readFileSync(this.metadataPath, 'utf-8');
@@ -152,7 +153,7 @@ class DataManagementController {
   /**
    * Save file metadata
    */
-  private saveMetadata(metadata: FileMetadata): void {
+  protected saveMetadata(metadata: FileMetadata): void {
     try {
       if (!fs.existsSync(this.dataDir)) {
         fs.mkdirSync(this.dataDir, { recursive: true });
@@ -166,11 +167,11 @@ class DataManagementController {
   /**
    * Get the URL for a file (custom or default)
    */
-  private getFileUrl(fileId: string, urlConfig: UrlConfig): string {
+  protected getFileUrl(fileId: string, urlConfig: UrlConfig): string {
     if (urlConfig[fileId]) {
       return urlConfig[fileId];
     }
-    const fileConfig = DEFAULT_FILES.find(f => f.id === fileId);
+    const fileConfig = this.fileConfigs.find(f => f.id === fileId);
     return fileConfig?.defaultUrl || '';
   }
 
@@ -183,7 +184,7 @@ class DataManagementController {
       const metadata = this.loadMetadata();
 
       const files: (DataFileInfo & { downloadStatus?: DownloadProgress })[] = await Promise.all(
-        DEFAULT_FILES.map(async (file) => {
+        this.fileConfigs.map(async (file) => {
           const fullPath = path.join(this.dataDir, file.localPath);
           const exists = fs.existsSync(fullPath);
           const url = this.getFileUrl(file.id, urlConfig);
@@ -260,7 +261,7 @@ class DataManagementController {
     const { fileId } = req.params;
     const { url } = req.body;
 
-    const fileConfig = DEFAULT_FILES.find(f => f.id === fileId);
+    const fileConfig = this.fileConfigs.find(f => f.id === fileId);
     if (!fileConfig) {
       res.status(404).json({ error: 'Unknown file ID' });
       return;
@@ -292,7 +293,7 @@ class DataManagementController {
   /**
    * Get remote file's info (date and size) via HEAD request
    */
-  private getRemoteFileInfo(url: string): Promise<{ date?: string; size?: number }> {
+  protected getRemoteFileInfo(url: string): Promise<{ date?: string; size?: number }> {
     return new Promise((resolve) => {
       const protocol = url.startsWith('https') ? https : http;
 
@@ -327,7 +328,7 @@ class DataManagementController {
   /**
    * Get total size of a directory
    */
-  private getDirectorySize(dirPath: string): number {
+  protected getDirectorySize(dirPath: string): number {
     let totalSize = 0;
 
     try {
@@ -354,7 +355,7 @@ class DataManagementController {
   async downloadFile(req: Request, res: Response): Promise<void> {
     const { fileId } = req.params;
 
-    const fileConfig = DEFAULT_FILES.find(f => f.id === fileId);
+    const fileConfig = this.fileConfigs.find(f => f.id === fileId);
     if (!fileConfig) {
       res.status(404).json({ error: 'Unknown file ID' });
       return;
@@ -410,7 +411,7 @@ class DataManagementController {
   /**
    * Determine file type from URL
    */
-  private getFileType(url: string): 'zip' | 'tar.gz' | 'gzip' | 'raw' {
+  protected getFileType(url: string): 'zip' | 'tar.gz' | 'gzip' | 'raw' {
     if (url.endsWith('.zip')) return 'zip';
     if (url.endsWith('.tar.gz') || url.endsWith('.tgz')) return 'tar.gz';
     if (url.endsWith('.gz')) return 'gzip';
@@ -420,7 +421,7 @@ class DataManagementController {
   /**
    * Get temp file path for download
    */
-  private getTempFilePath(fileId: string, fileType: 'zip' | 'tar.gz' | 'gzip' | 'raw', url: string): string {
+  protected getTempFilePath(fileId: string, fileType: 'zip' | 'tar.gz' | 'gzip' | 'raw', url: string): string {
     const ext = fileType === 'zip' ? '.zip' : fileType === 'tar.gz' ? '.tar.gz' : fileType === 'gzip' ? '.gz' : '';
     const fileName = ext ? `${fileId}${ext}` : path.basename(url);
     return path.join(this.dataDir, fileName);
@@ -429,7 +430,7 @@ class DataManagementController {
   /**
    * Prepare target directory (clear and recreate)
    */
-  private prepareTargetDir(targetDir: string): void {
+  protected prepareTargetDir(targetDir: string): void {
     if (fs.existsSync(targetDir)) {
       fs.rmSync(targetDir, { recursive: true });
     }
@@ -439,7 +440,7 @@ class DataManagementController {
   /**
    * Clean up temp file safely
    */
-  private cleanupTempFile(tempFilePath: string): void {
+  protected cleanupTempFile(tempFilePath: string): void {
     try {
       if (fs.existsSync(tempFilePath)) {
         fs.unlinkSync(tempFilePath);
@@ -452,7 +453,7 @@ class DataManagementController {
   /**
    * Process downloaded file (extract or move to target)
    */
-  private async processDownloadedFile(
+  protected async processDownloadedFile(
     tempFilePath: string,
     targetDir: string,
     fileType: 'zip' | 'tar.gz' | 'gzip' | 'raw',
@@ -494,7 +495,7 @@ class DataManagementController {
   /**
    * Perform the actual download with progress tracking
    */
-  private async performDownload(fileId: string, url: string, fileConfig: DataFileConfig): Promise<void> {
+  protected async performDownload(fileId: string, url: string, fileConfig: DataFileConfig): Promise<void> {
     const activeDownload = this.activeDownloads.get(fileId);
     if (!activeDownload) return;
 
@@ -531,15 +532,10 @@ class DataManagementController {
 
       console.log(`Download completed: ${fileId}`);
 
-      // Reload navigation data if this was the water data file
-      if (fileId === 'water-data') {
-        progress.status = 'indexing';
-        this.broadcastProgress(progress);
-        console.log('Navigation data downloaded, reloading water detection service...');
-        await waterDetectionService.reload();
-        // Also reinitialize route worker if needed
-        await routeWorkerService.reinitialize();
-      }
+      // Call the hook for post-download actions
+      progress.status = 'indexing';
+      this.broadcastProgress(progress);
+      await this.onFileDownloaded(fileId);
 
       progress.status = 'completed';
       progress.progress = 100;
@@ -564,7 +560,7 @@ class DataManagementController {
   /**
    * Download a file from URL to local path with progress tracking
    */
-  private downloadToFile(url: string, filePath: string, progress: DownloadProgress, abortSignal: AbortSignal): Promise<void> {
+  protected downloadToFile(url: string, filePath: string, progress: DownloadProgress, abortSignal: AbortSignal): Promise<void> {
     return new Promise((resolve, reject) => {
       let currentReq: http.ClientRequest | null = null;
       let fileStream: fs.WriteStream | null = null;
@@ -669,7 +665,7 @@ class DataManagementController {
   /**
    * Extract a ZIP file (assumes target directory already exists and is empty)
    */
-  private async extractZip(zipPath: string, extractTo: string): Promise<void> {
+  protected async extractZip(zipPath: string, extractTo: string): Promise<void> {
     if (!unzipper) {
       throw new Error('ZIP extraction not available - unzipper package not installed');
     }
@@ -686,7 +682,7 @@ class DataManagementController {
   /**
    * If a directory contains only a single subdirectory, move its contents up one level
    */
-  private flattenSingleNestedDir(dirPath: string): void {
+  protected flattenSingleNestedDir(dirPath: string): void {
     const entries = fs.readdirSync(dirPath);
     if (entries.length !== 1) return;
 
@@ -703,7 +699,7 @@ class DataManagementController {
   /**
    * Extract a GZIP file
    */
-  private async extractGzip(gzPath: string, extractTo: string): Promise<void> {
+  protected async extractGzip(gzPath: string, extractTo: string): Promise<void> {
     await pipeline(
       fs.createReadStream(gzPath),
       createGunzip(),
@@ -714,7 +710,7 @@ class DataManagementController {
   /**
    * Extract a tar.gz file
    */
-  private async extractTarGz(tarGzPath: string, extractTo: string): Promise<void> {
+  protected async extractTarGz(tarGzPath: string, extractTo: string): Promise<void> {
     await tar.extract({
       file: tarGzPath,
       cwd: extractTo,
@@ -764,7 +760,7 @@ class DataManagementController {
   async deleteFile(req: Request, res: Response): Promise<void> {
     const { fileId } = req.params;
 
-    const fileConfig = DEFAULT_FILES.find(f => f.id === fileId);
+    const fileConfig = this.fileConfigs.find(f => f.id === fileId);
     if (!fileConfig) {
       res.status(404).json({ error: 'Unknown file ID' });
       return;
@@ -798,5 +794,3 @@ class DataManagementController {
     }
   }
 }
-
-export const dataManagementController = new DataManagementController();
