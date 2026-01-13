@@ -8,6 +8,7 @@ export {
   createBoatIcon,
   createCustomMarkerIcon,
   createWaypointIcon,
+  createFinishFlagIcon,
 } from './map-icons';
 export type { CustomMarker } from './map-icons';
 

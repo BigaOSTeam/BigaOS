@@ -117,3 +117,34 @@ export const createWaypointIcon = (): L.DivIcon => {
     iconAnchor: [6, 6],
   });
 };
+
+/**
+ * Create a finish flag icon for navigation destination
+ */
+export const createFinishFlagIcon = (): L.DivIcon => {
+  // Checkered flag pattern - black and white squares
+  const svgIcon = `
+    <svg width="32" height="40" viewBox="0 0 32 40" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4));">
+      <!-- Flag pole -->
+      <rect x="4" y="4" width="3" height="34" fill="#333" stroke="#fff" stroke-width="1"/>
+      <!-- Flag background -->
+      <rect x="7" y="4" width="22" height="16" fill="#fff" stroke="#333" stroke-width="1"/>
+      <!-- Checkered pattern -->
+      <rect x="7" y="4" width="5.5" height="4" fill="#000"/>
+      <rect x="18" y="4" width="5.5" height="4" fill="#000"/>
+      <rect x="12.5" y="8" width="5.5" height="4" fill="#000"/>
+      <rect x="23.5" y="8" width="5.5" height="4" fill="#000"/>
+      <rect x="7" y="12" width="5.5" height="4" fill="#000"/>
+      <rect x="18" y="12" width="5.5" height="4" fill="#000"/>
+      <rect x="12.5" y="16" width="5.5" height="4" fill="#000"/>
+      <rect x="23.5" y="16" width="5.5" height="4" fill="#000"/>
+    </svg>
+  `;
+
+  return L.divIcon({
+    html: svgIcon,
+    className: 'finish-flag-icon',
+    iconSize: [32, 40],
+    iconAnchor: [5, 38], // Anchor at bottom of pole
+  });
+};

@@ -74,6 +74,8 @@ Desktop.ini
 # Claude Code files (project-specific)
 claude-code/
 .claude/settings.local.json
+tmpclaude-*
+nul
 
 # Data & Databases
 data/

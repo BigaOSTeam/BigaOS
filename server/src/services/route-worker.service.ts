@@ -156,7 +156,7 @@ class RouteWorkerService {
     startLon: number,
     endLat: number,
     endLon: number,
-    maxIterations: number = 100000
+    maxIterations: number = 2000000
   ): Promise<RouteResult> {
     if (!this.initialized || !this.worker) {
       console.warn('[RouteWorker] Worker not available, returning direct route');
@@ -181,13 +181,13 @@ class RouteWorkerService {
         data: { startLat, startLon, endLat, endLon, maxIterations }
       });
 
-      // Allow up to 5 minutes for complex route calculations
+      // Allow up to 3 minutes for complex route calculations
       setTimeout(() => {
         if (this.pendingRequests.has(id)) {
           this.pendingRequests.delete(id);
           reject(new Error('Route calculation timeout'));
         }
-      }, 300000);
+      }, 180000);
     });
   }
 

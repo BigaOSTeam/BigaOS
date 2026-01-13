@@ -53,6 +53,10 @@ class PriorityQueue<T> {
     return result;
   }
 
+  peek(): T | undefined {
+    return this.heap[0];
+  }
+
   private bubbleUp(index: number): void {
     while (index > 0) {
       const parentIndex = (index - 1) >> 1;
@@ -80,6 +84,355 @@ class PriorityQueue<T> {
       [this.heap[index], this.heap[smallest]] = [this.heap[smallest], this.heap[index]];
       index = smallest;
     }
+  }
+}
+
+/**
+ * DistanceField - Precomputed grid of distances to nearest land
+ *
+ * Uses a distance transform algorithm to compute land distances for all water cells
+ * in a bounding box. Supports on-demand expansion when A* reaches boundaries.
+ */
+class DistanceField {
+  private grid: Map<number, number> = new Map(); // key -> distance in grid units
+  private waterGrid: Map<number, boolean> = new Map(); // key -> isWater (cached)
+  private bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
+  private gridSize: number;
+  private invGridSize: number;
+  private maxDistance: number; // max distance to track (in grid units)
+
+  // Expansion settings
+  private static readonly INITIAL_MARGIN = 0.5; // degrees
+  private static readonly EXPAND_STEP = 1.0; // degrees
+  private static readonly MAX_MARGIN = 15.0; // degrees (~900 NM)
+  private static readonly BOUNDARY_THRESHOLD = 10; // cells from edge to trigger expansion
+
+  private startLat: number;
+  private startLon: number;
+  private endLat: number;
+  private endLon: number;
+  private currentMargin: number;
+
+  constructor(
+    startLat: number,
+    startLon: number,
+    endLat: number,
+    endLon: number,
+    gridSize: number,
+    maxDistance: number = 50 // ~4.5km at 90m grid
+  ) {
+    this.startLat = startLat;
+    this.startLon = startLon;
+    this.endLat = endLat;
+    this.endLon = endLon;
+    this.gridSize = gridSize;
+    this.invGridSize = 1 / gridSize;
+    this.maxDistance = maxDistance;
+    this.currentMargin = DistanceField.INITIAL_MARGIN;
+
+    this.bounds = this.calculateBounds(this.currentMargin);
+  }
+
+  private calculateBounds(margin: number): { minLat: number; maxLat: number; minLon: number; maxLon: number } {
+    return {
+      minLat: Math.min(this.startLat, this.endLat) - margin,
+      maxLat: Math.max(this.startLat, this.endLat) + margin,
+      minLon: Math.min(this.startLon, this.endLon) - margin,
+      maxLon: Math.max(this.startLon, this.endLon) + margin
+    };
+  }
+
+  private getKey(lat: number, lon: number): number {
+    const latGrid = Math.round(lat * this.invGridSize) | 0;
+    const lonGrid = Math.round(lon * this.invGridSize) | 0;
+    return (latGrid + 0x7FFFFFFF) * 0x100000 + (lonGrid + 0x7FFFFFFF);
+  }
+
+  /**
+   * Check if a coordinate is water (with caching)
+   */
+  private checkWater(lat: number, lon: number): boolean {
+    const key = this.getKey(lat, lon);
+
+    if (this.waterGrid.has(key)) {
+      return this.waterGrid.get(key)!;
+    }
+
+    const geoType = geoTiffWaterService.getWaterTypeSync(lon, lat);
+    const isWater = geoType !== 'land';
+    this.waterGrid.set(key, isWater);
+    return isWater;
+  }
+
+  /**
+   * Build/rebuild the distance field using a two-pass distance transform
+   */
+  async build(): Promise<void> {
+    const startTime = Date.now();
+
+    // Preload GeoTIFF tiles for the area
+    await geoTiffWaterService.preloadTiles(
+      this.bounds.minLon,
+      this.bounds.minLat,
+      this.bounds.maxLon,
+      this.bounds.maxLat
+    );
+
+    this.grid.clear();
+    // Keep waterGrid cache - it's still valid
+
+    const minLatGrid = Math.floor(this.bounds.minLat * this.invGridSize);
+    const maxLatGrid = Math.ceil(this.bounds.maxLat * this.invGridSize);
+    const minLonGrid = Math.floor(this.bounds.minLon * this.invGridSize);
+    const maxLonGrid = Math.ceil(this.bounds.maxLon * this.invGridSize);
+
+    const width = maxLonGrid - minLonGrid + 1;
+    const height = maxLatGrid - minLatGrid + 1;
+
+    console.log(`[DistanceField] Building ${width}x${height} grid (${(width * height / 1000000).toFixed(2)}M cells)`);
+
+    // First pass: identify land cells and initialize distances
+    // Water cells start at maxDistance, land cells at 0
+    const tempGrid: number[][] = [];
+
+    for (let latIdx = 0; latIdx < height; latIdx++) {
+      tempGrid[latIdx] = [];
+      const lat = (minLatGrid + latIdx) * this.gridSize;
+
+      for (let lonIdx = 0; lonIdx < width; lonIdx++) {
+        const lon = (minLonGrid + lonIdx) * this.gridSize;
+        const isWater = this.checkWater(lat, lon);
+
+        // Initialize: land = 0, water = large number
+        tempGrid[latIdx][lonIdx] = isWater ? this.maxDistance : 0;
+      }
+    }
+
+    // Two-pass distance transform (approximation using Chamfer distance)
+    // Forward pass: top-left to bottom-right
+    for (let latIdx = 0; latIdx < height; latIdx++) {
+      for (let lonIdx = 0; lonIdx < width; lonIdx++) {
+        if (tempGrid[latIdx][lonIdx] === 0) continue; // Skip land
+
+        let minDist = tempGrid[latIdx][lonIdx];
+
+        // Check top neighbor
+        if (latIdx > 0) {
+          minDist = Math.min(minDist, tempGrid[latIdx - 1][lonIdx] + 1);
+        }
+        // Check left neighbor
+        if (lonIdx > 0) {
+          minDist = Math.min(minDist, tempGrid[latIdx][lonIdx - 1] + 1);
+        }
+        // Check top-left diagonal
+        if (latIdx > 0 && lonIdx > 0) {
+          minDist = Math.min(minDist, tempGrid[latIdx - 1][lonIdx - 1] + 1.414);
+        }
+        // Check top-right diagonal
+        if (latIdx > 0 && lonIdx < width - 1) {
+          minDist = Math.min(minDist, tempGrid[latIdx - 1][lonIdx + 1] + 1.414);
+        }
+
+        tempGrid[latIdx][lonIdx] = minDist;
+      }
+    }
+
+    // Backward pass: bottom-right to top-left
+    for (let latIdx = height - 1; latIdx >= 0; latIdx--) {
+      for (let lonIdx = width - 1; lonIdx >= 0; lonIdx--) {
+        if (tempGrid[latIdx][lonIdx] === 0) continue; // Skip land
+
+        let minDist = tempGrid[latIdx][lonIdx];
+
+        // Check bottom neighbor
+        if (latIdx < height - 1) {
+          minDist = Math.min(minDist, tempGrid[latIdx + 1][lonIdx] + 1);
+        }
+        // Check right neighbor
+        if (lonIdx < width - 1) {
+          minDist = Math.min(minDist, tempGrid[latIdx][lonIdx + 1] + 1);
+        }
+        // Check bottom-right diagonal
+        if (latIdx < height - 1 && lonIdx < width - 1) {
+          minDist = Math.min(minDist, tempGrid[latIdx + 1][lonIdx + 1] + 1.414);
+        }
+        // Check bottom-left diagonal
+        if (latIdx < height - 1 && lonIdx > 0) {
+          minDist = Math.min(minDist, tempGrid[latIdx + 1][lonIdx - 1] + 1.414);
+        }
+
+        tempGrid[latIdx][lonIdx] = minDist;
+      }
+    }
+
+    // Store in the Map with proper keys (only water cells)
+    for (let latIdx = 0; latIdx < height; latIdx++) {
+      const lat = (minLatGrid + latIdx) * this.gridSize;
+      for (let lonIdx = 0; lonIdx < width; lonIdx++) {
+        const dist = tempGrid[latIdx][lonIdx];
+        if (dist > 0) { // Only store water cells
+          const lon = (minLonGrid + lonIdx) * this.gridSize;
+          const key = this.getKey(lat, lon);
+          this.grid.set(key, Math.min(dist, this.maxDistance));
+        }
+      }
+    }
+
+    const elapsed = Date.now() - startTime;
+    console.log(`[DistanceField] Built in ${elapsed}ms, ${this.grid.size} water cells stored`);
+  }
+
+  /**
+   * Get distance to land for a coordinate (O(1) lookup)
+   * Returns distance in grid units, or -1 if outside bounds/on land
+   */
+  getDistance(lat: number, lon: number): number {
+    const key = this.getKey(lat, lon);
+
+    if (this.grid.has(key)) {
+      return this.grid.get(key)!;
+    }
+
+    // Not in grid - either land or outside bounds
+    return -1;
+  }
+
+  /**
+   * Check if a coordinate is near the boundary and might need expansion
+   */
+  isNearBoundary(lat: number, lon: number): boolean {
+    const threshold = DistanceField.BOUNDARY_THRESHOLD * this.gridSize;
+
+    return (
+      lat < this.bounds.minLat + threshold ||
+      lat > this.bounds.maxLat - threshold ||
+      lon < this.bounds.minLon + threshold ||
+      lon > this.bounds.maxLon - threshold
+    );
+  }
+
+  /**
+   * Check if we can expand further
+   */
+  canExpand(): boolean {
+    return this.currentMargin < DistanceField.MAX_MARGIN;
+  }
+
+  /**
+   * Expand the distance field bounds and rebuild
+   */
+  async expand(): Promise<boolean> {
+    if (!this.canExpand()) {
+      console.warn(`[DistanceField] Cannot expand further, at max margin ${this.currentMargin}°`);
+      return false;
+    }
+
+    const oldMargin = this.currentMargin;
+    this.currentMargin = Math.min(
+      this.currentMargin + DistanceField.EXPAND_STEP,
+      DistanceField.MAX_MARGIN
+    );
+
+    console.log(`[DistanceField] Expanding from ${oldMargin}° to ${this.currentMargin}° margin`);
+
+    this.bounds = this.calculateBounds(this.currentMargin);
+    await this.build();
+
+    return true;
+  }
+
+  /**
+   * Check if coordinate is within current bounds
+   */
+  isInBounds(lat: number, lon: number): boolean {
+    return (
+      lat >= this.bounds.minLat &&
+      lat <= this.bounds.maxLat &&
+      lon >= this.bounds.minLon &&
+      lon <= this.bounds.maxLon
+    );
+  }
+
+  /**
+   * Get current bounds (for debugging)
+   */
+  getBounds() {
+    return { ...this.bounds };
+  }
+
+  /**
+   * Get stats (for debugging)
+   */
+  getStats() {
+    return {
+      cellCount: this.grid.size,
+      waterCacheSize: this.waterGrid.size,
+      currentMargin: this.currentMargin,
+      bounds: this.bounds
+    };
+  }
+
+  /**
+   * Check if a coordinate is water using the cached waterGrid (faster than global isWater)
+   */
+  isWaterCached(lat: number, lon: number): boolean {
+    const key = this.getKey(lat, lon);
+
+    if (this.waterGrid.has(key)) {
+      return this.waterGrid.get(key)!;
+    }
+
+    // Fall back to GeoTIFF check and cache the result
+    const geoType = geoTiffWaterService.getWaterTypeSync(lon, lat);
+    const water = geoType !== 'land';
+    this.waterGrid.set(key, water);
+    return water;
+  }
+
+  /**
+   * Check if a direct line between two points is entirely over water
+   * Uses the cached water grid for checking
+   * Returns true if the path is safe (all water), false if it crosses land
+   */
+  isDirectPathSafe(lat1: number, lon1: number, lat2: number, lon2: number): boolean {
+    // Check endpoints first
+    if (!this.isWaterCached(lat1, lon1) || !this.isWaterCached(lat2, lon2)) {
+      return false;
+    }
+
+    // Get distances at start and end (if available)
+    const startDist = this.getDistance(lat1, lon1);
+    const endDist = this.getDistance(lat2, lon2);
+
+    // Calculate the path length in grid units
+    const dLat = lat2 - lat1;
+    const dLon = lon2 - lon1;
+    const pathLengthDeg = Math.sqrt(dLat * dLat + dLon * dLon);
+    const pathLengthCells = pathLengthDeg * this.invGridSize;
+
+    // If both endpoints have known distances and are far from land relative to path length,
+    // we can be confident the path is safe
+    if (startDist > 0 && endDist > 0) {
+      const minDist = Math.min(startDist, endDist);
+      if (minDist > pathLengthCells) {
+        // The "corridor" from start to end is entirely within safe water
+        return true;
+      }
+    }
+
+    // Otherwise, sample along the path using water cache
+    const numSamples = Math.max(10, Math.ceil(pathLengthCells / 2));
+    for (let i = 1; i < numSamples; i++) {
+      const t = i / numSamples;
+      const lat = lat1 + t * dLat;
+      const lon = lon1 + t * dLon;
+
+      if (!this.isWaterCached(lat, lon)) {
+        return false; // Hit land
+      }
+    }
+
+    return true;
   }
 }
 
@@ -146,39 +499,6 @@ function isWater(lat: number, lon: number): boolean {
 }
 
 /**
- * Calculate distance to nearest land (for coastal navigation penalty)
- * Returns approximate distance in grid units, or -1 if no land nearby
- */
-function getDistanceToLand(lat: number, lon: number, gridSize: number, maxCheckRadius: number = 3): number {
-  // Check if current position is water first
-  if (!isWater(lat, lon)) {
-    return 0;
-  }
-
-  // Check in expanding squares around the position
-  for (let radius = 1; radius <= maxCheckRadius; radius++) {
-    for (let dLat = -radius; dLat <= radius; dLat++) {
-      for (let dLon = -radius; dLon <= radius; dLon++) {
-        // Only check the outer edge of the square
-        if (Math.abs(dLat) !== radius && Math.abs(dLon) !== radius) continue;
-
-        const checkLat = lat + dLat * gridSize;
-        const checkLon = lon + dLon * gridSize;
-
-        if (!isWater(checkLat, checkLon)) {
-          // Calculate actual distance to this land cell
-          const dist = Math.sqrt(dLat * dLat + dLon * dLon);
-          return dist;
-        }
-      }
-    }
-  }
-
-  // No land found within check radius - far from coast
-  return maxCheckRadius + 1;
-}
-
-/**
  * Calculate distance between two points in nautical miles (Haversine formula)
  */
 function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: number): number {
@@ -191,36 +511,6 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
     Math.sin(dLon / 2) * Math.sin(dLon / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   return R * c;
-}
-
-/**
- * Check if a straight line between two points crosses land
- */
-function checkRouteForLand(
-  startLat: number,
-  startLon: number,
-  endLat: number,
-  endLon: number,
-  sampleDistance: number = 0.5
-): { crossesLand: boolean; landPoints: Array<{ lat: number; lon: number }> } {
-  const distance = calculateDistance(startLat, startLon, endLat, endLon);
-  const numSamples = Math.max(Math.ceil(distance / sampleDistance), 10);
-  const landPoints: Array<{ lat: number; lon: number }> = [];
-
-  for (let i = 0; i <= numSamples; i++) {
-    const t = i / numSamples;
-    const lat = startLat + t * (endLat - startLat);
-    const lon = startLon + t * (endLon - startLon);
-
-    if (!isWater(lat, lon)) {
-      landPoints.push({ lat, lon });
-    }
-  }
-
-  return {
-    crossesLand: landPoints.length > 0,
-    landPoints
-  };
 }
 
 /**
@@ -334,25 +624,35 @@ async function findWaterRoute(
   startLon: number,
   endLat: number,
   endLon: number,
-  maxIterations: number = 100000
+  maxIterations: number = 2000000
 ): Promise<{ success: boolean; waypoints: Array<{ lat: number; lon: number }>; distance: number; failureReason?: RouteFailureReason }> {
   console.log(`[Worker] Route request: (${startLat.toFixed(5)}, ${startLon.toFixed(5)}) -> (${endLat.toFixed(5)}, ${endLon.toFixed(5)})`);
 
-  // Preload tiles for the bounding box with some margin
-  const margin = 0.5; // degrees
-  const minLat = Math.min(startLat, endLat) - margin;
-  const maxLat = Math.max(startLat, endLat) + margin;
-  const minLon = Math.min(startLon, endLon) - margin;
-  const maxLon = Math.max(startLon, endLon) + margin;
-
-  const tilesLoaded = await geoTiffWaterService.preloadTiles(minLon, minLat, maxLon, maxLat);
-  if (tilesLoaded > 0) {
-    console.log(`[Worker] Preloaded ${tilesLoaded} GeoTIFF tiles for route area`);
+  // Check distance limit FIRST before any expensive operations
+  const totalDistance = calculateDistance(startLat, startLon, endLat, endLon);
+  if (totalDistance > 150) {
+    console.warn(`[Worker] Route distance (${totalDistance.toFixed(1)} NM) exceeds 150 NM limit`);
+    return {
+      success: false,
+      waypoints: [{ lat: startLat, lon: startLon }, { lat: endLat, lon: endLon }],
+      distance: totalDistance,
+      failureReason: 'DISTANCE_TOO_LONG'
+    };
   }
 
-  // Check if start/end points are on water
-  const startOnWater = isWater(startLat, startLon);
-  const endOnWater = isWater(endLat, endLon);
+  // Use 90m grid to match GeoTIFF data resolution (0.0008° ≈ 90 meters)
+  const gridSize = 0.0008;
+  const invGridSize = 1 / gridSize;
+
+  // Build the distance field for land proximity calculations
+  // maxDistance of 50 grid units = ~4.5km detection radius
+  const distanceField = new DistanceField(startLat, startLon, endLat, endLon, gridSize, 50);
+  await distanceField.build();
+  console.log(`[Worker] Distance field ready:`, distanceField.getStats());
+
+  // Check if start/end points are on water (using cached check from distance field)
+  const startOnWater = distanceField.isWaterCached(startLat, startLon);
+  const endOnWater = distanceField.isWaterCached(endLat, endLon);
 
   if (!startOnWater) {
     console.warn(`[Worker] Start point is not on water`);
@@ -374,9 +674,10 @@ async function findWaterRoute(
     };
   }
 
-  const directCheck = checkRouteForLand(startLat, startLon, endLat, endLon, 0.1);
-  if (!directCheck.crossesLand) {
-    console.log(`[Worker] Direct route is clear`);
+  // EARLY TERMINATION: Check if direct path is safe using distance field
+  // This is much faster than A* for open water routes
+  if (distanceField.isDirectPathSafe(startLat, startLon, endLat, endLon)) {
+    console.log(`[Worker] Direct route is clear (distance field check)`);
     return {
       success: true,
       waypoints: [
@@ -387,24 +688,7 @@ async function findWaterRoute(
     };
   }
 
-  console.log(`[Worker] Direct route crosses land at ${directCheck.landPoints.length} points`);
-
-  const totalDistance = calculateDistance(startLat, startLon, endLat, endLon);
-
-  // Check if route is too long for reliable pathfinding
-  if (totalDistance > 200) {
-    console.warn(`[Worker] Route distance (${totalDistance.toFixed(1)} NM) exceeds limit for pathfinding`);
-    return {
-      success: false,
-      waypoints: [{ lat: startLat, lon: startLon }, { lat: endLat, lon: endLon }],
-      distance: totalDistance,
-      failureReason: 'DISTANCE_TOO_LONG'
-    };
-  }
-
-  // Use 90m grid to match GeoTIFF data resolution (0.0008° ≈ 90 meters)
-  const gridSize = 0.0008;
-  const invGridSize = 1 / gridSize;
+  console.log(`[Worker] Direct route blocked, starting A* pathfinding`);
   console.log(`[Worker] Distance: ${totalDistance.toFixed(2)} NM, Grid size: ${gridSize.toFixed(5)}° (~${(gridSize * 111000).toFixed(0)}m)`);
 
   const startNode = findNearbyWaterCell(startLat, startLon, gridSize);
@@ -430,13 +714,6 @@ async function findWaterRoute(
     };
   }
 
-  const goalThreshold = gridSize * 2;
-  const goalThresholdSq = goalThreshold * goalThreshold;
-
-  const allNodes = new Map<number, AStarNode>();
-  const closedSet = new Set<number>();
-  const openQueue = new PriorityQueue<AStarNode>((a, b) => a.f - b.f);
-
   const gridDistNm = gridSize * 60;
   const directions: Array<[number, number, number]> = [
     [gridSize, 0, gridDistNm],
@@ -452,7 +729,21 @@ async function findWaterRoute(
   const gridMeters = gridSize * 111000;
   const edgeCheckPoints = Math.max(2, Math.min(5, Math.ceil(gridMeters / 50)));
 
+  // BIDIRECTIONAL A*: Search from both start and end simultaneously
+  // Forward search: start -> end
+  const forwardNodes = new Map<number, AStarNode>();
+  const forwardClosed = new Set<number>();
+  const forwardQueue = new PriorityQueue<AStarNode>((a, b) => a.f - b.f);
+
+  // Backward search: end -> start
+  const backwardNodes = new Map<number, AStarNode>();
+  const backwardClosed = new Set<number>();
+  const backwardQueue = new PriorityQueue<AStarNode>((a, b) => a.f - b.f);
+
   const startKey = getIntKey(startNode.lat, startNode.lon, invGridSize);
+  const endKey = getIntKey(endNode.lat, endNode.lon, invGridSize);
+
+  // Initialize forward search
   const startH = fastDistance(startNode.lat, startNode.lon, endNode.lat, endNode.lon);
   const startAStarNode: AStarNode = {
     lat: startNode.lat,
@@ -462,72 +753,79 @@ async function findWaterRoute(
     parentKey: -1,
     key: startKey
   };
-  allNodes.set(startKey, startAStarNode);
-  openQueue.push(startAStarNode);
+  forwardNodes.set(startKey, startAStarNode);
+  forwardQueue.push(startAStarNode);
+
+  // Initialize backward search
+  const endH = fastDistance(endNode.lat, endNode.lon, startNode.lat, startNode.lon);
+  const endAStarNode: AStarNode = {
+    lat: endNode.lat,
+    lon: endNode.lon,
+    g: 0,
+    f: endH,
+    parentKey: -1,
+    key: endKey
+  };
+  backwardNodes.set(endKey, endAStarNode);
+  backwardQueue.push(endAStarNode);
 
   let iterations = 0;
-  let foundPath = false;
-  let goalNode: AStarNode | null = null;
+  let meetingKey: number | null = null;
+  let bestPathCost = Infinity;
+  let expansionCount = 0;
 
-  while (!openQueue.isEmpty() && iterations < maxIterations) {
-    iterations++;
+  // Helper function to expand a node in one direction
+  const expandNode = (
+    current: AStarNode,
+    nodes: Map<number, AStarNode>,
+    closed: Set<number>,
+    queue: PriorityQueue<AStarNode>,
+    targetLat: number,
+    targetLon: number,
+    otherClosed: Set<number>,
+    otherNodes: Map<number, AStarNode>
+  ): number | null => {
+    const currentDistToLand = distanceField.getDistance(current.lat, current.lon);
+    const canJump = currentDistToLand > 10;
 
-    const current = openQueue.pop()!;
-
-    if (closedSet.has(current.key)) continue;
-    closedSet.add(current.key);
-
-    const dLatGoal = current.lat - endNode.lat;
-    const dLonGoal = current.lon - endNode.lon;
-    if (dLatGoal * dLatGoal + dLonGoal * dLonGoal < goalThresholdSq) {
-      foundPath = true;
-      goalNode = current;
-      break;
-    }
-
+    // Regular 8-directional neighbors
     for (let i = 0; i < 8; i++) {
       const [dLat, dLon, moveCost] = directions[i];
       const newLat = Math.round((current.lat + dLat) * invGridSize) * gridSize;
       const newLon = Math.round((current.lon + dLon) * invGridSize) * gridSize;
       const newKey = getIntKey(newLat, newLon, invGridSize);
 
-      if (closedSet.has(newKey)) continue;
-      if (!isWater(newLat, newLon)) continue;
+      if (closed.has(newKey)) continue;
+      if (!distanceField.isWaterCached(newLat, newLon)) continue;
 
-      let edgeClear = true;
-      for (let j = 1; j < edgeCheckPoints; j++) {
-        const t = j / edgeCheckPoints;
-        const checkLat = current.lat + t * (newLat - current.lat);
-        const checkLon = current.lon + t * (newLon - current.lon);
-        if (!isWater(checkLat, checkLon)) {
-          edgeClear = false;
-          break;
+      // Edge checks when close to land
+      if (currentDistToLand < 5) {
+        let edgeClear = true;
+        for (let j = 1; j < edgeCheckPoints; j++) {
+          const t = j / edgeCheckPoints;
+          const checkLat = current.lat + t * (newLat - current.lat);
+          const checkLon = current.lon + t * (newLon - current.lon);
+          if (!distanceField.isWaterCached(checkLat, checkLon)) {
+            edgeClear = false;
+            break;
+          }
         }
+        if (!edgeClear) continue;
       }
-      if (!edgeClear) continue;
 
-      // Calculate distance to nearest land for coastal preference
-      const distToLand = getDistanceToLand(newLat, newLon, gridSize, 5);
-
-      // Land proximity penalty: maintain safe distance from land
-      // At 90m grid: 2 grids = 180m minimum safe distance
-      // Allow routes to stray far from coast with minimal penalty
-      let landPenalty = 0;
-      if (distToLand < 2) {
-        // Too close to land - very strong penalty to maintain minimum 180m distance
-        landPenalty = (2 - distToLand) * 20; // 0-40 NM penalty for being too close
-      } else if (distToLand > 10) {
-        // Far from coast - minimal penalty to allow open water crossing
-        const excessDist = distToLand - 10;
-        landPenalty = Math.min(excessDist * 0.01, 0.2); // Max 0.2 NM penalty (very light)
+      // Add penalty for being close to shore (within ~270m / 3 cells)
+      let proximityPenalty = 0;
+      const newDistToLand = distanceField.getDistance(newLat, newLon);
+      if (newDistToLand >= 0 && newDistToLand < 3) {
+        // Penalty increases as we get closer to land
+        proximityPenalty = (3 - newDistToLand) * 0.05;
       }
-      // Ideal range (2-10 grid units ≈ 180m-900m): no penalty, free to roam
 
-      const tentativeG = current.g + moveCost + landPenalty;
+      const tentativeG = current.g + moveCost + proximityPenalty;
 
-      const existing = allNodes.get(newKey);
+      const existing = nodes.get(newKey);
       if (!existing || tentativeG < existing.g) {
-        const h = fastDistance(newLat, newLon, endNode.lat, endNode.lon);
+        const h = fastDistance(newLat, newLon, targetLat, targetLon);
         const newNode: AStarNode = {
           lat: newLat,
           lon: newLon,
@@ -536,22 +834,218 @@ async function findWaterRoute(
           parentKey: current.key,
           key: newKey
         };
-        allNodes.set(newKey, newNode);
-        openQueue.push(newNode);
+        nodes.set(newKey, newNode);
+        queue.push(newNode);
+
+        // Check if this node connects to the other search
+        if (otherClosed.has(newKey)) {
+          const otherNode = otherNodes.get(newKey);
+          if (otherNode) {
+            const pathCost = tentativeG + otherNode.g;
+            if (pathCost < bestPathCost) {
+              bestPathCost = pathCost;
+              return newKey;
+            }
+          }
+        }
+      }
+    }
+
+    // JUMP POINT SEARCH: When far from land, try large jumps toward target
+    if (canJump) {
+      const toTargetLat = targetLat - current.lat;
+      const toTargetLon = targetLon - current.lon;
+      const toTargetDist = Math.sqrt(toTargetLat * toTargetLat + toTargetLon * toTargetLon);
+
+      if (toTargetDist > gridSize * 5) {
+        const dirLat = toTargetLat / toTargetDist;
+        const dirLon = toTargetLon / toTargetDist;
+        const safeJumpCells = Math.floor(currentDistToLand * 0.8);
+
+        const jumpSizes = [
+          Math.min(safeJumpCells, 5),
+          Math.min(safeJumpCells, 15),
+          Math.min(safeJumpCells, 30),
+          safeJumpCells
+        ];
+
+        for (const jumpCells of jumpSizes) {
+          if (jumpCells < 3) continue;
+
+          const jumpDist = jumpCells * gridSize;
+          const jumpLat = Math.round((current.lat + dirLat * jumpDist) * invGridSize) * gridSize;
+          const jumpLon = Math.round((current.lon + dirLon * jumpDist) * invGridSize) * gridSize;
+          const jumpKey = getIntKey(jumpLat, jumpLon, invGridSize);
+
+          if (closed.has(jumpKey)) continue;
+
+          const jumpDistToLand = distanceField.getDistance(jumpLat, jumpLon);
+          if (jumpDistToLand < 0) continue;
+
+          const jumpDistNm = fastDistance(current.lat, current.lon, jumpLat, jumpLon);
+          const tentativeG = current.g + jumpDistNm;
+
+          const existing = nodes.get(jumpKey);
+          if (!existing || tentativeG < existing.g) {
+            const h = fastDistance(jumpLat, jumpLon, targetLat, targetLon);
+            const newNode: AStarNode = {
+              lat: jumpLat,
+              lon: jumpLon,
+              g: tentativeG,
+              f: tentativeG + h,
+              parentKey: current.key,
+              key: jumpKey
+            };
+            nodes.set(jumpKey, newNode);
+            queue.push(newNode);
+
+            // Check if this node connects to the other search
+            if (otherClosed.has(jumpKey)) {
+              const otherNode = otherNodes.get(jumpKey);
+              if (otherNode) {
+                const pathCost = tentativeG + otherNode.g;
+                if (pathCost < bestPathCost) {
+                  bestPathCost = pathCost;
+                  return jumpKey;
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    return null;
+  };
+
+  // Main bidirectional search loop
+  while ((!forwardQueue.isEmpty() || !backwardQueue.isEmpty()) && iterations < maxIterations) {
+    // Expand forward search
+    if (!forwardQueue.isEmpty()) {
+      iterations++;
+      const current = forwardQueue.pop()!;
+
+      if (!forwardClosed.has(current.key)) {
+        forwardClosed.add(current.key);
+
+        // Check boundary expansion
+        if (distanceField.isNearBoundary(current.lat, current.lon) && distanceField.canExpand()) {
+          console.log(`[Worker] Bidirectional A* reached boundary at iteration ${iterations}, expanding...`);
+          await distanceField.expand();
+          expansionCount++;
+        }
+
+        // Check if forward search reached end
+        if (current.key === endKey) {
+          meetingKey = endKey;
+          break;
+        }
+
+        // Check if we met the backward search
+        if (backwardClosed.has(current.key)) {
+          const backNode = backwardNodes.get(current.key);
+          if (backNode) {
+            const pathCost = current.g + backNode.g;
+            if (pathCost < bestPathCost) {
+              bestPathCost = pathCost;
+              meetingKey = current.key;
+            }
+          }
+        }
+
+        const newMeeting = expandNode(
+          current, forwardNodes, forwardClosed, forwardQueue,
+          endNode.lat, endNode.lon, backwardClosed, backwardNodes
+        );
+        if (newMeeting !== null) meetingKey = newMeeting;
+      }
+    }
+
+    // Expand backward search
+    if (!backwardQueue.isEmpty()) {
+      iterations++;
+      const current = backwardQueue.pop()!;
+
+      if (!backwardClosed.has(current.key)) {
+        backwardClosed.add(current.key);
+
+        // Check boundary expansion
+        if (distanceField.isNearBoundary(current.lat, current.lon) && distanceField.canExpand()) {
+          console.log(`[Worker] Bidirectional A* reached boundary at iteration ${iterations}, expanding...`);
+          await distanceField.expand();
+          expansionCount++;
+        }
+
+        // Check if backward search reached start
+        if (current.key === startKey) {
+          meetingKey = startKey;
+          break;
+        }
+
+        // Check if we met the forward search
+        if (forwardClosed.has(current.key)) {
+          const fwdNode = forwardNodes.get(current.key);
+          if (fwdNode) {
+            const pathCost = current.g + fwdNode.g;
+            if (pathCost < bestPathCost) {
+              bestPathCost = pathCost;
+              meetingKey = current.key;
+            }
+          }
+        }
+
+        const newMeeting = expandNode(
+          current, backwardNodes, backwardClosed, backwardQueue,
+          startNode.lat, startNode.lon, forwardClosed, forwardNodes
+        );
+        if (newMeeting !== null) meetingKey = newMeeting;
+      }
+    }
+
+    // Early termination: if we found a meeting point and both queues' best nodes
+    // can't improve the path, we're done
+    if (meetingKey !== null) {
+      const forwardBest = forwardQueue.isEmpty() ? Infinity : forwardQueue.peek()!.f;
+      const backwardBest = backwardQueue.isEmpty() ? Infinity : backwardQueue.peek()!.f;
+      if (forwardBest >= bestPathCost && backwardBest >= bestPathCost) {
+        break;
       }
     }
   }
 
-  if (foundPath && goalNode) {
-    const routePath: Array<{ lat: number; lon: number }> = [];
-    let currentNode: AStarNode | undefined = goalNode;
+  if (expansionCount > 0) {
+    console.log(`[Worker] Distance field expanded ${expansionCount} time(s) during pathfinding`);
+  }
 
+  if (meetingKey !== null) {
+    // Reconstruct path: forward path to meeting point + reverse of backward path from meeting point
+    const routePath: Array<{ lat: number; lon: number }> = [];
+
+    // Forward path: start -> meeting point
+    let currentNode = forwardNodes.get(meetingKey);
+    const forwardPath: Array<{ lat: number; lon: number }> = [];
     while (currentNode) {
-      routePath.unshift({ lat: currentNode.lat, lon: currentNode.lon });
+      forwardPath.unshift({ lat: currentNode.lat, lon: currentNode.lon });
       if (currentNode.parentKey === -1) break;
-      currentNode = allNodes.get(currentNode.parentKey);
+      currentNode = forwardNodes.get(currentNode.parentKey);
     }
 
+    // Backward path: meeting point -> end (reversed)
+    currentNode = backwardNodes.get(meetingKey);
+    const backwardPath: Array<{ lat: number; lon: number }> = [];
+    while (currentNode) {
+      backwardPath.push({ lat: currentNode.lat, lon: currentNode.lon });
+      if (currentNode.parentKey === -1) break;
+      currentNode = backwardNodes.get(currentNode.parentKey);
+    }
+
+    // Combine paths (skip duplicate meeting point)
+    routePath.push(...forwardPath);
+    if (backwardPath.length > 1) {
+      routePath.push(...backwardPath.slice(1));
+    }
+
+    // Add original start/end points
     routePath.unshift({ lat: startLat, lon: startLon });
     routePath.push({ lat: endLat, lon: endLon });
 
@@ -594,7 +1088,7 @@ async function findWaterRoute(
 
   if (hitMaxIterations) {
     // Hit max iterations - search space too large or route blocked
-    failureReason = totalDistance > 20 ? 'DISTANCE_TOO_LONG' : 'MAX_ITERATIONS';
+    failureReason = 'MAX_ITERATIONS';
   } else if (totalDistance < 5) {
     // Short distance but no path - likely narrow channel or small waterway
     failureReason = 'NARROW_CHANNEL';

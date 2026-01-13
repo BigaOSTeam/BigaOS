@@ -922,15 +922,15 @@ class TilesController {
     try {
       const url = getTileUrl(source as TileLayer, parseInt(z), parseInt(x), parseInt(yValue));
 
-      // Check if this tile recently failed - return placeholder without trying again
+      // Check if this tile recently failed - skip request to avoid flooding the tile server
+      // but don't show a placeholder (just let it return an empty response or retry later)
       if (this.isFailedTile(url)) {
-        res.setHeader('Content-Type', 'image/png');
+        // Return 204 No Content - this will cause the tile to show as empty/transparent
+        // but won't show the "Not Downloaded" placeholder while online
         res.setHeader('X-Tile-Source', 'cached-failure');
         res.setHeader('X-Offline-Mode', 'false');
-        // Short cache to avoid flooding with requests
-        res.setHeader('Cache-Control', 'public, max-age=60');
-        const placeholderBuffer = Buffer.from(PLACEHOLDER_TILE_BASE64, 'base64');
-        res.send(placeholderBuffer);
+        res.setHeader('Cache-Control', 'no-cache');
+        res.status(204).end();
         return;
       }
 
@@ -947,14 +947,13 @@ class TilesController {
         console.error('Error proxying tile:', error);
       }
 
-      // Return placeholder tile instead of error for better UX
+      // Return 204 No Content - tile will appear empty/transparent temporarily
+      // The "Not Downloaded" placeholder is only shown when truly offline
       if (!res.headersSent) {
-        res.setHeader('Content-Type', 'image/png');
         res.setHeader('X-Tile-Source', 'error-fallback');
-        res.setHeader('X-Offline-Mode', 'true');
-        res.setHeader('Cache-Control', 'public, max-age=60');
-        const placeholderBuffer = Buffer.from(PLACEHOLDER_TILE_BASE64, 'base64');
-        res.send(placeholderBuffer);
+        res.setHeader('X-Offline-Mode', 'false');
+        res.setHeader('Cache-Control', 'no-cache');
+        res.status(204).end();
       }
     }
   }

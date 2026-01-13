@@ -31,6 +31,7 @@ import {
   createBoatIcon,
   createCustomMarkerIcon,
   createWaypointIcon,
+  createFinishFlagIcon,
   MapController,
   LongPressHandler,
   ContextMenu,
@@ -407,45 +408,101 @@ export const ChartView: React.FC<ChartViewProps> = ({
   // Waypoint arrival detection threshold in nautical miles (about 150 meters)
   const WAYPOINT_ARRIVAL_THRESHOLD_NM = 0.08;
 
-  // Check for waypoint arrival and update route to follow boat
+  // Track pending skip checks and cooldown to avoid excessive API calls
+  const pendingSkipCheck = useRef<boolean>(false);
+  const lastSkipCheckTime = useRef<number>(0);
+  const SKIP_CHECK_COOLDOWN_MS = 5000; // Only check every 5 seconds max
+
+  // Smart waypoint arrival and skip detection
+  // 1. Detect when we're within arrival threshold of a waypoint
+  // 2. Check if we're closer to a later waypoint than the next one
+  // 3. Only skip if there's a clear water path (no land in the way)
   useEffect(() => {
     if (!navigationTarget || routeWaypoints.length < 2) return;
 
-    // Check all waypoints (except first which is boat position) to find the furthest one we've reached
-    // This handles shortcuts - if we reach waypoint 3 before waypoint 2, skip to 3
-    let furthestReachedIndex = -1;
+    const boatLat = position.latitude;
+    const boatLon = position.longitude;
 
-    for (let i = 1; i < routeWaypoints.length; i++) {
-      const wp = routeWaypoints[i];
-      const distance = calculateDistanceNm(
-        position.latitude,
-        position.longitude,
-        wp.lat,
-        wp.lon
-      );
+    // Calculate distance to each waypoint
+    const distances = routeWaypoints.map((wp, i) => ({
+      index: i,
+      distance: calculateDistanceNm(boatLat, boatLon, wp.lat, wp.lon),
+      wp
+    }));
 
-      if (distance < WAYPOINT_ARRIVAL_THRESHOLD_NM) {
-        furthestReachedIndex = i;
+    // Check if we've arrived at any waypoint (within threshold)
+    let arrivedAtIndex = -1;
+    for (let i = 1; i < distances.length; i++) {
+      if (distances[i].distance < WAYPOINT_ARRIVAL_THRESHOLD_NM) {
+        arrivedAtIndex = i;
       }
     }
 
-    // If we reached any waypoint
-    if (furthestReachedIndex > 0) {
-      // Check if we reached the final destination
-      if (furthestReachedIndex === routeWaypoints.length - 1) {
-        // Arrived at destination!
-        setNavigationTarget(null);
+    // If we arrived at the final destination
+    if (arrivedAtIndex === routeWaypoints.length - 1) {
+      setNavigationTarget(null);
+      return;
+    }
+
+    // If we arrived at an intermediate waypoint, skip past it
+    if (arrivedAtIndex > 0) {
+      const remainingWaypoints = routeWaypoints.slice(arrivedAtIndex + 1);
+      setRouteWaypoints([
+        { lat: boatLat, lon: boatLon },
+        ...remainingWaypoints,
+      ]);
+      return;
+    }
+
+    // Smart skip detection: Check if we're closer to a later waypoint than the next one
+    // This handles shortcuts when we take a different path than the calculated route
+    // Throttled to avoid excessive API calls
+    if (routeWaypoints.length > 2) {
+      const now = Date.now();
+      const timeSinceLastCheck = now - lastSkipCheckTime.current;
+
+      // Skip if we're still in cooldown or already checking
+      if (pendingSkipCheck.current || timeSinceLastCheck < SKIP_CHECK_COOLDOWN_MS) {
         return;
       }
 
-      // Skip to the waypoint after the furthest one we reached
-      const remainingWaypoints = routeWaypoints.slice(furthestReachedIndex + 1);
+      const nextWaypointDist = distances[1].distance;
 
-      // Update waypoints with boat position as first point
-      setRouteWaypoints([
-        { lat: position.latitude, lon: position.longitude },
-        ...remainingWaypoints,
-      ]);
+      // Find any later waypoint that's closer than the next one
+      let bestSkipIndex = -1;
+      for (let i = 2; i < distances.length; i++) {
+        // Is this waypoint closer than the next one we're supposed to go to?
+        if (distances[i].distance < nextWaypointDist) {
+          bestSkipIndex = i;
+          break; // Take the first (earliest) skip opportunity
+        }
+      }
+
+      // If we found a potential skip target, verify the path is clear (over water)
+      if (bestSkipIndex > 1) {
+        pendingSkipCheck.current = true;
+        lastSkipCheckTime.current = now;
+        const targetWp = routeWaypoints[bestSkipIndex];
+
+        navigationAPI.checkRoute(boatLat, boatLon, targetWp.lat, targetWp.lon)
+          .then(response => {
+            // Only skip if the path doesn't cross land
+            if (!response.data.crossesLand) {
+              console.log(`[Navigation] Skipping to waypoint ${bestSkipIndex} - clear water path`);
+              const remainingWaypoints = routeWaypoints.slice(bestSkipIndex);
+              setRouteWaypoints([
+                { lat: boatLat, lon: boatLon },
+                ...remainingWaypoints,
+              ]);
+            }
+          })
+          .catch(err => {
+            console.warn('[Navigation] Failed to check skip path:', err);
+          })
+          .finally(() => {
+            pendingSkipCheck.current = false;
+          });
+      }
     }
   }, [position.latitude, position.longitude, navigationTarget, routeWaypoints]);
 
@@ -827,12 +884,12 @@ export const ChartView: React.FC<ChartViewProps> = ({
           />
         ))}
 
-        {/* Navigation route - always starts from current boat position */}
+        {/* Navigation route - dashes originate from destination toward boat */}
         {navigationTarget && routeWaypoints.length >= 2 && (() => {
-          // Build route positions: boat position + remaining waypoints (skip first stored waypoint)
+          // Build route positions: destination -> waypoints -> boat (reversed for dash direction)
           const routePositions: [number, number][] = [
+            ...routeWaypoints.slice(1).map((wp) => [wp.lat, wp.lon] as [number, number]).reverse(),
             [position.latitude, position.longitude],
-            ...routeWaypoints.slice(1).map((wp) => [wp.lat, wp.lon] as [number, number]),
           ];
           return (
             <>
@@ -872,8 +929,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
           <>
             <Polyline
               positions={[
-                [position.latitude, position.longitude],
                 [navigationTarget.lat, navigationTarget.lon],
+                [position.latitude, position.longitude],
               ]}
               pathOptions={{
                 color: '#ffffff',
@@ -884,8 +941,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
             />
             <Polyline
               positions={[
-                [position.latitude, position.longitude],
                 [navigationTarget.lat, navigationTarget.lon],
+                [position.latitude, position.longitude],
               ]}
               pathOptions={{
                 color: '#000000',
@@ -895,6 +952,14 @@ export const ChartView: React.FC<ChartViewProps> = ({
               }}
             />
           </>
+        )}
+
+        {/* Finish flag at destination when navigating to coordinates (not a saved marker) */}
+        {navigationTarget && navigationTarget.id === 'nav-target' && (
+          <Marker
+            position={[navigationTarget.lat, navigationTarget.lon]}
+            icon={createFinishFlagIcon()}
+          />
         )}
 
         <MapController
