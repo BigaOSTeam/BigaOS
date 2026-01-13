@@ -20,11 +20,16 @@ interface ChartSidebarProps {
   useSatellite: boolean;
   autoCenter: boolean;
   bearingToTarget?: number | null;
+  autopilotOpen: boolean;
+  autopilotActive: boolean;
+  debugMode?: boolean;
   onClose?: () => void;
   onDepthClick: () => void;
   onSearchClick: () => void;
   onSatelliteToggle: () => void;
   onRecenter: () => void;
+  onCompassClick: () => void;
+  onDebugToggle?: () => void;
 }
 
 export const ChartSidebar: React.FC<ChartSidebarProps> = ({
@@ -40,11 +45,16 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   useSatellite,
   autoCenter,
   bearingToTarget,
+  autopilotOpen,
+  autopilotActive,
+  debugMode: _debugMode,
   onClose,
   onDepthClick,
   onSearchClick,
   onSatelliteToggle,
   onRecenter,
+  onCompassClick,
+  onDebugToggle: _onDebugToggle,
 }) => {
   const sidebarWidth = 100;
 
@@ -89,11 +99,15 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         </button>
       )}
 
-      {/* Compass */}
+      {/* Compass - clickable to open autopilot */}
       <div
+        onClick={onCompassClick}
         style={{
           padding: '0.5rem 0.5rem',
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+          cursor: 'pointer',
+          background: autopilotOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+          transition: 'background 0.2s',
         }}
       >
         <Compass heading={heading} bearingToTarget={bearingToTarget} />

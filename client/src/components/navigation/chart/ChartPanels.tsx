@@ -147,6 +147,235 @@ interface SearchPanelProps {
   onClose: () => void;
 }
 
+interface AutopilotPanelProps {
+  sidebarWidth: number;
+  targetHeading: number;
+  isActive: boolean;
+  hasActiveNavigation: boolean;
+  followingRoute: boolean;
+  currentBearing?: number | null;
+  onSetHeading: (heading: number) => void;
+  onToggleActive: () => void;
+  onToggleFollowRoute: () => void;
+  onClose: () => void;
+}
+
+export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
+  sidebarWidth,
+  targetHeading,
+  isActive,
+  hasActiveNavigation,
+  followingRoute,
+  currentBearing,
+  onSetHeading,
+  onToggleActive,
+  onToggleFollowRoute,
+  onClose,
+}) => {
+  const settingsPanelWidth = 200;
+
+  const adjustHeading = (delta: number) => {
+    // Turn off follow mode when manually adjusting
+    if (followingRoute) {
+      onToggleFollowRoute();
+    }
+    let newHeading = targetHeading + delta;
+    if (newHeading >= 360) newHeading -= 360;
+    if (newHeading < 0) newHeading += 360;
+    onSetHeading(newHeading);
+  };
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          top: '50%',
+          transform: 'translateY(-50%)',
+          right: `${sidebarWidth + 8}px`,
+          width: `${settingsPanelWidth}px`,
+          maxHeight: 'calc(100vh - 32px)',
+          overflowY: 'auto',
+          background: 'rgba(10, 25, 41, 0.95)',
+          border: '1px solid rgba(255, 255, 255, 0.2)',
+          borderRadius: '4px',
+          padding: '1rem',
+          zIndex: 1001,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}
+      >
+        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>
+          AUTOPILOT
+        </div>
+
+        {/* Heading display */}
+        <div
+          style={{
+            textAlign: 'center',
+            marginBottom: '1rem',
+            padding: '0.75rem',
+            background: isActive ? 'rgba(39, 174, 96, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+            borderRadius: '4px',
+            border: isActive ? '1px solid rgba(39, 174, 96, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+          }}
+        >
+          <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.25rem' }}>
+            SET COURSE
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>
+            {targetHeading.toFixed(0)}°
+          </div>
+        </div>
+
+        {/* Adjustment buttons - minus on left, plus on right */}
+        <div style={{ display: 'flex', gap: '8px', marginBottom: '1rem' }}>
+          {/* Minus buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+            <button
+              onClick={() => adjustHeading(-1)}
+              style={{
+                padding: '0.6rem',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '3px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              -1°
+            </button>
+            <button
+              onClick={() => adjustHeading(-10)}
+              style={{
+                padding: '0.6rem',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '3px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              -10°
+            </button>
+          </div>
+          {/* Plus buttons */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1 }}>
+            <button
+              onClick={() => adjustHeading(1)}
+              style={{
+                padding: '0.6rem',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '3px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              +1°
+            </button>
+            <button
+              onClick={() => adjustHeading(10)}
+              style={{
+                padding: '0.6rem',
+                background: 'rgba(255, 255, 255, 0.1)',
+                border: 'none',
+                borderRadius: '3px',
+                color: '#fff',
+                cursor: 'pointer',
+                fontSize: '0.9rem',
+              }}
+            >
+              +10°
+            </button>
+          </div>
+        </div>
+
+        {/* Follow Route toggle - show when navigation is active */}
+        {hasActiveNavigation && currentBearing !== null && currentBearing !== undefined && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              padding: '0.5rem 0',
+              marginBottom: '0.5rem',
+              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            }}
+          >
+            <div>
+              <div style={{ fontSize: '0.9rem' }}>
+                Follow Route
+              </div>
+              <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
+                {currentBearing.toFixed(0)}°
+              </div>
+            </div>
+            <button
+              onClick={onToggleFollowRoute}
+              style={{
+                width: '56px',
+                height: '32px',
+                borderRadius: '16px',
+                border: 'none',
+                background: followingRoute ? 'rgba(39, 174, 96, 0.8)' : 'rgba(255, 255, 255, 0.2)',
+                cursor: 'pointer',
+                position: 'relative',
+                transition: 'background 0.2s',
+              }}
+            >
+              <div
+                style={{
+                  width: '26px',
+                  height: '26px',
+                  borderRadius: '50%',
+                  background: '#fff',
+                  position: 'absolute',
+                  top: '3px',
+                  left: followingRoute ? '27px' : '3px',
+                  transition: 'left 0.2s',
+                }}
+              />
+            </button>
+          </div>
+        )}
+
+        {/* Activate/Deactivate button */}
+        <button
+          onClick={onToggleActive}
+          style={{
+            width: '100%',
+            padding: '0.75rem',
+            background: isActive ? 'rgba(239, 83, 80, 0.3)' : 'rgba(39, 174, 96, 0.3)',
+            border: `1px solid ${isActive ? 'rgba(239, 83, 80, 0.5)' : 'rgba(39, 174, 96, 0.5)'}`,
+            borderRadius: '3px',
+            color: '#fff',
+            cursor: 'pointer',
+            fontSize: '0.9rem',
+          }}
+        >
+          {isActive ? 'DEACTIVATE' : 'ACTIVATE'}
+        </button>
+      </div>
+
+      {/* Click outside to close */}
+      <div
+        onClick={onClose}
+        style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: sidebarWidth,
+          bottom: 0,
+          zIndex: 999,
+        }}
+      />
+    </>
+  );
+};
+
 export const SearchPanel: React.FC<SearchPanelProps> = ({
   sidebarWidth,
   searchQuery,

@@ -5,6 +5,7 @@ import { DatabaseController } from '../controllers/database.controller';
 import { navigationController } from '../controllers/navigation.controller';
 import { navigationDataController } from '../controllers/navigation-data.controller';
 import { tilesController } from '../controllers/tiles.controller';
+import { autopilotController } from '../controllers/autopilot.controller';
 
 const router = Router();
 
@@ -43,6 +44,12 @@ router.post('/navigation/demo', navigationController.updateDemoNavigation.bind(n
 // Navigation debug routes
 router.get('/navigation/debug/water-grid', navigationController.getWaterGrid.bind(navigationController));
 router.get('/navigation/debug/info', navigationController.getDebugInfo.bind(navigationController));
+
+// Autopilot routes
+router.get('/autopilot/status', autopilotController.getStatus.bind(autopilotController));
+router.post('/autopilot/heading', autopilotController.setHeading.bind(autopilotController));
+router.post('/autopilot/activate', autopilotController.activate.bind(autopilotController));
+router.post('/autopilot/deactivate', autopilotController.deactivate.bind(autopilotController));
 
 // Navigation data management routes
 router.get('/data/status', navigationDataController.getStatus.bind(navigationDataController));

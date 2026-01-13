@@ -39,6 +39,7 @@ import {
   ChartSidebar,
   DepthSettingsPanel,
   SearchPanel,
+  AutopilotPanel,
   WaterDebugOverlay,
   DebugInfoPanel,
   DebugMode,
@@ -179,6 +180,19 @@ export const ChartView: React.FC<ChartViewProps> = ({
     return saved ? JSON.parse(saved) : [];
   });
   const [routeLoading, setRouteLoading] = useState(false);
+
+  // Autopilot state
+  const [autopilotOpen, setAutopilotOpen] = useState(false);
+  const [autopilotActive, setAutopilotActive] = useState(false);
+  const [autopilotHeading, setAutopilotHeading] = useState(0);
+  const [followingRoute, setFollowingRoute] = useState(false);
+  const [courseChangeWarning, setCourseChangeWarning] = useState<{
+    secondsUntil: number;
+    newHeading: number;
+  } | null>(null);
+  const [warningDismissed, setWarningDismissed] = useState(false);
+  const headingTransitionRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const targetHeadingRef = useRef<number>(0);
 
   // Refs
   const mapRef = useRef<L.Map>(null);
@@ -405,8 +419,148 @@ export const ChartView: React.FC<ChartViewProps> = ({
     }
   }, [routeWaypoints, navigationTarget]);
 
-  // Waypoint arrival detection threshold in nautical miles (about 150 meters)
-  const WAYPOINT_ARRIVAL_THRESHOLD_NM = 0.08;
+  // Smooth heading transition function
+  const smoothTransitionToHeading = useCallback((targetHeading: number) => {
+    // Clear any existing transition
+    if (headingTransitionRef.current) {
+      clearInterval(headingTransitionRef.current);
+    }
+
+    targetHeadingRef.current = targetHeading;
+
+    // Transition over ~1 second (10 steps at 100ms each)
+    const TRANSITION_STEPS = 10;
+    const TRANSITION_INTERVAL_MS = 100;
+    let stepCount = 0;
+
+    const startHeading = autopilotHeading;
+
+    // Calculate the shortest path (handle 359 -> 1 case)
+    let delta = targetHeading - startHeading;
+    if (delta > 180) delta -= 360;
+    if (delta < -180) delta += 360;
+
+    headingTransitionRef.current = setInterval(() => {
+      stepCount++;
+
+      if (stepCount >= TRANSITION_STEPS) {
+        setAutopilotHeading(targetHeadingRef.current);
+        if (headingTransitionRef.current) {
+          clearInterval(headingTransitionRef.current);
+          headingTransitionRef.current = null;
+        }
+        return;
+      }
+
+      // Ease-in-out interpolation
+      const progress = stepCount / TRANSITION_STEPS;
+      const eased = progress < 0.5
+        ? 2 * progress * progress
+        : 1 - Math.pow(-2 * progress + 2, 2) / 2;
+
+      let newHeading = startHeading + delta * eased;
+      if (newHeading >= 360) newHeading -= 360;
+      if (newHeading < 0) newHeading += 360;
+
+      setAutopilotHeading(Math.round(newHeading));
+    }, TRANSITION_INTERVAL_MS);
+  }, [autopilotHeading]);
+
+  // Update autopilot heading when following route with warning and smooth transition
+  useEffect(() => {
+    if (!followingRoute || !navigationTarget || routeWaypoints.length < 2) {
+      setCourseChangeWarning(null);
+      return;
+    }
+
+    const boatLat = position.latitude;
+    const boatLon = position.longitude;
+
+    // Calculate current bearing to next waypoint
+    const currentBearing = calculateBearing(
+      boatLat,
+      boatLon,
+      routeWaypoints[1].lat,
+      routeWaypoints[1].lon
+    );
+
+    // Calculate distance to next waypoint and ETA
+    const distanceToNextWp = calculateDistanceNm(
+      boatLat, boatLon,
+      routeWaypoints[1].lat, routeWaypoints[1].lon
+    );
+
+    // Calculate ETA in seconds (speed is in knots, distance in nm)
+    const speedKnots = speed; // speed prop is already in knots
+    const etaSeconds = speedKnots > 0.1 ? (distanceToNextWp / speedKnots) * 3600 : Infinity;
+
+    // Check if there's a waypoint after the next one (course change coming)
+    if (routeWaypoints.length >= 3) {
+      const nextBearing = calculateBearing(
+        routeWaypoints[1].lat,
+        routeWaypoints[1].lon,
+        routeWaypoints[2].lat,
+        routeWaypoints[2].lon
+      );
+
+      // Calculate heading difference
+      let headingDiff = Math.abs(nextBearing - currentBearing);
+      if (headingDiff > 180) headingDiff = 360 - headingDiff;
+
+      // Only warn if heading change is significant (> 5 degrees)
+      if (headingDiff > 5 && etaSeconds <= 120 && etaSeconds > 0) {
+        const newWarning = {
+          secondsUntil: Math.round(etaSeconds),
+          newHeading: Math.round(nextBearing),
+        };
+        // Reset dismissed state if the target heading changed significantly
+        if (courseChangeWarning && Math.abs(courseChangeWarning.newHeading - newWarning.newHeading) > 5) {
+          setWarningDismissed(false);
+        }
+        setCourseChangeWarning(newWarning);
+      } else {
+        setCourseChangeWarning(null);
+        setWarningDismissed(false);
+      }
+    } else {
+      setCourseChangeWarning(null);
+      setWarningDismissed(false);
+    }
+
+    // Update heading - use smooth transition if heading change is significant
+    const roundedBearing = Math.round(currentBearing);
+    let headingDiff = Math.abs(roundedBearing - autopilotHeading);
+    if (headingDiff > 180) headingDiff = 360 - headingDiff;
+
+    if (headingDiff > 10) {
+      // Significant change - transition smoothly
+      smoothTransitionToHeading(roundedBearing);
+    } else if (headingDiff > 0) {
+      // Small adjustment - apply directly
+      setAutopilotHeading(roundedBearing);
+    }
+  }, [followingRoute, navigationTarget, routeWaypoints, position.latitude, position.longitude, speed, smoothTransitionToHeading]);
+
+  // Cleanup transition on unmount or when following stops
+  useEffect(() => {
+    return () => {
+      if (headingTransitionRef.current) {
+        clearInterval(headingTransitionRef.current);
+      }
+    };
+  }, []);
+
+  // Turn off follow mode when navigation ends
+  useEffect(() => {
+    if (!navigationTarget && followingRoute) {
+      setFollowingRoute(false);
+    }
+  }, [navigationTarget, followingRoute]);
+
+  // Waypoint arrival detection threshold in nautical miles
+  // When autopilot is following route, use smaller threshold (about 30 meters) for precision
+  // Otherwise use larger threshold (about 150 meters) for manual navigation
+  const WAYPOINT_ARRIVAL_THRESHOLD_NM = followingRoute ? 0.016 : 0.08;
 
   // Track pending skip checks and cooldown to avoid excessive API calls
   const pendingSkipCheck = useRef<boolean>(false);
@@ -1201,56 +1355,242 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 )
               : null
           }
+          autopilotOpen={autopilotOpen}
+          autopilotActive={autopilotActive}
           debugMode={debugMode !== 'off'}
           onClose={onClose}
-          onDepthClick={() => setDepthSettingsOpen(!depthSettingsOpen)}
+          onDepthClick={() => {
+            setDepthSettingsOpen(!depthSettingsOpen);
+            setSearchOpen(false);
+            setAutopilotOpen(false);
+          }}
           onSearchClick={() => {
             setSearchOpen(!searchOpen);
             setDepthSettingsOpen(false);
+            setAutopilotOpen(false);
           }}
           onSatelliteToggle={() => setUseSatellite(!useSatellite)}
           onRecenter={handleRecenter}
+          onCompassClick={() => {
+            setAutopilotOpen(!autopilotOpen);
+            setDepthSettingsOpen(false);
+            setSearchOpen(false);
+          }}
           onDebugToggle={() => setDebugMode(debugMode === 'off' ? 'grid' : 'off')}
         />
       )}
 
-      {/* Navigation info banner - only show when route is ready */}
-      {!hideSidebar && navigationTarget && !routeLoading && routeWaypoints.length >= 2 && (() => {
-        // Calculate distance along the actual route from current position
-        const currentRoute = [
-          { lat: position.latitude, lon: position.longitude },
-          ...routeWaypoints.slice(1),
-        ];
-        const distanceNm = calculateRouteDistanceNm(currentRoute);
-        const convertedDistance = convertDistance(distanceNm);
-        const etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
+      {/* Top banners container - navigation and autopilot side by side */}
+      {!hideSidebar && (navigationTarget && !routeLoading && routeWaypoints.length >= 2 || autopilotActive) && (() => {
+        const hasNavigation = navigationTarget && !routeLoading && routeWaypoints.length >= 2;
+
+        // Calculate navigation info if active
+        let convertedDistance = 0;
+        let etaHours = Infinity;
+        if (hasNavigation) {
+          const currentRoute = [
+            { lat: position.latitude, lon: position.longitude },
+            ...routeWaypoints.slice(1),
+          ];
+          const distanceNm = calculateRouteDistanceNm(currentRoute);
+          convertedDistance = convertDistance(distanceNm);
+          etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
+        }
 
         return (
-          <button
-            onClick={cancelNavigation}
+          <div
             style={{
               position: 'absolute',
               top: '1rem',
               left: '50%',
               transform: 'translateX(-50%)',
-              background: 'rgba(39, 174, 96, 0.9)',
-              border: 'none',
-              borderRadius: '4px',
-              padding: '0.5rem 0.75rem',
-              color: '#fff',
-              fontSize: '0.8rem',
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              zIndex: 1002,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
               display: 'flex',
-              alignItems: 'center',
-              gap: '0.6rem',
+              gap: '0.5rem',
+              zIndex: 1002,
             }}
           >
+            {/* Navigation banner */}
+            {hasNavigation && (
+              <button
+                onClick={cancelNavigation}
+                style={{
+                  background: 'rgba(39, 174, 96, 0.9)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.5rem 0.75rem',
+                  color: '#fff',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.6rem',
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="6" cy="8" r="2" fill="currentColor" />
+                  <path d="M6 10v4" />
+                  <path d="M8 12h2" strokeDasharray="2 2" />
+                  <path d="M12 12h2" strokeDasharray="2 2" />
+                  <path
+                    d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z"
+                    fill="currentColor"
+                  />
+                </svg>
+                {navigationTarget.name && (
+                  <>
+                    <span>{navigationTarget.name}</span>
+                    <span style={{ opacity: 0.7 }}>|</span>
+                  </>
+                )}
+                <span>
+                  {convertedDistance.toFixed(convertedDistance < 10 ? 2 : 1)}{' '}
+                  {distanceConversions[distanceUnit].label}
+                </span>
+                <span style={{ opacity: 0.7 }}>|</span>
+                <span>{formatETA(etaHours)}</span>
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  style={{ opacity: 0.7, marginLeft: '0.25rem' }}
+                >
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            )}
+
+            {/* Autopilot banner */}
+            {autopilotActive && (
+              <button
+                onClick={() => setAutopilotOpen(true)}
+                style={{
+                  background: 'rgba(25, 118, 210, 0.9)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.5rem 0.75rem',
+                  color: '#fff',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M12 6v6l4 2" />
+                </svg>
+                <span>AUTOPILOT</span>
+                {followingRoute && (
+                  <>
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M5 12h14" />
+                      <path d="M12 5l7 7-7 7" />
+                    </svg>
+                    <span>ROUTE</span>
+                  </>
+                )}
+                <span style={{ opacity: 0.9, fontWeight: 'normal' }}>
+                  {autopilotHeading}°
+                </span>
+                {courseChangeWarning && (
+                  <span
+                    style={{
+                      marginLeft: '0.25rem',
+                      padding: '0.15rem 0.4rem',
+                      background: 'rgba(255, 193, 7, 0.9)',
+                      borderRadius: '3px',
+                      fontSize: '0.7rem',
+                      color: '#000',
+                      fontWeight: 'bold',
+                    }}
+                  >
+                    {courseChangeWarning.secondsUntil}s → {courseChangeWarning.newHeading}°
+                  </span>
+                )}
+              </button>
+            )}
+          </div>
+        );
+      })()}
+
+      {/* Course Change Warning Dialog */}
+      {courseChangeWarning && courseChangeWarning.secondsUntil <= 60 && !warningDismissed && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '4rem',
+            left: '50%',
+            transform: 'translateX(-50%)',
+            background: 'rgba(255, 152, 0, 0.95)',
+            border: '2px solid rgba(255, 193, 7, 1)',
+            borderRadius: '8px',
+            padding: '1rem 1.5rem',
+            color: '#000',
+            zIndex: 1003,
+            boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
+            textAlign: 'center',
+            minWidth: '200px',
+          }}
+        >
+          {/* Dismiss button */}
+          <button
+            onClick={() => setWarningDismissed(true)}
+            style={{
+              position: 'absolute',
+              top: '4px',
+              right: '4px',
+              background: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '4px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0.6,
+            }}
+            title="Dismiss"
+          >
             <svg
-              width="14"
-              height="14"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -1258,47 +1598,38 @@ export const ChartView: React.FC<ChartViewProps> = ({
               strokeLinecap="round"
               strokeLinejoin="round"
             >
-              <circle cx="6" cy="8" r="2" fill="currentColor" />
-              <path d="M6 10v4" />
-              <path d="M8 12h2" strokeDasharray="2 2" />
-              <path d="M12 12h2" strokeDasharray="2 2" />
-              <path
-                d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z"
-                fill="currentColor"
-              />
+              <path d="M18 6L6 18" />
+              <path d="M6 6l12 12" />
             </svg>
-            {navigationTarget.name && (
-              <>
-                <span>{navigationTarget.name}</span>
-                <span style={{ opacity: 0.7 }}>|</span>
-              </>
-            )}
-            <span>
-              {convertedDistance.toFixed(convertedDistance < 10 ? 2 : 1)}{' '}
-              {distanceConversions[distanceUnit].label}
-            </span>
-            <span style={{ opacity: 0.7 }}>|</span>
-            <span>{formatETA(etaHours)}</span>
+          </button>
+          <div style={{ fontSize: '0.75rem', opacity: 0.8, marginBottom: '0.25rem' }}>
+            COURSE CHANGE IN
+          </div>
+          <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+            {courseChangeWarning.secondsUntil}s
+          </div>
+          <div style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+            <span style={{ opacity: 0.7 }}>{autopilotHeading}°</span>
             <svg
-              width="14"
-              height="14"
+              width="16"
+              height="16"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
-              strokeWidth="2"
+              strokeWidth="2.5"
               strokeLinecap="round"
               strokeLinejoin="round"
-              style={{ opacity: 0.7, marginLeft: '0.25rem' }}
             >
-              <line x1="18" y1="6" x2="6" y2="18" />
-              <line x1="6" y1="6" x2="18" y2="18" />
+              <path d="M5 12h14" />
+              <path d="M12 5l7 7-7 7" />
             </svg>
-          </button>
-        );
-      })()}
+            <span style={{ fontWeight: 'bold' }}>{courseChangeWarning.newHeading}°</span>
+          </div>
+        </div>
+      )}
 
       {/* Depth Alarm Notification */}
-      {isDepthAlarmTriggered && !navigationTarget && (
+      {isDepthAlarmTriggered && !navigationTarget && !autopilotActive && (
         <button
           onClick={() => setDepthAlarm(null)}
           style={{
@@ -1358,6 +1689,31 @@ export const ChartView: React.FC<ChartViewProps> = ({
             setSearchOpen(false);
             setSearchResults([]);
           }}
+        />
+      )}
+
+      {/* Autopilot Panel */}
+      {autopilotOpen && (
+        <AutopilotPanel
+          sidebarWidth={sidebarWidth}
+          targetHeading={autopilotHeading}
+          isActive={autopilotActive}
+          hasActiveNavigation={!!(navigationTarget && routeWaypoints.length >= 2)}
+          followingRoute={followingRoute}
+          currentBearing={
+            navigationTarget && routeWaypoints.length >= 2
+              ? calculateBearing(
+                  position.latitude,
+                  position.longitude,
+                  routeWaypoints[1].lat,
+                  routeWaypoints[1].lon
+                )
+              : null
+          }
+          onSetHeading={setAutopilotHeading}
+          onToggleActive={() => setAutopilotActive(!autopilotActive)}
+          onToggleFollowRoute={() => setFollowingRoute(!followingRoute)}
+          onClose={() => setAutopilotOpen(false)}
         />
       )}
 
