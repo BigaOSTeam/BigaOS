@@ -20,6 +20,7 @@ export type { ContextMenuOption } from './MapComponents';
 
 // Dialogs
 export { MarkerDialog, AnchorAlarmDialog } from './MarkerDialogs';
+export { VesselDetailsDialog } from './VesselDetailsDialog';
 
 // Sidebar
 export { ChartSidebar } from './ChartSidebar';

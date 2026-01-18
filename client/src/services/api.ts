@@ -42,6 +42,7 @@ export const navigationAPI = {
       distance: number;
       waypointCount: number;
       crossesLand: boolean;
+      failureReason?: string;
     }>('/navigation/route', { startLat, startLon, endLat, endLon }, { timeout: 120000 }),
 
   /**

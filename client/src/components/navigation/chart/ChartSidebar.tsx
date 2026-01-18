@@ -46,7 +46,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   autoCenter,
   bearingToTarget,
   autopilotOpen,
-  autopilotActive,
+  autopilotActive: _autopilotActive,
   debugMode: _debugMode,
   onClose,
   onDepthClick,

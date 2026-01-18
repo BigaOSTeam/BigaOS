@@ -5,11 +5,14 @@ import {
   WindUnit,
   DepthUnit,
   DistanceUnit,
+  WeightUnit,
   TimeFormat,
+  ChainType,
   speedConversions,
   windConversions,
   depthConversions,
   distanceConversions,
+  weightConversions,
 } from '../../context/SettingsContext';
 import { theme } from '../../styles/theme';
 import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats } from '../../services/api';
@@ -17,12 +20,18 @@ import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { OfflineMapsTab } from '../settings/OfflineMapsTab';
 import { wsService } from '../../services/websocket';
 
-type SettingsTab = 'general' | 'units' | 'downloads' | 'offline-maps' | 'advanced';
+type SettingsTab = 'general' | 'vessel' | 'units' | 'downloads' | 'offline-maps' | 'advanced';
 
 interface SettingsViewProps {
   onClose: () => void;
   initialTab?: SettingsTab;
 }
+
+// Chain type options
+const chainTypeOptions: { value: ChainType; label: string }[] = [
+  { value: 'galvanized', label: 'Galvanized' },
+  { value: 'stainless-steel', label: 'Stainless Steel' },
+];
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab }) => {
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'general');
@@ -225,15 +234,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     windUnit,
     depthUnit,
     distanceUnit,
+    weightUnit,
     setSpeedUnit,
     setWindUnit,
     setDepthUnit,
     setDistanceUnit,
+    setWeightUnit,
     setTimeFormat,
     mapTileUrls,
     setMapTileUrls,
     apiUrls,
     setApiUrls,
+    vesselSettings,
+    setVesselSettings,
     demoMode,
     setDemoMode,
   } = useSettings();
@@ -297,14 +310,54 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
       ),
     },
     {
+      id: 'vessel',
+      label: 'My Vessel',
+      icon: (
+        <svg width="18" height="18" viewBox="-12 -18 24 28" fill="none">
+          {/* Hull - flat stern (left), pointy bow (right) */}
+          <path
+            d="M -10 4 L -10 8 L 10 8 L 12 4 Z"
+            fill="currentColor"
+            fillOpacity="0.3"
+            stroke="currentColor"
+            strokeWidth="1"
+          />
+          {/* Mast */}
+          <line x1="0" y1="4" x2="0" y2="-16" stroke="currentColor" strokeWidth="1.5" />
+          {/* Mainsail */}
+          <path
+            d="M -1 -14 L -8 2 L -1 2 Z"
+            fill="currentColor"
+            fillOpacity="0.5"
+            stroke="currentColor"
+            strokeWidth="0.5"
+          />
+          {/* Foresail (jib) */}
+          <path
+            d="M 1 -14 L 10 2 L 1 2 Z"
+            fill="currentColor"
+            fillOpacity="0.4"
+            stroke="currentColor"
+            strokeWidth="0.5"
+          />
+        </svg>
+      ),
+    },
+    {
       id: 'units',
       label: 'Units',
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="21" y1="10" x2="3" y2="10" />
-          <line x1="21" y1="6" x2="3" y2="6" />
-          <line x1="21" y1="14" x2="3" y2="14" />
-          <line x1="21" y1="18" x2="3" y2="18" />
+          {/* Sliders/adjustment icon - represents configurable units */}
+          <line x1="4" y1="21" x2="4" y2="14" />
+          <line x1="4" y1="10" x2="4" y2="3" />
+          <line x1="12" y1="21" x2="12" y2="12" />
+          <line x1="12" y1="8" x2="12" y2="3" />
+          <line x1="20" y1="21" x2="20" y2="16" />
+          <line x1="20" y1="12" x2="20" y2="3" />
+          <line x1="1" y1="14" x2="7" y2="14" />
+          <line x1="9" y1="8" x2="15" y2="8" />
+          <line x1="17" y1="16" x2="23" y2="16" />
         </svg>
       ),
     },
@@ -403,6 +456,439 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     </div>
   );
 
+  // Local state for vessel number inputs to allow clearing
+  const [vesselInputValues, setVesselInputValues] = useState<Record<string, string>>({});
+
+  // Helper for vessel setting number inputs
+  const renderVesselNumberInput = (
+    label: string,
+    value: number | undefined,
+    onChange: (value: number) => void,
+    unit: string,
+    _step: number = 0.1,
+    min: number = 0,
+    _description?: string,
+    noMargin: boolean = false
+  ) => {
+    const safeValue = value ?? 0;
+    const inputKey = label.toLowerCase().replace(/\s+/g, '_');
+    const localValue = vesselInputValues[inputKey];
+    const displayValue = localValue !== undefined ? localValue : safeValue.toString();
+
+    // Check if the current input is valid
+    const isValidNumber = (val: string) => {
+      if (val === '' || val === '-') return true; // Allow empty or typing minus
+      const num = parseFloat(val);
+      return !isNaN(num) && isFinite(num);
+    };
+
+    const hasError = localValue !== undefined && localValue !== '' && !isValidNumber(localValue);
+    const isBelowMin = localValue !== undefined && localValue !== '' && isValidNumber(localValue) && parseFloat(localValue) < min;
+
+    return (
+    <div style={{ marginBottom: noMargin ? 0 : theme.space.lg }}>
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: theme.space.xs,
+        minHeight: '20px',
+      }}>
+        <div style={{
+          fontSize: theme.fontSize.sm,
+          color: theme.colors.textMuted,
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+        }}>
+          {label}
+        </div>
+        <div style={{
+          fontSize: theme.fontSize.xs,
+          color: theme.colors.textMuted,
+        }}>
+          {unit}
+        </div>
+      </div>
+      <input
+        type="text"
+        inputMode="decimal"
+        value={displayValue}
+        onChange={(e) => {
+          const newValue = e.target.value;
+          setVesselInputValues(prev => ({ ...prev, [inputKey]: newValue }));
+          const parsed = parseFloat(newValue);
+          if (!isNaN(parsed) && parsed >= min) {
+            onChange(parsed);
+          }
+        }}
+        onBlur={() => {
+          // Clear local state on blur to sync with actual value
+          setVesselInputValues(prev => {
+            const newState = { ...prev };
+            delete newState[inputKey];
+            return newState;
+          });
+        }}
+        style={{
+          width: '100%',
+          padding: theme.space.md,
+          background: theme.colors.bgCardActive,
+          border: `1px solid ${hasError || isBelowMin ? theme.colors.error : theme.colors.border}`,
+          borderRadius: theme.radius.md,
+          color: hasError || isBelowMin ? theme.colors.error : theme.colors.textPrimary,
+          fontSize: theme.fontSize.base,
+        }}
+      />
+      {hasError && (
+        <div style={{
+          fontSize: theme.fontSize.xs,
+          color: theme.colors.error,
+          marginTop: theme.space.xs,
+        }}>
+          Please enter a valid number
+        </div>
+      )}
+      {isBelowMin && (
+        <div style={{
+          fontSize: theme.fontSize.xs,
+          color: theme.colors.error,
+          marginTop: theme.space.xs,
+        }}>
+          Value must be at least {min}
+        </div>
+      )}
+    </div>
+    );
+  };
+
+  // Helper for vessel text inputs
+  const renderVesselTextInput = (
+    label: string,
+    value: string,
+    onChange: (value: string) => void,
+    placeholder?: string,
+    noMargin: boolean = false
+  ) => (
+    <div style={{ marginBottom: noMargin ? 0 : theme.space.lg }}>
+      <div style={{
+        fontSize: theme.fontSize.sm,
+        color: theme.colors.textMuted,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+        marginBottom: theme.space.xs,
+        minHeight: '20px',
+      }}>
+        {label}
+      </div>
+      <input
+        type="text"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        style={{
+          width: '100%',
+          padding: theme.space.md,
+          background: theme.colors.bgCardActive,
+          border: `1px solid ${theme.colors.border}`,
+          borderRadius: theme.radius.md,
+          color: theme.colors.textPrimary,
+          fontSize: theme.fontSize.base,
+        }}
+      />
+    </div>
+  );
+
+  // Render Vessel Tab (My Vessel)
+  const renderVesselTab = () => (
+    <div>
+      {/* Vessel Name */}
+      <div style={{ marginBottom: theme.space.xl }}>
+        <div style={{
+          fontSize: theme.fontSize.sm,
+          color: theme.colors.textMuted,
+          textTransform: 'uppercase',
+          letterSpacing: '0.1em',
+          marginBottom: theme.space.sm,
+        }}>
+          Vessel Name
+        </div>
+        <input
+          type="text"
+          value={vesselSettings.name}
+          onChange={(e) => setVesselSettings({ ...vesselSettings, name: e.target.value })}
+          placeholder="Enter your vessel's name..."
+          style={{
+            width: '100%',
+            padding: theme.space.md,
+            background: theme.colors.bgCardActive,
+            border: `1px solid ${theme.colors.border}`,
+            borderRadius: theme.radius.md,
+            color: theme.colors.textPrimary,
+            fontSize: theme.fontSize.lg,
+            fontWeight: theme.fontWeight.bold,
+          }}
+        />
+      </div>
+
+      {/* Identification Section */}
+      <div style={{
+        fontSize: theme.fontSize.sm,
+        fontWeight: theme.fontWeight.bold,
+        marginBottom: theme.space.md,
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Identification
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.md,
+      }}>
+        {renderVesselTextInput(
+          'Registration No.',
+          vesselSettings.registrationNumber,
+          (v) => setVesselSettings({ ...vesselSettings, registrationNumber: v }),
+          'e.g., 123456-A',
+          true
+        )}
+        {renderVesselTextInput(
+          'Call Sign',
+          vesselSettings.callSign,
+          (v) => setVesselSettings({ ...vesselSettings, callSign: v }),
+          'e.g., DA1234',
+          true
+        )}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.md,
+      }}>
+        {renderVesselTextInput(
+          'MMSI',
+          vesselSettings.mmsi,
+          (v) => setVesselSettings({ ...vesselSettings, mmsi: v }),
+          '9-digit number',
+          true
+        )}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.xl,
+      }}>
+        {renderVesselTextInput(
+          'Home Port',
+          vesselSettings.homePort,
+          (v) => setVesselSettings({ ...vesselSettings, homePort: v }),
+          'e.g., Hamburg',
+          true
+        )}
+        {renderVesselTextInput(
+          'Flag',
+          vesselSettings.flag,
+          (v) => setVesselSettings({ ...vesselSettings, flag: v }),
+          'e.g., Germany',
+          true
+        )}
+      </div>
+
+      {/* Vessel Dimensions Section */}
+      <div style={{
+        fontSize: theme.fontSize.sm,
+        fontWeight: theme.fontWeight.bold,
+        marginBottom: theme.space.md,
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Dimensions
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.md,
+      }}>
+        {renderVesselNumberInput(
+          'Length (LOA)',
+          vesselSettings.length,
+          (v) => setVesselSettings({ ...vesselSettings, length: v }),
+          'meters',
+          0.1,
+          1,
+          undefined,
+          true
+        )}
+        {renderVesselNumberInput(
+          'Waterline Length',
+          vesselSettings.waterlineLength,
+          (v) => setVesselSettings({ ...vesselSettings, waterlineLength: v }),
+          'meters',
+          0.1,
+          1,
+          undefined,
+          true
+        )}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.md,
+      }}>
+        {renderVesselNumberInput(
+          'Beam',
+          vesselSettings.beam,
+          (v) => setVesselSettings({ ...vesselSettings, beam: v }),
+          'meters',
+          0.1,
+          0.5,
+          undefined,
+          true
+        )}
+        {renderVesselNumberInput(
+          'Draft',
+          vesselSettings.draft,
+          (v) => setVesselSettings({ ...vesselSettings, draft: v }),
+          'meters',
+          0.1,
+          0.3,
+          undefined,
+          true
+        )}
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.md,
+      }}>
+        {renderVesselNumberInput(
+          'Freeboard',
+          vesselSettings.freeboardHeight,
+          (v) => setVesselSettings({ ...vesselSettings, freeboardHeight: v }),
+          'meters',
+          0.1,
+          0.3,
+          'Height from waterline to deck',
+          true
+        )}
+        {renderVesselNumberInput(
+          'Displacement',
+          vesselSettings.displacement,
+          (v) => setVesselSettings({ ...vesselSettings, displacement: v }),
+          'tons',
+          0.5,
+          0.5,
+          undefined,
+          true
+        )}
+      </div>
+
+      {/* Chain Section */}
+      <div style={{
+        fontSize: theme.fontSize.sm,
+        fontWeight: theme.fontWeight.bold,
+        marginBottom: theme.space.md,
+        marginTop: theme.space.lg,
+        color: theme.colors.textSecondary,
+        textTransform: 'uppercase',
+        letterSpacing: '0.05em',
+      }}>
+        Chain
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: '1fr 1fr',
+        gap: theme.space.md,
+        marginBottom: theme.space.md,
+      }}>
+        {renderVesselNumberInput(
+          'Total Chain',
+          vesselSettings.totalChainLength,
+          (v) => setVesselSettings({ ...vesselSettings, totalChainLength: v }),
+          'meters',
+          5,
+          10,
+          undefined,
+          true
+        )}
+        {renderVesselNumberInput(
+          'Chain Diameter',
+          vesselSettings.chainDiameter,
+          (v) => setVesselSettings({ ...vesselSettings, chainDiameter: v }),
+          'mm',
+          1,
+          4,
+          undefined,
+          true
+        )}
+      </div>
+
+      {/* Chain Type Selector */}
+      <div style={{ marginBottom: theme.space.md }}>
+        <div style={{
+          fontSize: theme.fontSize.sm,
+          color: theme.colors.textMuted,
+          marginBottom: theme.space.xs,
+        }}>
+          Chain Type
+        </div>
+        <div style={{
+          display: 'flex',
+          gap: theme.space.sm,
+        }}>
+          {chainTypeOptions.map((option) => (
+            <button
+              key={option.value}
+              onClick={() => setVesselSettings({ ...vesselSettings, chainType: option.value })}
+              style={{
+                flex: 1,
+                padding: theme.space.sm,
+                background: vesselSettings.chainType === option.value ? theme.colors.primaryMedium : theme.colors.bgCardActive,
+                border: vesselSettings.chainType === option.value ? `2px solid ${theme.colors.primary}` : '2px solid transparent',
+                borderRadius: theme.radius.md,
+                color: theme.colors.textPrimary,
+                cursor: 'pointer',
+                fontSize: theme.fontSize.sm,
+                fontWeight: vesselSettings.chainType === option.value ? theme.fontWeight.bold : theme.fontWeight.normal,
+                transition: `all ${theme.transition.normal}`,
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Info box */}
+      <div style={{
+        padding: theme.space.md,
+        background: theme.colors.bgCard,
+        borderRadius: theme.radius.md,
+        fontSize: theme.fontSize.sm,
+        color: theme.colors.textMuted,
+        marginTop: theme.space.lg,
+        lineHeight: 1.5,
+      }}>
+        <strong>Why this matters:</strong> Your vessel's dimensions and chain specifications help calculate recommended anchor chain length for safe anchoring. Heavier vessels and stronger winds require more chain.
+      </div>
+    </div>
+  );
+
   // Render Units Tab
   const renderUnitsTab = () => (
     <div>
@@ -453,6 +939,17 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           'mi': distanceConversions['mi'].label,
         },
         setDistanceUnit
+      )}
+
+      {renderUnitSelector<WeightUnit>(
+        'Weight',
+        weightUnit,
+        ['kg', 'lbs'],
+        {
+          'kg': weightConversions['kg'].label,
+          'lbs': weightConversions['lbs'].label,
+        },
+        setWeightUnit
       )}
 
       <div style={{
@@ -1048,6 +1545,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     switch (activeTab) {
       case 'general':
         return renderGeneralTab();
+      case 'vessel':
+        return renderVesselTab();
       case 'units':
         return renderUnitsTab();
       case 'downloads':

@@ -41,6 +41,7 @@ import {
   AnchorPlacementController,
   MarkerDialog,
   AnchorAlarmDialog,
+  VesselDetailsDialog,
   ChartSidebar,
   DepthSettingsPanel,
   SearchPanel,
@@ -164,6 +165,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
   // Anchor alarm state
   const [anchorAlarmDialogOpen, setAnchorAlarmDialogOpen] = useState(false);
+  const [vesselDetailsDialogOpen, setVesselDetailsDialogOpen] = useState(false);
   const [anchorAlarm, setAnchorAlarm] = useState<{
     active: boolean;
     anchorPosition: { lat: number; lon: number };
@@ -246,6 +248,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
     convertSpeed,
     convertDepth,
     convertDistance,
+    vesselSettings,
+    setVesselSettings,
   } = useSettings();
 
   const convertedSpeed = convertSpeed(speed);
@@ -2129,8 +2133,45 @@ export const ChartView: React.FC<ChartViewProps> = ({
           x={boatContextMenu.x}
           y={boatContextMenu.y}
           sidebarWidth={sidebarWidth}
-          header="Your Boat"
+          header={vesselSettings.name || 'Your Boat'}
           options={[
+            {
+              label: 'Vessel Details',
+              icon: (
+                <svg width="18" height="18" viewBox="-12 -18 24 28" fill="none">
+                  {/* Hull - flat stern (left), pointy bow (right) */}
+                  <path
+                    d="M -10 4 L -10 8 L 10 8 L 12 4 Z"
+                    fill="#4fc3f7"
+                    fillOpacity="0.3"
+                    stroke="#4fc3f7"
+                    strokeWidth="1"
+                  />
+                  {/* Mast */}
+                  <line x1="0" y1="4" x2="0" y2="-16" stroke="#4fc3f7" strokeWidth="1.5" />
+                  {/* Mainsail */}
+                  <path
+                    d="M -1 -14 L -8 2 L -1 2 Z"
+                    fill="#4fc3f7"
+                    fillOpacity="0.5"
+                    stroke="#4fc3f7"
+                    strokeWidth="0.5"
+                  />
+                  {/* Foresail (jib) */}
+                  <path
+                    d="M 1 -14 L 10 2 L 1 2 Z"
+                    fill="#4fc3f7"
+                    fillOpacity="0.4"
+                    stroke="#4fc3f7"
+                    strokeWidth="0.5"
+                  />
+                </svg>
+              ),
+              onClick: () => {
+                setVesselDetailsDialogOpen(true);
+                setBoatContextMenu(null);
+              },
+            },
             {
               label: 'Anchor Alarm',
               icon: (
@@ -2180,28 +2221,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
         <AnchorAlarmDialog
           anchorPosition={anchorPositionOverride}
           chainLength={anchorChainLength}
-          onChainLengthChange={(value) => {
-            setAnchorChainLength(value);
-            // Reset position to boat when NOT editing an existing alarm
-            if (!anchorAlarm?.active) {
-              setAnchorPositionOverride({
-                lat: position.latitude,
-                lon: position.longitude,
-              });
-            }
-          }}
+          onChainLengthChange={setAnchorChainLength}
           anchorDepth={anchorDepth}
-          onAnchorDepthChange={(value) => {
-            setAnchorDepth(value);
-            // Reset position to boat when NOT editing an existing alarm
-            if (!anchorAlarm?.active) {
-              setAnchorPositionOverride({
-                lat: position.latitude,
-                lon: position.longitude,
-              });
-            }
-          }}
+          onAnchorDepthChange={setAnchorDepth}
           isEditing={!!anchorAlarm?.active}
+          vesselSettings={vesselSettings}
+          onUpdateVesselSettings={setVesselSettings}
+          boatPosition={{ lat: position.latitude, lon: position.longitude }}
+          boatHeading={heading}
+          onAnchorPositionChange={setAnchorPositionOverride}
           onSetAnchorPosition={() => {
             // Start anchor placement mode
             if (!anchorPositionOverride) {
@@ -2214,11 +2242,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
             setPlacingAnchor(true);
             setAnchorAlarmDialogOpen(false);
           }}
-          onActivate={(chainLength, depth) => {
-            // Calculate swing radius using Pythagorean theorem + safety margin
-            const horizontalDistance = Math.sqrt(chainLength ** 2 - depth ** 2);
-            const swingRadius = horizontalDistance * 1.2; // 20% safety margin
-
+          onActivate={(chainLength, depth, swingRadius) => {
             const anchorPos = anchorPositionOverride || {
               lat: position.latitude,
               lon: position.longitude,
@@ -2234,6 +2258,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
             setAnchorAlarmDialogOpen(false);
             setAnchorPositionOverride(null);
             setPlacingAnchor(false);
+
+            // Zoom to max and focus on the boat
+            if (mapRef.current) {
+              mapRef.current.setView(
+                [position.latitude, position.longitude],
+                18, // Max zoom level
+                { animate: true }
+              );
+            }
           }}
           onDelete={() => {
             updateAnchorAlarm(null);
@@ -2247,6 +2280,18 @@ export const ChartView: React.FC<ChartViewProps> = ({
             if (placingAnchor) {
               setPlacingAnchor(false);
             }
+          }}
+        />
+      )}
+
+      {/* Vessel Details Dialog */}
+      {vesselDetailsDialogOpen && (
+        <VesselDetailsDialog
+          vesselSettings={vesselSettings}
+          onClose={() => setVesselDetailsDialogOpen(false)}
+          onOpenSettings={() => {
+            setVesselDetailsDialogOpen(false);
+            navigate('settings', { settings: { tab: 'vessel' } });
           }}
         />
       )}
