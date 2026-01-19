@@ -50,6 +50,33 @@ export const MapController: React.FC<MapControllerProps> = ({
   return null;
 };
 
+interface ZoomTrackerProps {
+  onZoomChange: (zoom: number) => void;
+}
+
+/**
+ * Component to track map zoom changes
+ */
+export const ZoomTracker: React.FC<ZoomTrackerProps> = ({ onZoomChange }) => {
+  const map = useMap();
+
+  useEffect(() => {
+    const handleZoom = () => {
+      onZoomChange(map.getZoom());
+    };
+
+    // Set initial zoom
+    onZoomChange(map.getZoom());
+
+    map.on('zoomend', handleZoom);
+    return () => {
+      map.off('zoomend', handleZoom);
+    };
+  }, [map, onZoomChange]);
+
+  return null;
+};
+
 interface AnchorPlacementControllerProps {
   onCenterChange: (lat: number, lon: number) => void;
   sidebarWidth: number;

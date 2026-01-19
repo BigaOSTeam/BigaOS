@@ -39,6 +39,7 @@ import {
   LongPressHandler,
   ContextMenu,
   AnchorPlacementController,
+  ZoomTracker,
   MarkerDialog,
   AnchorAlarmDialog,
   VesselDetailsDialog,
@@ -173,6 +174,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
     depth: number;
     swingRadius: number;
   } | null>(null);
+  // Track boat positions while anchor alarm is active
+  const [anchorWatchTrack, setAnchorWatchTrack] = useState<Array<{ lat: number; lon: number }>>([]);
   const [anchorPositionOverride, setAnchorPositionOverride] = useState<{
     lat: number;
     lon: number;
@@ -186,6 +189,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
   const [markerName, setMarkerName] = useState('');
   const [markerColor, setMarkerColor] = useState(markerColors[0]);
   const [markerIcon, setMarkerIcon] = useState('pin');
+  const [mapZoom, setMapZoom] = useState(14);
 
   // Memoize marker icons to prevent constant re-rendering
   const markerIcons = useMemo(() => {
@@ -228,6 +232,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
   const mapRef = useRef<L.Map>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const beepIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const anchorAlarmIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Water debug grid hook
   const { gridPoints, loading: debugLoading, generateGrid, clearGrid, currentResolution } = useWaterDebugGrid(mapRef);
@@ -285,6 +290,38 @@ export const ChartView: React.FC<ChartViewProps> = ({
       osc2.start();
       osc2.stop(ctx.currentTime + 0.1);
     }, 120);
+  }, []);
+
+  // Urgent alarm sound for anchor dragging - phone alarm style beep-beep-beep
+  const playAnchorAlarm = useCallback(() => {
+    if (!audioContextRef.current) {
+      audioContextRef.current = new (window.AudioContext ||
+        (window as any).webkitAudioContext)();
+    }
+    const ctx = audioContextRef.current;
+
+    // Phone alarm style - three quick beeps
+    const playBeepAt = (startTime: number) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      osc.frequency.value = 880; // A5 note
+
+      gain.gain.setValueAtTime(0, startTime);
+      gain.gain.linearRampToValueAtTime(0.4, startTime + 0.01);
+      gain.gain.linearRampToValueAtTime(0.4, startTime + 0.08);
+      gain.gain.linearRampToValueAtTime(0, startTime + 0.1);
+
+      osc.start(startTime);
+      osc.stop(startTime + 0.1);
+    };
+
+    // Three beeps in quick succession
+    playBeepAt(ctx.currentTime);
+    playBeepAt(ctx.currentTime + 0.15);
+    playBeepAt(ctx.currentTime + 0.3);
   }, []);
 
   // Get depth color based on value
@@ -792,10 +829,9 @@ export const ChartView: React.FC<ChartViewProps> = ({
     return horizontalDistance * 1.2; // 20% safety margin
   }, [placingAnchor, anchorChainLength, anchorDepth]);
 
-  // Handle sound alarm for both depth and anchor alarms
+  // Handle depth alarm sound (respects soundAlarmEnabled setting)
   useEffect(() => {
-    const shouldAlarm = (isDepthAlarmTriggered || isAnchorDragging) && soundAlarmEnabled;
-    if (shouldAlarm) {
+    if (isDepthAlarmTriggered && soundAlarmEnabled) {
       if (!beepIntervalRef.current) {
         playBeep();
         beepIntervalRef.current = setInterval(playBeep, 500);
@@ -812,7 +848,63 @@ export const ChartView: React.FC<ChartViewProps> = ({
         beepIntervalRef.current = null;
       }
     };
-  }, [isDepthAlarmTriggered, isAnchorDragging, soundAlarmEnabled, playBeep]);
+  }, [isDepthAlarmTriggered, soundAlarmEnabled, playBeep]);
+
+  // Handle anchor dragging alarm sound (always enabled)
+  useEffect(() => {
+    if (isAnchorDragging) {
+      if (!anchorAlarmIntervalRef.current) {
+        playAnchorAlarm();
+        anchorAlarmIntervalRef.current = setInterval(playAnchorAlarm, 600);
+      }
+    } else {
+      if (anchorAlarmIntervalRef.current) {
+        clearInterval(anchorAlarmIntervalRef.current);
+        anchorAlarmIntervalRef.current = null;
+      }
+    }
+    return () => {
+      if (anchorAlarmIntervalRef.current) {
+        clearInterval(anchorAlarmIntervalRef.current);
+        anchorAlarmIntervalRef.current = null;
+      }
+    };
+  }, [isAnchorDragging, playAnchorAlarm]);
+
+  // Track boat positions when anchor alarm is active
+  const lastTrackPointRef = useRef<{ lat: number; lon: number } | null>(null);
+  useEffect(() => {
+    if (!anchorAlarm?.active) {
+      // Clear track when anchor alarm is deactivated
+      setAnchorWatchTrack([]);
+      lastTrackPointRef.current = null;
+      return;
+    }
+
+    const currentPos = { lat: position.latitude, lon: position.longitude };
+
+    // Only add point if moved more than 2 meters from last recorded position
+    // This prevents cluttering the track with stationary noise
+    if (lastTrackPointRef.current) {
+      const distanceMoved = calculateDistanceMeters(
+        lastTrackPointRef.current.lat,
+        lastTrackPointRef.current.lon,
+        currentPos.lat,
+        currentPos.lon
+      );
+      if (distanceMoved < 2) return;
+    }
+
+    lastTrackPointRef.current = currentPos;
+    setAnchorWatchTrack((prev) => {
+      // Limit track to last 1000 points to prevent memory issues
+      const newTrack = [...prev, currentPos];
+      if (newTrack.length > 1000) {
+        return newTrack.slice(-1000);
+      }
+      return newTrack;
+    });
+  }, [anchorAlarm?.active, position.latitude, position.longitude]);
 
   // Track offline state for search panel
   useEffect(() => {
@@ -1118,6 +1210,17 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 },
               }}
             />
+            {/* Anchor watch movement track */}
+            {anchorWatchTrack.length >= 2 && (
+              <Polyline
+                positions={anchorWatchTrack.map((p) => [p.lat, p.lon] as [number, number])}
+                pathOptions={{
+                  color: '#ffa726',
+                  weight: 2,
+                  opacity: 0.8,
+                }}
+              />
+            )}
           </>
         )}
 
@@ -1310,6 +1413,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           autoCenter={autoCenter}
           onDrag={handleMapDrag}
         />
+        <ZoomTracker onZoomChange={setMapZoom} />
         <LongPressHandler onLongPress={handleLongPress} />
 
         {/* Water debug overlay */}
@@ -1317,6 +1421,85 @@ export const ChartView: React.FC<ChartViewProps> = ({
           <WaterDebugOverlay mode={debugMode} gridPoints={gridPoints} onClear={clearGrid} />
         )}
       </MapContainer>
+
+      {/* Scale bar - Google Maps style */}
+      {!hideSidebar && (() => {
+        // Calculate meters per pixel at current zoom and latitude
+        // At zoom 0, the whole world (40075km at equator) is 256 pixels
+        const metersPerPixel = (40075016.686 * Math.cos(position.latitude * Math.PI / 180)) / Math.pow(2, mapZoom + 8);
+
+        // Find a nice round number for the scale
+        const targetWidth = 100; // Target width in pixels
+        const targetMeters = metersPerPixel * targetWidth;
+
+        // Round to a nice number
+        const niceNumbers = [1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000, 50000];
+        let scaleMeters = niceNumbers[0];
+        for (const n of niceNumbers) {
+          if (n <= targetMeters * 1.5) {
+            scaleMeters = n;
+          }
+        }
+
+        const scaleWidth = scaleMeters / metersPerPixel;
+        const scaleLabel = scaleMeters >= 1000 ? `${scaleMeters / 1000} km` : `${scaleMeters} m`;
+
+        return (
+          <div
+            style={{
+              position: 'absolute',
+              bottom: '0.5rem',
+              right: `calc(0.75rem + ${sidebarWidth}px)`,
+              zIndex: 1000,
+            }}
+          >
+            <div
+              style={{
+                width: `${scaleWidth}px`,
+                height: '6px',
+                position: 'relative',
+              }}
+            >
+              {/* Horizontal line */}
+              <div
+                style={{
+                  position: 'absolute',
+                  top: 0,
+                  width: '100%',
+                  height: '2px',
+                  background: '#fff',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                }}
+              />
+              {/* Left end cap - starts at line, goes down */}
+              <div
+                style={{
+                  position: 'absolute',
+                  left: 0,
+                  top: 0,
+                  width: '2px',
+                  height: '10px',
+                  background: '#fff',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.5)',
+                }}
+              />
+            </div>
+            <div
+              style={{
+                fontSize: '0.65rem',
+                fontWeight: 500,
+                color: '#fff',
+                textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                whiteSpace: 'nowrap',
+                marginTop: '-2px',
+                textAlign: 'right',
+              }}
+            >
+              {scaleLabel}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Route calculation loading overlay */}
       {routeLoading && (
@@ -1569,8 +1752,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
         />
       )}
 
-      {/* Top banners container - navigation and autopilot side by side */}
-      {!hideSidebar && (navigationTarget && !routeLoading && routeWaypoints.length >= 2 || autopilotActive) && (() => {
+      {/* Top banners container - navigation, autopilot, and anchor alarm side by side */}
+      {!hideSidebar && (navigationTarget && !routeLoading && routeWaypoints.length >= 2 || autopilotActive || anchorAlarm?.active) && (() => {
         const hasNavigation = navigationTarget && !routeLoading && routeWaypoints.length >= 2;
 
         // Calculate navigation info if active
@@ -1734,6 +1917,45 @@ export const ChartView: React.FC<ChartViewProps> = ({
                     {courseChangeWarning.secondsUntil}s → {courseChangeWarning.newHeading}°
                   </span>
                 )}
+              </button>
+            )}
+
+            {/* Anchor alarm banner */}
+            {anchorAlarm?.active && (
+              <button
+                onClick={() => {
+                  setAnchorChainLength(anchorAlarm.chainLength);
+                  setAnchorDepth(anchorAlarm.depth);
+                  setAnchorPositionOverride(anchorAlarm.anchorPosition);
+                  setAnchorAlarmDialogOpen(true);
+                }}
+                style={{
+                  background: 'rgba(230, 120, 0, 0.9)',
+                  border: 'none',
+                  borderRadius: '4px',
+                  padding: '0.5rem 0.75rem',
+                  color: '#fff',
+                  fontSize: '0.8rem',
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '0.5rem',
+                }}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="currentColor"
+                >
+                  <path d="M17 15l1.55 1.55c-.96 1.69-3.33 3.04-5.55 3.37V11h3V9h-3V7.82C14.16 7.4 15 6.3 15 5c0-1.65-1.35-3-3-3S9 3.35 9 5c0 1.3.84 2.4 2 2.82V9H8v2h3v8.92c-2.22-.33-4.59-1.68-5.55-3.37L7 15l-4-3v3c0 3.88 4.92 7 9 7s9-3.12 9-7v-3l-4 3zM12 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"/>
+                </svg>
+                <span>Anchor Alarm active</span>
+                <span style={{ opacity: 0.9, fontWeight: 'normal' }}>
+                  Radius: {anchorAlarm.swingRadius.toFixed(0)}m
+                </span>
               </button>
             )}
           </div>
@@ -1940,7 +2162,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 top: '1rem',
                 left: '50%',
                 transform: 'translateX(-50%)',
-                background: 'rgba(239, 83, 80, 0.95)',
+                background: 'rgb(239, 83, 80)',
                 border: 'none',
                 borderRadius: '4px',
                 padding: '0.75rem 1.5rem',
@@ -2247,6 +2469,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
               lat: position.latitude,
               lon: position.longitude,
             };
+
+            // Stop navigation and autopilot when activating anchor alarm
+            setNavigationTarget(null);
+            setAutopilotActive(false);
 
             updateAnchorAlarm({
               active: true,

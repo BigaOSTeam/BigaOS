@@ -1346,6 +1346,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
   // Auto-calculate anchor position when chain length or depth changes (only when creating new alarm, not editing)
   React.useEffect(() => {
     if (isEditing) return; // Don't auto-update position when editing - anchor position is fixed once set
+    if (!boatPosition) return; // Guard against undefined boatPosition
     if (chainLength <= 0 || depth <= 0 || chainLength <= depth) return;
 
     const distance = calculateHorizontalDistance(chainLength, depth);
@@ -1358,7 +1359,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
       );
       onAnchorPositionChange(newAnchorPos);
     }
-  }, [chainLength, depth, boatPosition.lat, boatPosition.lon, boatHeading, isEditing, onAnchorPositionChange]);
+  }, [chainLength, depth, boatPosition?.lat, boatPosition?.lon, boatHeading, isEditing, onAnchorPositionChange]);
 
   // Local state for text inputs to allow empty values while typing
   const [chainInputValue, setChainInputValue] = React.useState(chainLength.toString());

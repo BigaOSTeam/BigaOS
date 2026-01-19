@@ -15,7 +15,7 @@ export {
 export type { CustomMarker } from './map-icons';
 
 // Map components
-export { MapController, LongPressHandler, ContextMenu, Compass, AnchorPlacementController } from './MapComponents';
+export { MapController, LongPressHandler, ContextMenu, Compass, AnchorPlacementController, ZoomTracker } from './MapComponents';
 export type { ContextMenuOption } from './MapComponents';
 
 // Dialogs
