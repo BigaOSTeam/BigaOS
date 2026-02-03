@@ -360,6 +360,12 @@ export const offlineMapsAPI = {
     api.post<{ success: boolean; message: string }>(`/tiles/cancel/${regionId}`),
 
   /**
+   * Retry a failed download
+   */
+  retryDownload: (regionId: string) =>
+    api.post<{ success: boolean; message: string }>(`/tiles/retry/${regionId}`),
+
+  /**
    * Get estimate for a region without creating it
    */
   getEstimate: (data: {

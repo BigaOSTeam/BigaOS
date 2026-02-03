@@ -82,10 +82,11 @@ class TilesController {
   private readonly FAILED_TILE_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
 
   // Download settings
-  private readonly CONCURRENT_DOWNLOADS = 4;
-  private readonly DELAY_BETWEEN_BATCHES_MS = 100;
-  private readonly REQUEST_TIMEOUT_MS = 30000;
-  private readonly MAX_RETRIES = 3;
+  // OpenSeaMap guidelines suggest 2-4 concurrent connections for bulk downloads
+  private readonly CONCURRENT_DOWNLOADS = 6;
+  private readonly DELAY_BETWEEN_BATCHES_MS = 0; // No delay needed with reasonable concurrency
+  private readonly REQUEST_TIMEOUT_MS = 10000; // Faster timeout
+  private readonly MAX_RETRIES = 1; // Single retry only
 
   // Cleanup interval (every 6 hours)
   private readonly CLEANUP_INTERVAL_MS = 6 * 60 * 60 * 1000;
@@ -571,6 +572,39 @@ class TilesController {
   }
 
   /**
+   * Retry a failed download
+   */
+  async retryDownload(req: Request, res: Response): Promise<void> {
+    const { regionId } = req.params;
+
+    const regions = this.loadRegions();
+    const region = regions.find(r => r.id === regionId);
+
+    if (!region) {
+      res.status(404).json({ error: 'Region not found' });
+      return;
+    }
+
+    // Check if already downloading
+    if (region.status === 'downloading' || region.status === 'pending') {
+      res.json({ success: false, message: 'Region is already downloading' });
+      return;
+    }
+
+    // Reset region status and progress
+    region.status = 'pending';
+    region.downloadedTiles = 0;
+    region.storageBytes = 0;
+    delete region.error;
+    this.saveRegions(regions);
+
+    // Start download in background
+    this.startRegionDownload(region);
+
+    res.json({ success: true, message: 'Download restarted' });
+  }
+
+  /**
    * Calculate estimate for a region without creating it
    */
   async getEstimate(req: Request, res: Response): Promise<void> {
@@ -618,44 +652,58 @@ class TilesController {
 
     this.activeDownloads.set(region.id, { progress, abortController });
 
-    // Update region status
-    const regions = this.loadRegions();
-    const regionToUpdate = regions.find(r => r.id === region.id);
-    if (regionToUpdate) {
-      regionToUpdate.status = 'downloading';
-      this.saveRegions(regions);
-    }
+    // Update region status and save initial progress
+    this.updateRegionProgress(region.id, progress, 'downloading');
+    console.log(`Starting download for region: ${region.name} (${region.totalTiles} tiles)`);
 
     try {
       for (const layer of region.layers) {
         if (abortController.signal.aborted) break;
 
         progress.currentLayer = layer;
+        console.log(`Downloading ${layer} layer for region: ${region.name}`);
 
-        for (const coord of generateTileCoords(region.bounds, region.minZoom, region.maxZoom)) {
+        // Download tiles in concurrent batches
+        const allCoords = Array.from(generateTileCoords(region.bounds, region.minZoom, region.maxZoom));
+        const totalCoords = allCoords.length;
+        console.log(`Total tiles to download: ${totalCoords}`);
+
+        for (let i = 0; i < allCoords.length; i += this.CONCURRENT_DOWNLOADS) {
           if (abortController.signal.aborted) break;
 
-          progress.currentZoom = coord.z;
+          // Get batch of tiles to download concurrently
+          const batch = allCoords.slice(i, i + this.CONCURRENT_DOWNLOADS);
+          progress.currentZoom = batch[0].z;
 
-          // Download tile with retries and track reference
-          const success = await this.downloadTileWithRetry(layer, coord, abortController.signal, region.id);
+          // Download batch concurrently
+          const downloadPromises = batch.map(coord =>
+            this.downloadTileWithRetry(layer, coord, abortController.signal, region.id)
+              .then(success => ({ coord, success }))
+              .catch(() => ({ coord, success: false }))
+          );
 
-          if (success) {
-            progress.tilesDownloaded++;
-            // Estimate bytes (we don't track actual size for performance)
-            progress.bytesDownloaded += 25 * 1024; // ~25KB average
-          } else {
-            progress.errors++;
+          const results = await Promise.all(downloadPromises);
+
+          // Process results
+          for (const result of results) {
+            if (result.success) {
+              progress.tilesDownloaded++;
+              // Estimate bytes (we don't track actual size for performance)
+              progress.bytesDownloaded += 25 * 1024; // ~25KB average
+            } else {
+              progress.errors++;
+            }
           }
 
-          // Small delay every batch to avoid rate limiting
-          if (progress.tilesDownloaded % this.CONCURRENT_DOWNLOADS === 0) {
+          // Small delay between batches to avoid overwhelming the server
+          if (this.DELAY_BETWEEN_BATCHES_MS > 0) {
             await this.delay(this.DELAY_BETWEEN_BATCHES_MS);
           }
 
-          // Periodically save progress
-          if (progress.tilesDownloaded % 100 === 0) {
+          // Save progress every 10 batches (60 tiles) for better UI responsiveness
+          if (i % (this.CONCURRENT_DOWNLOADS * 10) === 0 || i + this.CONCURRENT_DOWNLOADS >= allCoords.length) {
             this.updateRegionProgress(region.id, progress);
+            console.log(`Progress: ${progress.tilesDownloaded}/${totalCoords} tiles (${progress.errors} errors)`);
           }
         }
       }
@@ -663,7 +711,7 @@ class TilesController {
       if (!abortController.signal.aborted) {
         progress.status = 'complete';
         this.updateRegionProgress(region.id, progress, 'complete');
-        console.log(`Region download complete: ${region.name} (${progress.tilesDownloaded} tiles)`);
+        console.log(`Region download complete: ${region.name} (${progress.tilesDownloaded} tiles, ${progress.errors} errors)`);
       }
 
     } catch (error) {
@@ -684,7 +732,7 @@ class TilesController {
   private updateRegionProgress(
     regionId: string,
     progress: TileDownloadProgress,
-    status?: 'complete' | 'error',
+    status?: OfflineRegion['status'],
     error?: string
   ): void {
     const regions = this.loadRegions();

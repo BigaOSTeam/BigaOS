@@ -66,6 +66,7 @@ router.get('/tiles/regions', tilesController.getRegions.bind(tilesController));
 router.post('/tiles/regions', tilesController.createRegion.bind(tilesController));
 router.delete('/tiles/regions/:regionId', tilesController.deleteRegion.bind(tilesController));
 router.post('/tiles/cancel/:regionId', tilesController.cancelDownload.bind(tilesController));
+router.post('/tiles/retry/:regionId', tilesController.retryDownload.bind(tilesController));
 router.post('/tiles/estimate', tilesController.getEstimate.bind(tilesController));
 router.get('/tiles/storage', tilesController.getStorageStats.bind(tilesController));
 // Tile serving (must be last due to wildcard params)

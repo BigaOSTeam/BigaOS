@@ -258,6 +258,15 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
     }
   };
 
+  const handleRetryDownload = async (region: OfflineRegion) => {
+    try {
+      await offlineMapsAPI.retryDownload(region.id);
+      fetchRegions();
+    } catch (error) {
+      console.error('Failed to retry download:', error);
+    }
+  };
+
   const getProgressPercent = (region: OfflineRegion): number => {
     if (region.totalTiles === 0) return 0;
     return Math.round((region.downloadedTiles / region.totalTiles) * 100);
@@ -469,9 +478,9 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                 const totalBytes = streetBytes + (includeSatellite ? satelliteBytes : 0) + nauticalBytes;
 
                 return (
-                  <>
+              <>
                     {/* Per-layer breakdown */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
                       {/* Street Maps - ~18KB avg per tile */}
                       <div style={{
                         display: 'flex',
@@ -537,38 +546,38 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                         </span>
                       </div>
                       {/* Sea Charts - ~8KB avg per tile */}
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        alignItems: 'center',
-                        padding: `${theme.space.xs} 0`,
-                      }}>
-                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: `${theme.space.xs} 0`,
+                  }}>
+                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
                           Sea Charts
-                        </span>
-                        <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
+                    </span>
+                    <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>
                           ~{formatFileSize(nauticalBytes)}
-                        </span>
-                      </div>
-                    </div>
+                    </span>
+                  </div>
+                </div>
 
-                    {/* Total summary */}
-                    <div style={{
-                      marginTop: theme.space.md,
-                      paddingTop: theme.space.sm,
-                      borderTop: `1px solid ${theme.colors.borderHover}`,
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                    }}>
-                      <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
+                {/* Total summary */}
+                <div style={{
+                  marginTop: theme.space.md,
+                  paddingTop: theme.space.sm,
+                  borderTop: `1px solid ${theme.colors.borderHover}`,
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                }}>
+                  <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
                         Total
-                      </span>
-                      <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
+                  </span>
+                  <span style={{ fontSize: theme.fontSize.sm, fontWeight: theme.fontWeight.bold }}>
                         ~{formatFileSize(totalBytes)}
-                      </span>
-                    </div>
-                  </>
+                  </span>
+                </div>
+              </>
                 );
               })()
             ) : (
@@ -694,16 +703,16 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                   {region.name}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: theme.space.sm }}>
-                  {/* Only show status for error regions */}
-                  {region.status === 'error' && (
-                    <div style={{
-                      fontSize: theme.fontSize.xs,
-                      color: getStatusColor(region.status),
-                      fontWeight: theme.fontWeight.medium,
-                    }}>
-                      {getStatusText(region)}
-                    </div>
-                  )}
+                {/* Only show status for error regions */}
+                {region.status === 'error' && (
+                  <div style={{
+                    fontSize: theme.fontSize.xs,
+                    color: getStatusColor(region.status),
+                    fontWeight: theme.fontWeight.medium,
+                  }}>
+                    {getStatusText(region)}
+                  </div>
+                )}
                   {/* Satellite indicator */}
                   <div style={{
                     display: 'inline-flex',
@@ -821,30 +830,48 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                     </button>
                   </>
                 ) : (
-                  <button
-                    onClick={() => handleDeleteRegion(region)}
-                    style={{
-                      flex: 1,
-                      padding: theme.space.md,
-                      background: theme.colors.bgCardActive,
-                      border: `1px solid ${theme.colors.error}40`,
-                      borderRadius: theme.radius.sm,
-                      color: theme.colors.error,
-                      fontSize: theme.fontSize.sm,
-                      fontWeight: theme.fontWeight.bold,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: theme.space.sm,
-                    }}
-                  >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <polyline points="3 6 5 6 21 6" />
-                      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                    </svg>
-                    Delete
-                  </button>
+                  <>
+                    <button
+                      onClick={() => handleRetryDownload(region)}
+                      style={{
+                        flex: 1,
+                        padding: theme.space.md,
+                        background: theme.colors.primary,
+                        border: 'none',
+                        borderRadius: theme.radius.sm,
+                        color: '#fff',
+                        fontSize: theme.fontSize.sm,
+                        fontWeight: theme.fontWeight.bold,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: theme.space.sm,
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2" />
+                      </svg>
+                      Retry
+                    </button>
+                    <button
+                      onClick={() => handleDeleteRegion(region)}
+                      style={{
+                        padding: theme.space.md,
+                        background: theme.colors.bgCardActive,
+                        border: `1px solid ${theme.colors.error}40`,
+                        borderRadius: theme.radius.sm,
+                        color: theme.colors.error,
+                        cursor: 'pointer',
+                        fontSize: theme.fontSize.sm,
+                      }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <polyline points="3 6 5 6 21 6" />
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                      </svg>
+                    </button>
+                  </>
                 )}
               </div>
             </div>

@@ -1178,10 +1178,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
       >
         {useSatellite ? (
           <TileLayer attribution="" url={TILE_URLS.satellite} />
-        ) : (
+          ) : (
           <TileLayer attribution="" url={TILE_URLS.street} />
         )}
-        <TileLayer attribution="" url={TILE_URLS.nautical} />
+        <TileLayer attribution="" url={TILE_URLS.nautical} zIndex={10} />
 
         {/* Auto-refresh tiles when coming back online */}
         <ConnectivityRefresher />
@@ -1523,6 +1523,19 @@ export const ChartView: React.FC<ChartViewProps> = ({
               }}
             >
               {scaleLabel}
+            </div>
+            {/* Attribution */}
+            <div
+              style={{
+                fontSize: '0.5rem',
+                color: 'rgba(255,255,255,0.6)',
+                textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                whiteSpace: 'nowrap',
+                marginTop: '2px',
+                textAlign: 'right',
+              }}
+            >
+              {useSatellite ? '© Esri' : '© OpenStreetMap'} | © OpenSeaMap
             </div>
           </div>
         );

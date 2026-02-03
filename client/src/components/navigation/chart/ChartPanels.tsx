@@ -606,6 +606,18 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           </div>
         </div>
 
+        {/* Attribution */}
+        <div style={{
+          marginTop: '0.75rem',
+          paddingTop: '0.5rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          fontSize: '0.55rem',
+          opacity: 0.5,
+          textAlign: 'center',
+        }}>
+          Powered by Open-Meteo.com (CC-BY 4.0)
+        </div>
+
         <style>{`
           @keyframes weather-spin {
             to { transform: rotate(360deg); }
@@ -891,6 +903,18 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               </div>
             </button>
           ))}
+        </div>
+
+        {/* Attribution */}
+        <div style={{
+          marginTop: '0.5rem',
+          paddingTop: '0.5rem',
+          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          fontSize: '0.55rem',
+          opacity: 0.5,
+          textAlign: 'center',
+        }}>
+          Search powered by Photon (© OpenStreetMap)
         </div>
       </div>
 

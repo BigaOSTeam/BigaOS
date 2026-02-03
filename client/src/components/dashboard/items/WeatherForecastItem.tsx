@@ -227,6 +227,17 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
           })}
         </div>
       )}
+
+      {/* Attribution */}
+      <div style={{
+        fontSize: '9px',
+        color: theme.colors.textMuted,
+        textAlign: 'center',
+        marginTop: theme.space.xs,
+        opacity: 0.6,
+      }}>
+        Open-Meteo.com (CC-BY 4.0)
+      </div>
     </div>
   );
 };
