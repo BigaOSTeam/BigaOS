@@ -751,6 +751,13 @@ export const ChartView: React.FC<ChartViewProps> = ({
     localStorage.setItem('chartWeatherOverlay', JSON.stringify(weatherOverlayEnabled));
   }, [weatherOverlayEnabled]);
 
+  // Memoize boat icon to prevent recreation on every render
+  // Round heading to nearest degree to reduce unnecessary updates
+  const boatIcon = useMemo(() => {
+    const roundedHeading = Math.round(heading);
+    return createBoatIcon(roundedHeading);
+  }, [Math.round(heading)]);
+
   // Force map to recalculate size on mount and visibility changes
   useEffect(() => {
     const invalidateMap = () => {
@@ -1303,7 +1310,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
         {/* Boat marker */}
         <Marker
           position={[position.latitude, position.longitude]}
-          icon={createBoatIcon(heading)}
+          icon={boatIcon}
           eventHandlers={{
             click: (e) => {
               // Don't show context menu during anchor placement mode

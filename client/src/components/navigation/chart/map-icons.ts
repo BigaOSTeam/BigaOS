@@ -38,16 +38,19 @@ export const markerColors = [
 ];
 
 /**
- * Create a custom boat icon that rotates with heading
+ * Create a custom boat icon that rotates with heading.
+ * Uses CSS transform for rotation to avoid recreating the DOM element on every heading change.
  */
 export const createBoatIcon = (heading: number): L.DivIcon => {
   const svgIcon = `
-    <svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
-      <g transform="translate(25, 25) rotate(${heading})">
-        <!-- Boat arrow with V-shaped back -->
-        <path d="M 0,-18 L 8,10 L 0,4 L -8,10 Z" fill="#000" stroke="#fff" stroke-width="2"/>
-      </g>
-    </svg>
+    <div class="boat-icon-inner" style="transform: rotate(${heading}deg); width: 50px; height: 50px;">
+      <svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
+        <g transform="translate(25, 25)">
+          <!-- Boat arrow with V-shaped back -->
+          <path d="M 0,-18 L 8,10 L 0,4 L -8,10 Z" fill="#000" stroke="#fff" stroke-width="2"/>
+        </g>
+      </svg>
+    </div>
   `;
 
   return L.divIcon({

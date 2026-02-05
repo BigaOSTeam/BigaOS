@@ -19,16 +19,26 @@ export const MapController: React.FC<MapControllerProps> = ({
 }) => {
   const map = useMap();
   const prevAutoCenterRef = useRef(autoCenter);
+  const isFlyingRef = useRef(false);
 
   useEffect(() => {
     if (autoCenter) {
       // If transitioning from false to true (user clicked recenter), animate with flyTo
       if (!prevAutoCenterRef.current) {
+        isFlyingRef.current = true;
         map.flyTo([position.latitude, position.longitude], map.getZoom());
-      } else {
-        // Already centered, just update position silently as boat moves
+
+        // Listen for moveend to know when flyTo animation completes
+        const handleMoveEnd = () => {
+          isFlyingRef.current = false;
+          map.off('moveend', handleMoveEnd);
+        };
+        map.on('moveend', handleMoveEnd);
+      } else if (!isFlyingRef.current) {
+        // Already centered and not flying, just update position silently as boat moves
         map.setView([position.latitude, position.longitude], map.getZoom());
       }
+      // If currently flying, don't interrupt - the animation will complete
     }
     prevAutoCenterRef.current = autoCenter;
   }, [position.latitude, position.longitude, map, autoCenter]);
@@ -38,7 +48,9 @@ export const MapController: React.FC<MapControllerProps> = ({
     if (!autoCenter) return;
 
     const handleZoomEnd = () => {
-      map.setView([position.latitude, position.longitude], map.getZoom(), { animate: false });
+      if (!isFlyingRef.current) {
+        map.setView([position.latitude, position.longitude], map.getZoom(), { animate: false });
+      }
     };
 
     map.on('zoomend', handleZoomEnd);
