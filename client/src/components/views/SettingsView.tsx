@@ -906,10 +906,11 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
       {renderUnitSelector<WindUnit>(
         'Wind',
         windUnit,
-        ['kt', 'km/h', 'm/s', 'bft'],
+        ['kt', 'km/h', 'mph', 'm/s', 'bft'],
         {
           'kt': windConversions['kt'].label,
           'km/h': windConversions['km/h'].label,
+          'mph': windConversions['mph'].label,
           'm/s': windConversions['m/s'].label,
           'bft': 'Beaufort',
         },

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { useMap, useMapEvents } from 'react-leaflet';
 import L from 'leaflet';
 import { weatherAPI, navigationAPI } from '../../../services/api';
@@ -60,14 +60,6 @@ function getContrastOutline(rgbColor: string): string {
   // Parse rgb(r, g, b) string
   const match = rgbColor.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
   if (!match) return 'rgba(30, 30, 30, 0.85)'; // fallback to dark
-
-  const r = parseInt(match[1], 10);
-  const g = parseInt(match[2], 10);
-  const b = parseInt(match[3], 10);
-
-  // Calculate relative luminance (perceived brightness)
-  // Using the formula: 0.299*R + 0.587*G + 0.114*B
-  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
 
   // Use black outline for all colors (matching arrow outlines)
   return '#000';

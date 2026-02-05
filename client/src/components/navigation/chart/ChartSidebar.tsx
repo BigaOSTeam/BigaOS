@@ -7,6 +7,8 @@ import {
   DepthUnit,
 } from '../../../context/SettingsContext';
 
+type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp';
+
 interface ChartSidebarProps {
   heading: number;
   convertedSpeed: number;
@@ -25,6 +27,7 @@ interface ChartSidebarProps {
   debugMode?: boolean;
   weatherOverlayEnabled?: boolean;
   weatherPanelOpen?: boolean;
+  weatherDisplayMode?: WeatherDisplayMode;
   onClose?: () => void;
   onDepthClick: () => void;
   onSearchClick: () => void;
@@ -53,6 +56,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   debugMode: _debugMode,
   weatherOverlayEnabled,
   weatherPanelOpen,
+  weatherDisplayMode = 'wind',
   onClose,
   onDepthClick,
   onSearchClick,
@@ -189,7 +193,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
-      {/* Weather overlay toggle */}
+      {/* Forecast overlay toggle */}
       {onWeatherClick && (
         <button
           onClick={onWeatherClick}
@@ -206,10 +210,44 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             viewBox="0 -960 960 960"
             fill={weatherOverlayEnabled ? '#4fc3f7' : 'currentColor'}
           >
-            {/* Google Material cloud icon */}
-            <path d="M251-160q-88 0-149.5-61.5T40-371q0-78 50-137t127-71q20-97 94-158.5T482-799q112 0 189 81.5T748-522v24q72-2 122 46.5T920-329q0 69-50 119t-119 50H251Zm0-80h500q36 0 62-26t26-63q0-36-26-62t-63-26h-70v-56q0-83-56.5-141T480-722q-83 0-141.5 58.5T280-522h-23q-56 0-96.5 40T120-386q0 56 40.5 96t90.5 40Zm229-260Z" />
+            {/* Icon based on display mode */}
+            {!weatherOverlayEnabled ? (
+              /* Cloud icon when off */
+              <path d="M251-160q-88 0-149.5-61.5T40-371q0-78 50-137t127-71q20-97 94-158.5T482-799q112 0 189 81.5T748-522v24q72-2 122 46.5T920-329q0 69-50 119t-119 50H251Zm0-80h500q36 0 62-26t26-63q0-36-26-62t-63-26h-70v-56q0-83-56.5-141T480-722q-83 0-141.5 58.5T280-522h-23q-56 0-96.5 40T120-386q0 56 40.5 96t90.5 40Zm229-260Z" />
+            ) : weatherDisplayMode === 'wind' ? (
+              /* Wind icon - MDI weather-windy */
+              <g transform="matrix(-40, 0, 0, 40, 960, -960)">
+                <path d="M4,10A1,1 0 0,1 3,9A1,1 0 0,1 4,8H12A2,2 0 0,0 14,6A2,2 0 0,0 12,4C11.45,4 10.95,4.22 10.59,4.59C10.2,5 9.56,5 9.17,4.59C8.78,4.2 8.78,3.56 9.17,3.17C9.9,2.45 10.9,2 12,2A4,4 0 0,1 16,6A4,4 0 0,1 12,10H4M19,12A1,1 0 0,0 20,11A1,1 0 0,0 19,10C18.72,10 18.47,10.11 18.29,10.29C17.9,10.68 17.27,10.68 16.88,10.29C16.5,9.9 16.5,9.27 16.88,8.88C17.42,8.34 18.17,8 19,8A3,3 0 0,1 22,11A3,3 0 0,1 19,14H5A1,1 0 0,1 4,13A1,1 0 0,1 5,12H19M18,18H4A1,1 0 0,1 3,17A1,1 0 0,1 4,16H18A3,3 0 0,1 21,19A3,3 0 0,1 18,22C17.17,22 16.42,21.66 15.88,21.12C15.5,20.73 15.5,20.1 15.88,19.71C16.27,19.32 16.9,19.32 17.29,19.71C17.47,19.89 17.72,20 18,20A1,1 0 0,0 19,19A1,1 0 0,0 18,18Z" />
+              </g>
+            ) : weatherDisplayMode === 'waves' ? (
+              /* Waves icon - MDI waves */
+              <g transform="matrix(-40, 0, 0, 40, 960, -960)">
+                <path d="M20,12H22V14H20C18.62,14 17.26,13.65 16,13C13.5,14.3 10.5,14.3 8,13C6.74,13.65 5.37,14 4,14H2V12H4C5.39,12 6.78,11.53 8,10.67C10.44,12.38 13.56,12.38 16,10.67C17.22,11.53 18.61,12 20,12M20,6H22V8H20C18.62,8 17.26,7.65 16,7C13.5,8.3 10.5,8.3 8,7C6.74,7.65 5.37,8 4,8H2V6H4C5.39,6 6.78,5.53 8,4.67C10.44,6.38 13.56,6.38 16,4.67C17.22,5.53 18.61,6 20,6M20,18H22V20H20C18.62,20 17.26,19.65 16,19C13.5,20.3 10.5,20.3 8,19C6.74,19.65 5.37,20 4,20H2V18H4C5.39,18 6.78,17.53 8,16.67C10.44,18.38 13.56,18.38 16,16.67C17.22,17.53 18.61,18 20,18Z" />
+              </g>
+            ) : weatherDisplayMode === 'swell' ? (
+              /* Swell icon - MDI wave-arrow-up */
+              <g transform="matrix(-40, 0, 0, 40, 960, -960)">
+                <path d="M20 7H22V9H20C18.62 9 17.26 8.65 16 8C13.5 9.3 10.5 9.3 8 8C6.74 8.65 5.37 9 4 9H2V7H4C5.39 7 6.78 6.53 8 5.67C10.44 7.38 13.56 7.38 16 5.67C17.22 6.53 18.61 7 20 7M12 11L16 15H13V22H11V15H8L12 11Z" />
+              </g>
+            ) : weatherDisplayMode === 'current' ? (
+              /* Current icon - wave with small arrows below */
+              <g transform="matrix(-40, 0, 0, 40, 960, -960)">
+                {/* Wave */}
+                <path d="M20 7H22V9H20C18.62 9 17.26 8.65 16 8C13.5 9.3 10.5 9.3 8 8C6.74 8.65 5.37 9 4 9H2V7H4C5.39 7 6.78 6.53 8 5.67C10.44 7.38 13.56 7.38 16 5.67C17.22 6.53 18.61 7 20 7" />
+                {/* 3 arrows: top-left, middle-right, bottom-center */}
+                <path d="M3 12L6 10V11.5H9V12.5H6V14L3 12Z" />
+                <path d="M12 15L15 13V14.5H18V15.5H15V17L12 15Z" />
+                <path d="M7 18L10 16V17.5H13V18.5H10V20L7 18Z" />
+              </g>
+            ) : (
+              /* Sea temperature icon - Bootstrap thermometer */
+              <g transform="matrix(-60, 0, 0, 60, 960, -960)">
+                <path d="M9.5 12.5a1.5 1.5 0 1 1-2-1.415V6.5a.5.5 0 0 1 1 0v4.585a1.5 1.5 0 0 1 1 1.415" />
+                <path d="M5.5 2.5a2.5 2.5 0 0 1 5 0v7.55a3.5 3.5 0 1 1-5 0zM8 1a1.5 1.5 0 0 0-1.5 1.5v7.987l-.167.15a2.5 2.5 0 1 0 3.333 0l-.166-.15V2.5A1.5 1.5 0 0 0 8 1" />
+              </g>
+            )}
           </svg>
-          <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>WEATHER</span>
+          <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>FORECAST</span>
         </button>
       )}
 

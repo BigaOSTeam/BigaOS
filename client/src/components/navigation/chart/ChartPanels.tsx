@@ -397,9 +397,8 @@ interface WeatherPanelProps {
   onClose: () => void;
 }
 
-// Forecast time options (2x5 grid = 10 buttons)
-const FORECAST_OPTIONS = [
-  { hour: -1, label: 'Off' },
+// Forecast time presets (3x4 grid with Custom button)
+const FORECAST_PRESETS = [
   { hour: 0, label: 'Now' },
   { hour: 1, label: '+1h' },
   { hour: 3, label: '+3h' },
@@ -409,6 +408,15 @@ const FORECAST_OPTIONS = [
   { hour: 48, label: '+2d' },
   { hour: 72, label: '+3d' },
   { hour: 168, label: '+7d' },
+];
+
+// Display mode options for tab selector
+const DISPLAY_MODES: { mode: WeatherDisplayMode; label: string }[] = [
+  { mode: 'wind', label: 'Wind' },
+  { mode: 'waves', label: 'Waves' },
+  { mode: 'swell', label: 'Swell' },
+  { mode: 'current', label: 'Current' },
+  { mode: 'water-temp', label: 'Temp' },
 ];
 
 export const WeatherPanel: React.FC<WeatherPanelProps> = ({
@@ -423,8 +431,13 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
   onSetDisplayMode,
   onClose,
 }) => {
-  const settingsPanelWidth = 280;
+  const settingsPanelWidth = 320;
   const { windUnit, depthUnit, temperatureUnit, timeFormat, dateFormat } = useSettings();
+
+  // Custom time dialog state
+  const [showCustomDialog, setShowCustomDialog] = React.useState(false);
+  const [customDays, setCustomDays] = React.useState(0);
+  const [customHours, setCustomHours] = React.useState(0);
 
   // Calculate forecast time (rounded to actual forecast hours)
   const getForecastTime = () => {
@@ -448,7 +461,6 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
       // Format date based on user's date format preference
       const day = forecastDate.getDate().toString().padStart(2, '0');
       const month = (forecastDate.getMonth() + 1).toString().padStart(2, '0');
-      const year = forecastDate.getFullYear();
       const weekday = forecastDate.toLocaleDateString([], { weekday: 'short' });
 
       let dateStr: string;
@@ -468,19 +480,31 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
     }
   };
 
-  const handleSelect = (hour: number) => {
-    if (hour === -1) {
-      // Turn off
-      if (enabled) onToggleEnabled();
-    } else {
-      // Turn on and set hour
-      if (!enabled) onToggleEnabled();
-      onSetForecastHour(hour);
-    }
+  // Check if current forecastHour matches a preset
+  const isPresetSelected = FORECAST_PRESETS.some(p => p.hour === forecastHour);
+
+  const handlePresetSelect = (hour: number) => {
+    if (!enabled) onToggleEnabled();
+    onSetForecastHour(hour);
+  };
+
+  const handleOpenCustomDialog = () => {
+    // Initialize dialog with current values
+    const days = Math.floor(forecastHour / 24);
+    const hours = forecastHour % 24;
+    setCustomDays(days);
+    setCustomHours(hours);
+    setShowCustomDialog(true);
+  };
+
+  const handleApplyCustomTime = () => {
+    const totalHours = Math.min(168, customDays * 24 + customHours);
+    if (!enabled) onToggleEnabled();
+    onSetForecastHour(totalHours);
+    setShowCustomDialog(false);
   };
 
   const isSelected = (hour: number) => {
-    if (hour === -1) return !enabled;
     return enabled && forecastHour === hour;
   };
 
@@ -519,179 +543,131 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           MARINE FORECAST
         </div>
 
-        {/* Display mode selector - two rows */}
+        {/* Display mode selector - 2 rows */}
         <div style={{
-          display: 'flex',
-          flexDirection: 'column',
+          display: 'grid',
+          gridTemplateColumns: 'repeat(3, 1fr)',
           gap: '0.4rem',
           marginBottom: '0.75rem',
         }}>
-          {/* First row: Wind, Waves, Swell */}
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
+          {DISPLAY_MODES.map(({ mode, label }) => (
             <button
-              onClick={() => onSetDisplayMode('wind')}
+              key={mode}
+              onClick={() => {
+                onSetDisplayMode(mode);
+                if (!enabled) onToggleEnabled();
+              }}
               style={{
-                flex: 1,
-                padding: '0.5rem',
-                borderRadius: '3px',
+                padding: '0.9rem 0.4rem',
+                borderRadius: '4px',
                 border: 'none',
-                background: displayMode === 'wind' ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                background: displayMode === mode && enabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
                 color: '#fff',
-                fontSize: '0.75rem',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
-                fontWeight: displayMode === 'wind' ? 'bold' : 'normal',
+                fontWeight: displayMode === mode && enabled ? 'bold' : 'normal',
               }}
             >
-              Wind
+              {label}
             </button>
-            <button
-              onClick={() => onSetDisplayMode('waves')}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                borderRadius: '3px',
-                border: 'none',
-                background: displayMode === 'waves' ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                color: '#fff',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                fontWeight: displayMode === 'waves' ? 'bold' : 'normal',
-              }}
-            >
-              Waves
-            </button>
-            <button
-              onClick={() => onSetDisplayMode('swell')}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                borderRadius: '3px',
-                border: 'none',
-                background: displayMode === 'swell' ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                color: '#fff',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                fontWeight: displayMode === 'swell' ? 'bold' : 'normal',
-              }}
-            >
-              Swell
-            </button>
-          </div>
-          {/* Second row: Current, Sea Temp */}
-          <div style={{ display: 'flex', gap: '0.4rem' }}>
-            <button
-              onClick={() => onSetDisplayMode('current')}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                borderRadius: '3px',
-                border: 'none',
-                background: displayMode === 'current' ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                color: '#fff',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                fontWeight: displayMode === 'current' ? 'bold' : 'normal',
-              }}
-            >
-              Current
-            </button>
-            <button
-              onClick={() => onSetDisplayMode('water-temp')}
-              style={{
-                flex: 1,
-                padding: '0.5rem',
-                borderRadius: '3px',
-                border: 'none',
-                background: displayMode === 'water-temp' ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                color: '#fff',
-                fontSize: '0.75rem',
-                cursor: 'pointer',
-                fontWeight: displayMode === 'water-temp' ? 'bold' : 'normal',
-              }}
-            >
-              Sea Temp
-            </button>
-          </div>
+          ))}
+          <button
+            onClick={() => { if (enabled) onToggleEnabled(); }}
+            style={{
+              padding: '0.9rem 0.4rem',
+              borderRadius: '4px',
+              border: 'none',
+              background: !enabled ? 'rgba(239, 83, 80, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+              color: '#fff',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              fontWeight: !enabled ? 'bold' : 'normal',
+            }}
+          >
+            Off
+          </button>
         </div>
 
-        {/* Forecast time indicator */}
-        {enabled && (
-          <div style={{
-            marginBottom: '0.75rem',
-            padding: '0.5rem 0.6rem',
-            background: 'rgba(79, 195, 247, 0.1)',
-            borderRadius: '4px',
-            fontSize: '0.85rem',
-            color: '#4FC3F7',
-            textAlign: 'center',
-          }}>
-            {getForecastTime()}
-          </div>
-        )}
+        {/* Fixed-height status area - always present to prevent layout shift */}
+        <div style={{
+          minHeight: '36px',
+          marginBottom: '0.5rem',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '0.4rem 0.5rem',
+          background: error && !loading ? 'rgba(255, 152, 0, 0.1)' : 'rgba(79, 195, 247, 0.08)',
+          borderRadius: '4px',
+          fontSize: '0.9rem',
+        }}>
+          {loading ? (
+            <>
+              <div
+                style={{
+                  width: '10px',
+                  height: '10px',
+                  marginRight: '0.4rem',
+                  border: '2px solid rgba(79, 195, 247, 0.3)',
+                  borderTopColor: '#4FC3F7',
+                  borderRadius: '50%',
+                  animation: 'weather-spin 1s linear infinite',
+                }}
+              />
+              <span style={{ color: '#4FC3F7' }}>Loading...</span>
+            </>
+          ) : error ? (
+            <span style={{ color: '#FF9800', fontSize: '0.65rem', textAlign: 'center' }}>{error}</span>
+          ) : enabled ? (
+            <span style={{ color: '#4FC3F7' }}>{getForecastTime()}</span>
+          ) : (
+            <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>Select a time below</span>
+          )}
+        </div>
 
-        {/* Status indicator */}
-        {loading && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            marginBottom: '0.75rem',
-            padding: '0.4rem 0.6rem',
-            background: 'rgba(79, 195, 247, 0.15)',
-            borderRadius: '4px',
-            fontSize: '0.7rem',
-            color: '#4FC3F7',
-          }}>
-            <div
-              style={{
-                width: '10px',
-                height: '10px',
-                border: '2px solid rgba(79, 195, 247, 0.3)',
-                borderTopColor: '#4FC3F7',
-                borderRadius: '50%',
-                animation: 'weather-spin 1s linear infinite',
-              }}
-            />
-            Loading...
-          </div>
-        )}
-        {error && !loading && (
-          <div style={{
-            marginBottom: '0.75rem',
-            padding: '0.4rem 0.6rem',
-            background: 'rgba(255, 152, 0, 0.15)',
-            borderRadius: '4px',
-            fontSize: '0.65rem',
-            color: '#FF9800',
-          }}>
-            {error}
-          </div>
-        )}
+        {/* TIME section header */}
+        <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '0.4rem', marginTop: '0.25rem' }}>
+          TIME
+        </div>
 
-        {/* 2x5 Grid of time buttons */}
+        {/* Time preset buttons + Custom */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(5, 1fr)',
           gap: '0.4rem',
-          marginBottom: '1rem',
+          marginBottom: '0.75rem',
         }}>
-          {FORECAST_OPTIONS.map((opt) => (
+          {FORECAST_PRESETS.map((opt) => (
             <button
               key={opt.hour}
-              onClick={() => handleSelect(opt.hour)}
+              onClick={() => handlePresetSelect(opt.hour)}
               style={{
-                padding: '0.6rem 0.25rem',
-                borderRadius: '3px',
+                padding: '0.9rem 0.3rem',
+                borderRadius: '4px',
                 border: 'none',
                 background: isSelected(opt.hour) ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
                 color: '#fff',
-                fontSize: '0.8rem',
+                fontSize: '0.9rem',
                 cursor: 'pointer',
               }}
             >
               {opt.label}
             </button>
           ))}
+          <button
+            onClick={handleOpenCustomDialog}
+            style={{
+              padding: '0.9rem 0.3rem',
+              borderRadius: '4px',
+              border: 'none',
+              background: !isPresetSelected && enabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+              color: '#fff',
+              fontSize: '0.9rem',
+              cursor: 'pointer',
+              fontWeight: !isPresetSelected && enabled ? 'bold' : 'normal',
+            }}
+          >
+            Custom
+          </button>
         </div>
 
         {/* Legend */}
@@ -911,20 +887,219 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
         `}</style>
       </div>
 
+      {/* Custom Time Dialog */}
+      {showCustomDialog && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'rgb(10, 25, 41)',
+            border: '1px solid rgba(255, 255, 255, 0.3)',
+            borderRadius: '6px',
+            padding: '1.25rem',
+            zIndex: 1100,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
+            minWidth: '280px',
+          }}
+        >
+          <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '1rem' }}>
+            CUSTOM TIME
+          </div>
+
+          {/* Days selector */}
+          <div style={{ marginBottom: '1rem' }}>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.4rem' }}>Days from now</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                onClick={() => setCustomDays(Math.max(0, customDays - 1))}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                }}
+              >
+                -
+              </button>
+              <div style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: '1.3rem',
+                fontWeight: 'bold',
+              }}>
+                {customDays}
+              </div>
+              <button
+                onClick={() => setCustomDays(Math.min(6, customDays + 1))}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Hours selector */}
+          <div style={{ marginBottom: '1.25rem' }}>
+            <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.4rem' }}>Hours</div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <button
+                onClick={() => setCustomHours(Math.max(0, customHours - 1))}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                }}
+              >
+                -
+              </button>
+              <div style={{
+                flex: 1,
+                textAlign: 'center',
+                fontSize: '1.3rem',
+                fontWeight: 'bold',
+              }}>
+                {customHours}
+              </div>
+              <button
+                onClick={() => setCustomHours(Math.min(23, customHours + 1))}
+                style={{
+                  width: '48px',
+                  height: '48px',
+                  borderRadius: '4px',
+                  border: 'none',
+                  background: 'rgba(255, 255, 255, 0.1)',
+                  color: '#fff',
+                  fontSize: '1.4rem',
+                  cursor: 'pointer',
+                }}
+              >
+                +
+              </button>
+            </div>
+          </div>
+
+          {/* Date/time preview */}
+          <div style={{
+            textAlign: 'center',
+            fontSize: '0.95rem',
+            color: '#4FC3F7',
+            marginBottom: '1rem',
+            padding: '0.6rem',
+            background: 'rgba(79, 195, 247, 0.1)',
+            borderRadius: '4px',
+          }}>
+            {(() => {
+              const totalHours = customDays * 24 + customHours;
+              const now = new Date();
+              const currentHour = new Date(now.getFullYear(), now.getMonth(), now.getDate(), now.getHours());
+              const forecastDate = new Date(currentHour.getTime() + totalHours * 60 * 60 * 1000);
+              const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+              const forecastDay = new Date(forecastDate.getFullYear(), forecastDate.getMonth(), forecastDate.getDate());
+              const dayDiff = Math.round((forecastDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+              const timeStr = forecastDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' });
+
+              if (dayDiff === 0) {
+                return `Today ${timeStr}`;
+              } else if (dayDiff === 1) {
+                return `Tomorrow ${timeStr}`;
+              } else {
+                const weekday = forecastDate.toLocaleDateString([], { weekday: 'short' });
+                const day = forecastDate.getDate().toString().padStart(2, '0');
+                const month = (forecastDate.getMonth() + 1).toString().padStart(2, '0');
+                return `${weekday} ${day}/${month} ${timeStr}`;
+              }
+            })()}
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: '0.6rem' }}>
+            <button
+              onClick={() => setShowCustomDialog(false)}
+              style={{
+                flex: 1,
+                padding: '0.9rem',
+                borderRadius: '4px',
+                border: 'none',
+                background: 'rgba(255, 255, 255, 0.1)',
+                color: '#fff',
+                fontSize: '0.95rem',
+                cursor: 'pointer',
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleApplyCustomTime}
+              style={{
+                flex: 1,
+                padding: '0.9rem',
+                borderRadius: '4px',
+                border: 'none',
+                background: 'rgba(25, 118, 210, 0.6)',
+                color: '#fff',
+                fontSize: '0.95rem',
+                cursor: 'pointer',
+                fontWeight: 'bold',
+              }}
+            >
+              Apply
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Dialog backdrop */}
+      {showCustomDialog && (
+        <div
+          onClick={() => setShowCustomDialog(false)}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0, 0, 0, 0.5)',
+            zIndex: 1050,
+          }}
+        />
+      )}
+
       {/* Click outside to close (only on single click, not double-click zoom) */}
-      <div
-        onClick={(e) => {
-          if (e.detail === 1) onClose();
-        }}
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: sidebarWidth,
-          bottom: 0,
-          zIndex: 999,
-        }}
-      />
+      {!showCustomDialog && (
+        <div
+          onClick={(e) => {
+            if (e.detail === 1) onClose();
+          }}
+          style={{
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: sidebarWidth,
+            bottom: 0,
+            zIndex: 999,
+          }}
+        />
+      )}
     </>
   );
 };

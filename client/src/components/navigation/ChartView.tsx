@@ -1791,6 +1791,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           debugMode={debugMode !== 'off'}
           weatherOverlayEnabled={weatherOverlayEnabled}
           weatherPanelOpen={weatherPanelOpen}
+          weatherDisplayMode={weatherOverlay.displayMode}
           onClose={onClose}
           onDepthClick={() => {
             setDepthSettingsOpen(!depthSettingsOpen);
