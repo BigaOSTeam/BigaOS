@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { CustomMarker, markerIcons, markerColors } from './map-icons';
-import { VesselSettings, ChainType } from '../../../context/SettingsContext';
+import { VesselSettings, ChainType, useSettings } from '../../../context/SettingsContext';
 import { weatherAPI, WeatherForecastResponse } from '../../../services/api';
 
 // Chain length recommendation calculator using catenary-based approach
@@ -422,7 +422,10 @@ const ChainCalculationInfoDialog: React.FC<{
   vesselSettings?: VesselSettings;
   onClose: () => void;
   onToggleFormula?: (formula: 'catenary' | 'windLoa', enabled: boolean) => void;
-}> = ({ depth, vesselSettings, onClose, onToggleFormula }) => {
+  forecastMaxWind?: number;
+  forecastMaxGust?: number;
+  windUnit?: string;
+}> = ({ depth, vesselSettings, onClose, onToggleFormula, forecastMaxWind, forecastMaxGust, windUnit = 'kt' }) => {
   const effectiveBoatLength = vesselSettings?.length || 10;
   const effectiveDisplacement = vesselSettings?.displacement || 5;
   const chainDiameterMm = vesselSettings?.chainDiameter || 8;
@@ -569,14 +572,12 @@ const ChainCalculationInfoDialog: React.FC<{
               borderRadius: '4px',
               padding: '0.5rem',
             }}>
-              <div style={{ fontWeight: 'bold', marginBottom: '0.2rem' }}>Wind Scenarios</div>
+              <div style={{ fontWeight: 'bold', marginBottom: '0.2rem' }}>Wind Forecast</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: '0.15rem 0.5rem' }}>
                 <span style={{ color: '#66bb6a' }}>Minimum:</span>
-                <span>15 kts (calm night)</span>
+                <span>{forecastMaxWind !== undefined ? `${Math.round(forecastMaxWind)} ${windUnit} (max wind)` : 'No forecast'}</span>
                 <span style={{ color: '#ffa726' }}>Recommended:</span>
-                <span>25 kts (moderate)</span>
-                <span style={{ color: '#ffee58' }}>Storm:</span>
-                <span>45 kts (gale)</span>
+                <span>{forecastMaxGust !== undefined ? `${Math.round(forecastMaxGust)} ${windUnit} (max gust)` : 'No forecast'}</span>
               </div>
             </div>
 
@@ -1254,7 +1255,7 @@ interface WeatherForecastInfo {
 }
 
 // Hook to fetch weather forecast for anchor alarm
-const useAnchorWeatherForecast = (lat: number, lon: number, enabled: boolean): {
+const useAnchorWeatherForecast = (lat: number, lon: number, enabled: boolean, hours: number = 24): {
   forecast: WeatherForecastInfo | null;
   loading: boolean;
   error: string | null;
@@ -1270,18 +1271,17 @@ const useAnchorWeatherForecast = (lat: number, lon: number, enabled: boolean): {
     setError(null);
 
     try {
-      const response = await weatherAPI.getForecast(lat, lon, 24);
+      const response = await weatherAPI.getForecast(lat, lon, hours);
       const data: WeatherForecastResponse = response.data;
 
       if (data.hourly && data.hourly.length > 0) {
-        // Find max wind and gusts over next 12-24 hours
+        // Find max wind and gusts over the specified period
         let maxWind = 0;
         let maxGusts = 0;
         let maxWaveHeight = 0;
         let maxTimestamp = '';
 
-        // Look at next 12 hours for overnight anchoring
-        const hoursToCheck = Math.min(12, data.hourly.length);
+        const hoursToCheck = Math.min(hours, data.hourly.length);
         for (let i = 0; i < hoursToCheck; i++) {
           const hour = data.hourly[i];
           if (hour.wind.speed > maxWind) {
@@ -1309,7 +1309,7 @@ const useAnchorWeatherForecast = (lat: number, lon: number, enabled: boolean): {
     } finally {
       setLoading(false);
     }
-  }, [lat, lon, enabled]);
+  }, [lat, lon, enabled, hours]);
 
   useEffect(() => {
     fetchForecast();
@@ -1422,11 +1422,20 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
   const depth = anchorDepth;
   const setDepth = onAnchorDepthChange;
 
+  // Get wind unit settings
+  const { windUnit, convertWind } = useSettings();
+
+  // Forecast period state (in hours) - default 24h
+  const [forecastHours, setForecastHours] = React.useState(24);
+  // State for showing chain calculation details dialog
+  const [showCalcInfo, setShowCalcInfo] = React.useState(false);
+
   // Fetch weather forecast for the anchor location
   const { forecast: weatherForecast, loading: weatherLoading } = useAnchorWeatherForecast(
     boatPosition?.lat || 0,
     boatPosition?.lon || 0,
-    weatherEnabled
+    weatherEnabled,
+    forecastHours
   );
 
   // Calculate swing radius for activation
@@ -1511,7 +1520,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
       {/* Chain Length Input */}
       <div style={{ marginBottom: '0.6rem' }}>
         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.3rem' }}>
-          CHAIN OUT (meters)
+          Chain out (meters)
         </div>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.4rem' }}>
           <button
@@ -1580,7 +1589,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
       {/* Depth Input */}
       <div style={{ marginBottom: '0.6rem' }}>
         <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.3rem' }}>
-          DEPTH (meters)
+          Depth (meters)
         </div>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.4rem' }}>
           <button
@@ -1697,114 +1706,247 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
         chainLength={chainLength}
         depth={depth}
         vesselSettings={vesselSettings}
-        showRecommendations={true}
+        showRecommendations={false}
         onUpdateVesselSettings={onUpdateVesselSettings}
       />
 
-      {/* Weather Forecast for Anchor Watch */}
+      {/* Combined Weather Forecast + Chain Recommendations */}
       {weatherEnabled && (
-        <div style={{
-          marginBottom: '0.5rem',
-          padding: '0.4rem',
-          background: 'rgba(79, 195, 247, 0.1)',
-          border: '1px solid rgba(79, 195, 247, 0.2)',
-          borderRadius: '4px',
-        }}>
+        <div style={{ marginBottom: '0.5rem' }}>
+          {/* Planned Stay Duration Selector */}
+          <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.3rem' }}>
+            Planned stay
+          </div>
           <div style={{
             display: 'flex',
-            alignItems: 'center',
-            gap: '0.3rem',
-            fontSize: '0.7rem',
-            fontWeight: 'bold',
-            color: '#4fc3f7',
-            marginBottom: '0.3rem',
+            gap: '0.25rem',
+            marginBottom: '0.4rem',
           }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-            Next 12h Forecast
+            {[
+              { hours: 12, label: '12h' },
+              { hours: 24, label: '24h' },
+              { hours: 48, label: '2d' },
+              { hours: 72, label: '3d' },
+            ].map(({ hours, label }) => (
+              <button
+                key={hours}
+                onClick={() => setForecastHours(hours)}
+                className="touch-btn"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem 0.4rem',
+                  background: forecastHours === hours ? 'rgba(79, 195, 247, 0.3)' : 'rgba(255, 255, 255, 0.05)',
+                  border: forecastHours === hours ? '1px solid #4fc3f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                  borderRadius: '4px',
+                  color: forecastHours === hours ? '#4fc3f7' : 'rgba(255, 255, 255, 0.7)',
+                  fontSize: '0.9rem',
+                  fontWeight: forecastHours === hours ? 'bold' : 'normal',
+                  cursor: 'pointer',
+                }}
+              >
+                {label}
+              </button>
+            ))}
           </div>
+
+          {/* Weather Data */}
           {weatherLoading ? (
-            <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>Loading forecast...</div>
-          ) : weatherForecast ? (
-            <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.7rem' }}>
-              <div>
-                <span style={{ opacity: 0.7 }}>Max wind: </span>
-                <span style={{
-                  fontWeight: 'bold',
-                  color: weatherForecast.maxWind >= 30 ? '#FF9800' :
-                         weatherForecast.maxWind >= 20 ? '#FFEB3B' :
-                         weatherForecast.maxWind >= 10 ? '#66bb6a' : '#4FC3F7'
-                }}>
-                  {Math.round(weatherForecast.maxWind)} kt
-                </span>
-              </div>
-              {weatherForecast.maxGusts > weatherForecast.maxWind + 5 && (
-                <div>
-                  <span style={{ opacity: 0.7 }}>Gusts: </span>
-                  <span style={{ fontWeight: 'bold', color: '#FF9800' }}>
-                    {Math.round(weatherForecast.maxGusts)} kt
-                  </span>
-                </div>
-              )}
-              {weatherForecast.waveHeight && (
-                <div>
-                  <span style={{ opacity: 0.7 }}>Waves: </span>
-                  <span style={{ fontWeight: 'bold' }}>
-                    {weatherForecast.waveHeight.toFixed(1)}m
-                  </span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div style={{ fontSize: '0.65rem', opacity: 0.5 }}>Forecast unavailable</div>
-          )}
-          {weatherForecast && weatherForecast.maxWind >= 25 && (
-            <div style={{
-              marginTop: '0.3rem',
-              padding: '0.2rem 0.4rem',
-              background: 'rgba(255, 167, 38, 0.2)',
-              borderRadius: '3px',
-              fontSize: '0.65rem',
-              color: '#FF9800',
-            }}>
-              Strong winds expected - consider extra chain!
-            </div>
-          )}
-          {weatherForecast && chainLength > 0 && depth > 0 && (() => {
-            // Calculate recommended chain based on actual forecast wind
-            const recommendations = calculateRecommendedChainLength(
-              depth,
-              'moderate',
-              vesselSettings?.displacement,
-              vesselSettings?.length,
-              vesselSettings?.chainDiameter,
-              vesselSettings?.useCatenaryFormula ?? true,
-              vesselSettings?.useWindLoaFormula ?? true,
-              vesselSettings?.freeboardHeight,
-              vesselSettings?.waterlineLength,
-              vesselSettings?.chainType
-            );
-
-            // Use forecast max wind to determine which recommendation applies
-            const requiredChain = weatherForecast.maxWind >= 35 ? recommendations.storm :
-                                  weatherForecast.maxWind >= 20 ? recommendations.recommended :
-                                  recommendations.min;
-
-            if (chainLength < requiredChain) {
-              return (
+            <>
+              {/* Skeleton for boxes */}
+              <div style={{ display: 'flex', gap: '0.3rem', marginBottom: '0.25rem' }}>
                 <div style={{
-                  marginTop: '0.3rem',
-                  fontSize: '0.65rem',
-                  opacity: 0.8,
+                  flex: 1,
+                  padding: '0.3rem',
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '4px',
+                  textAlign: 'center',
                 }}>
-                  Based on forecast: suggest at least <b>{requiredChain}m</b> chain
+                  <div style={{ fontSize: '0.7rem', opacity: 0.4 }}>Minimum chain</div>
+                  <div style={{
+                    width: '2.5rem',
+                    height: '1.1rem',
+                    background: 'rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
+                    margin: '0.15rem auto',
+                  }} />
                 </div>
+                <div style={{
+                  flex: 1,
+                  padding: '0.3rem',
+                  background: 'rgba(255,255,255,0.03)',
+                  borderRadius: '4px',
+                  textAlign: 'center',
+                }}>
+                  <div style={{ fontSize: '0.7rem', opacity: 0.4 }}>Recommended chain</div>
+                  <div style={{
+                    width: '2.5rem',
+                    height: '1.1rem',
+                    background: 'rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
+                    margin: '0.15rem auto',
+                  }} />
+                </div>
+              </div>
+              {/* Skeleton for wind/gust row */}
+              <div style={{ display: 'flex', gap: '0.3rem' }}>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.4 }}>Max Wind</div>
+                  <div style={{
+                    width: '2rem',
+                    height: '0.7rem',
+                    background: 'rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
+                  }} />
+                </div>
+                <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
+                  <div style={{ fontSize: '0.65rem', opacity: 0.4 }}>Max Gust</div>
+                  <div style={{
+                    width: '2rem',
+                    height: '0.7rem',
+                    background: 'rgba(255,255,255,0.08)',
+                    borderRadius: '2px',
+                  }} />
+                </div>
+              </div>
+            </>
+          ) : weatherForecast ? (
+            (() => {
+              // Calculate chain for forecast wind
+              const calcChainForWind = (windKnots: number) => {
+                if (depth <= 0) return 0;
+                const effectiveBoatLength = vesselSettings?.length || 10;
+                const effectiveDisplacement = vesselSettings?.displacement || 5;
+                const effectiveFreeboardHeight = vesselSettings?.freeboardHeight || 1.0;
+                const effectiveWaterlineLength = vesselSettings?.waterlineLength || (effectiveBoatLength * 0.9);
+                const chainDiameterMm = vesselSettings?.chainDiameter || 8;
+                const chainType = vesselSettings?.chainType || 'galvanized';
+                const useCatenary = vesselSettings?.useCatenaryFormula ?? true;
+                const useWindLoa = vesselSettings?.useWindLoaFormula ?? true;
+
+                const displacementFactor = 1 + (effectiveDisplacement - 5) * 0.05;
+                const windageArea = effectiveFreeboardHeight * effectiveWaterlineLength * 0.8 * Math.min(displacementFactor, 1.5);
+                const chainWeightFactor = chainType === 'stainless-steel' ? 0.022 : 0.020;
+                const chainWeightPerMeter = chainWeightFactor * chainDiameterMm * chainDiameterMm;
+
+                const totalVertical = depth + effectiveFreeboardHeight;
+                const g = 9.81;
+
+                let catChain = 0;
+                if (useCatenary && chainWeightPerMeter > 0) {
+                  const windMs = windKnots * 0.514;
+                  const windForce = 0.5 * 1.23 * windMs * windMs * windageArea * 1.0;
+                  const catenaryParam = windForce / (chainWeightPerMeter * g);
+                  catChain = Math.sqrt(totalVertical * (totalVertical + 2 * catenaryParam)) + effectiveBoatLength * 0.5;
+                }
+
+                let ymChain = 0;
+                if (useWindLoa) {
+                  let depthFactor = 1.0;
+                  if (depth >= 15) depthFactor = 2.0;
+                  else if (depth >= 8) depthFactor = 1.5;
+                  ymChain = windKnots * depthFactor + effectiveBoatLength;
+                }
+
+                const result = useCatenary && useWindLoa ? Math.max(catChain, ymChain) :
+                               useCatenary ? catChain : useWindLoa ? ymChain : totalVertical * 5;
+                return Math.max(15, Math.ceil(result));
+              };
+
+              const minChain = calcChainForWind(weatherForecast.maxWind);
+              const recommendedChain = calcChainForWind(weatherForecast.maxGusts);
+
+              return (
+                <>
+                  {/* Chain recommendation boxes */}
+                  <div
+                    onClick={() => setShowCalcInfo(true)}
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'row',
+                      gap: '0.3rem',
+                      cursor: 'pointer',
+                      marginBottom: '0.25rem',
+                    }}
+                  >
+                    {/* Minimum Chain */}
+                    <div style={{
+                      flex: 1,
+                      padding: '0.3rem',
+                      background: chainLength >= minChain ? 'rgba(102, 187, 106, 0.15)' : 'rgba(239, 83, 80, 0.15)',
+                      borderRadius: '4px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>Minimum chain</div>
+                      {depth > 0 ? (
+                        <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{minChain}m</div>
+                      ) : (
+                        <div style={{ fontSize: '0.55rem', opacity: 0.5 }}>Set depth</div>
+                      )}
+                    </div>
+
+                    {/* Recommended Chain */}
+                    <div style={{
+                      flex: 1,
+                      padding: '0.3rem',
+                      background: chainLength >= recommendedChain ? 'rgba(102, 187, 106, 0.15)' : 'rgba(255, 167, 38, 0.15)',
+                      borderRadius: '4px',
+                      textAlign: 'center',
+                    }}>
+                      <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>Recommended chain</div>
+                      {depth > 0 ? (
+                        <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{recommendedChain}m</div>
+                      ) : (
+                        <div style={{ fontSize: '0.55rem', opacity: 0.5 }}>Set depth</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Wind/Gust values below boxes */}
+                  <div style={{ display: 'flex', gap: '0.3rem' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
+                      <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>Max Wind</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.65rem' }}>
+                        {Math.round(convertWind(weatherForecast.maxWind))}{windUnit}
+                      </div>
+                    </div>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
+                      <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>Max Gust</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.65rem' }}>
+                        {Math.round(convertWind(weatherForecast.maxGusts))}{windUnit}
+                      </div>
+                    </div>
+                  </div>
+
+                </>
               );
-            }
-            return null;
-          })()}
+            })()
+          ) : (
+            <div style={{ fontSize: '0.65rem', opacity: 0.5, textAlign: 'center' }}>Forecast unavailable</div>
+          )}
         </div>
+      )}
+
+      {/* Chain Calculation Info Dialog */}
+      {showCalcInfo && (
+        <ChainCalculationInfoDialog
+          depth={depth}
+          vesselSettings={vesselSettings}
+          onClose={() => setShowCalcInfo(false)}
+          onToggleFormula={onUpdateVesselSettings ? (formula, enabled) => {
+            if (vesselSettings) {
+              const updatedSettings = { ...vesselSettings };
+              if (formula === 'catenary') {
+                updatedSettings.useCatenaryFormula = enabled;
+              } else {
+                updatedSettings.useWindLoaFormula = enabled;
+              }
+              onUpdateVesselSettings(updatedSettings);
+            }
+          } : undefined}
+          forecastMaxWind={weatherForecast ? convertWind(weatherForecast.maxWind) : undefined}
+          forecastMaxGust={weatherForecast ? convertWind(weatherForecast.maxGusts) : undefined}
+          windUnit={windUnit}
+        />
       )}
 
       {/* Warning if chain < depth */}
