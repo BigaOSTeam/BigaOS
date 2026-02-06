@@ -165,21 +165,21 @@ const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       position: 'absolute',
       top: '0.75rem',
       right: '0.75rem',
-      width: '28px',
-      height: '28px',
+      width: '36px',
+      height: '36px',
       background: 'transparent',
       border: 'none',
       cursor: 'pointer',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      borderRadius: '4px',
+      borderRadius: '6px',
       color: 'rgba(255, 255, 255, 0.6)',
     }}
   >
     <svg
-      width="18"
-      height="18"
+      width="20"
+      height="20"
       viewBox="0 0 24 24"
       fill="none"
       stroke="currentColor"
@@ -201,7 +201,7 @@ const IconSelector: React.FC<{
   const { t } = useLanguage();
   return (
   <>
-    <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+    <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.5rem' }}>
       {t('markers.icon')}
     </div>
     <div
@@ -219,9 +219,9 @@ const IconSelector: React.FC<{
           onClick={() => onSelect(iconKey)}
           className="touch-btn"
           style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '6px',
+            width: '44px',
+            height: '44px',
+            borderRadius: '8px',
             background:
               selectedIcon === iconKey
                 ? 'rgba(79, 195, 247, 0.3)'
@@ -260,7 +260,7 @@ const ColorSelector: React.FC<{
   const { t } = useLanguage();
   return (
   <>
-    <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+    <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.5rem' }}>
       {t('markers.color')}
     </div>
     <div
@@ -278,9 +278,9 @@ const ColorSelector: React.FC<{
           onClick={() => onSelect(color)}
           className="touch-btn"
           style={{
-            width: '36px',
-            height: '36px',
-            borderRadius: '6px',
+            width: '44px',
+            height: '44px',
+            borderRadius: '8px',
             background: color,
             border:
               selectedColor === color
@@ -323,8 +323,8 @@ const DialogOverlay: React.FC<{
         transform: 'translate(-50%, -50%)',
         background: 'rgba(10, 25, 41, 0.98)',
         border: '1px solid rgba(255, 255, 255, 0.15)',
-        borderRadius: '6px',
-        padding: '1.5rem',
+        borderRadius: '8px',
+        padding: '1.25rem',
         zIndex: 1101,
         boxShadow: '0 12px 40px rgba(0,0,0,0.6)',
         minWidth: '300px',
@@ -355,7 +355,7 @@ const NameInput: React.FC<{
       border: '1px solid rgba(255, 255, 255, 0.2)',
       borderRadius: '6px',
       color: '#fff',
-      fontSize: '0.9rem',
+      fontSize: '1rem',
       outline: 'none',
     }}
   />
@@ -384,7 +384,7 @@ export const MarkerDialog: React.FC<MarkerDialogProps> = ({
       <CloseButton onClick={onClose} />
       <div
         style={{
-          fontSize: '1rem',
+          fontSize: '1.1rem',
           fontWeight: 'bold',
           marginBottom: '1rem',
           textAlign: 'center',
@@ -408,7 +408,7 @@ export const MarkerDialog: React.FC<MarkerDialogProps> = ({
         disabled={!markerName.trim()}
         style={{
           width: '100%',
-          padding: '0.75rem',
+          padding: '0.9rem',
           background: markerName.trim()
             ? 'rgba(79, 195, 247, 0.5)'
             : 'rgba(255, 255, 255, 0.05)',
@@ -416,7 +416,7 @@ export const MarkerDialog: React.FC<MarkerDialogProps> = ({
           borderRadius: '6px',
           color: '#fff',
           cursor: markerName.trim() ? 'pointer' : 'not-allowed',
-          fontSize: '0.9rem',
+          fontSize: '1rem',
           fontWeight: 'bold',
           opacity: markerName.trim() ? 1 : 0.5,
         }}
@@ -489,7 +489,7 @@ const ChainCalculationInfoDialog: React.FC<{
           borderRadius: '6px',
           padding: '1rem',
           zIndex: 2001,
-          width: '780px',
+          width: '850px',
           maxWidth: '95vw',
           height: '540px',
           boxShadow: '0 12px 40px rgba(0,0,0,0.8)',
@@ -504,24 +504,25 @@ const ChainCalculationInfoDialog: React.FC<{
             position: 'absolute',
             top: '0.5rem',
             right: '0.5rem',
-            width: '24px',
-            height: '24px',
+            width: '36px',
+            height: '36px',
             background: 'transparent',
             border: 'none',
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
+            borderRadius: '6px',
             color: 'rgba(255, 255, 255, 0.6)',
           }}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
         </button>
 
-        <div style={{ fontSize: '1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
+        <div style={{ fontSize: '1.1rem', fontWeight: 'bold', marginBottom: '0.5rem' }}>
           {t('chart.chain_calculation')}
         </div>
 
@@ -531,7 +532,7 @@ const ChainCalculationInfoDialog: React.FC<{
           borderRadius: '4px',
           padding: '0.5rem',
           marginBottom: '0.75rem',
-          fontSize: '0.8rem',
+          fontSize: '0.85rem',
         }}>
           <div style={{ fontWeight: 'bold', marginBottom: '0.3rem' }}>{t('chart.how_calculated')}</div>
           <div style={{ opacity: 0.85, lineHeight: 1.4 }}>
@@ -548,7 +549,7 @@ const ChainCalculationInfoDialog: React.FC<{
         </div>
 
         {/* Widescreen layout - 3 columns */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', fontSize: '0.8rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '0.75rem', fontSize: '0.85rem' }}>
 
           {/* Left column - Vessel & Input Parameters */}
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
@@ -606,7 +607,7 @@ const ChainCalculationInfoDialog: React.FC<{
                 <span style={{ opacity: 0.7 }}>{t('chart.scope_7_1')}</span>
                 <span>{scope7to1}m</span>
               </div>
-              <div style={{ opacity: 0.5, fontSize: '0.65rem', marginTop: '0.2rem' }}>
+              <div style={{ opacity: 0.5, fontSize: '0.7rem', marginTop: '0.2rem' }}>
                 {t('chart.includes_freeboard', { freeboard: effectiveFreeboardHeight.toString() })}
               </div>
             </div>
@@ -629,11 +630,11 @@ const ChainCalculationInfoDialog: React.FC<{
                   onClick={() => onToggleFormula('catenary', !useCatenary)}
                   className="touch-btn"
                   style={{
-                    padding: '0.2rem 0.4rem',
-                    fontSize: '0.6rem',
+                    padding: '0.35rem 0.6rem',
+                    fontSize: '0.75rem',
                     background: useCatenary ? 'rgba(255, 167, 38, 0.3)' : 'rgba(255, 255, 255, 0.1)',
                     border: useCatenary ? '1px solid rgba(255, 167, 38, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '3px',
+                    borderRadius: '4px',
                     color: useCatenary ? '#ffa726' : 'rgba(255, 255, 255, 0.5)',
                     cursor: 'pointer',
                   }}
@@ -644,29 +645,29 @@ const ChainCalculationInfoDialog: React.FC<{
             </div>
             <div style={{
               background: 'rgba(255, 167, 38, 0.15)',
-              borderRadius: '3px',
+              borderRadius: '4px',
               padding: '0.3rem',
-              fontSize: '0.7rem',
+              fontSize: '0.75rem',
               marginBottom: '0.3rem',
             }}>
               {t('chart.catenary_uses')}
             </div>
-            <div style={{ opacity: 0.8, marginBottom: '0.3rem', fontSize: '0.75rem' }}>
+            <div style={{ opacity: 0.8, marginBottom: '0.3rem', fontSize: '0.8rem' }}>
               {t('chart.catenary_description')}
             </div>
             <div style={{
               fontFamily: 'monospace',
               background: 'rgba(0,0,0,0.3)',
               padding: '0.4rem',
-              borderRadius: '3px',
-              fontSize: '0.7rem',
+              borderRadius: '4px',
+              fontSize: '0.75rem',
               marginBottom: '0.3rem',
             }}>
               L = √(Y × (Y + 2a))<br />
               a = F / (m × g)<br />
               F = ½ × ρ × V² × A × Cd
             </div>
-            <div style={{ opacity: 0.6, fontSize: '0.65rem' }}>
+            <div style={{ opacity: 0.6, fontSize: '0.7rem' }}>
               <div><b>L</b> = {t('chart.catenary_var_L')}, <b>Y</b> = {t('chart.catenary_var_Y')} ({totalVertical.toFixed(1)}m)</div>
               <div><b>a</b> = {t('chart.catenary_var_a')}, <b>F</b> = {t('chart.catenary_var_F')}</div>
               <div><b>m</b> = {t('chart.catenary_var_m')}, <b>ρ</b> = {t('chart.catenary_var_rho')}</div>
@@ -691,11 +692,11 @@ const ChainCalculationInfoDialog: React.FC<{
                   onClick={() => onToggleFormula('windLoa', !useWindLoa)}
                   className="touch-btn"
                   style={{
-                    padding: '0.2rem 0.4rem',
-                    fontSize: '0.6rem',
+                    padding: '0.35rem 0.6rem',
+                    fontSize: '0.75rem',
                     background: useWindLoa ? 'rgba(102, 187, 106, 0.3)' : 'rgba(255, 255, 255, 0.1)',
                     border: useWindLoa ? '1px solid rgba(102, 187, 106, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
-                    borderRadius: '3px',
+                    borderRadius: '4px',
                     color: useWindLoa ? '#66bb6a' : 'rgba(255, 255, 255, 0.5)',
                     cursor: 'pointer',
                   }}
@@ -706,39 +707,39 @@ const ChainCalculationInfoDialog: React.FC<{
             </div>
             <div style={{
               background: 'rgba(102, 187, 106, 0.15)',
-              borderRadius: '3px',
+              borderRadius: '4px',
               padding: '0.3rem',
-              fontSize: '0.7rem',
+              fontSize: '0.75rem',
               marginBottom: '0.3rem',
             }}>
               {t('chart.wind_loa_uses')}
             </div>
-            <div style={{ opacity: 0.8, marginBottom: '0.3rem', fontSize: '0.75rem' }}>
+            <div style={{ opacity: 0.8, marginBottom: '0.3rem', fontSize: '0.8rem' }}>
               {t('chart.wind_loa_description')}
             </div>
             <div style={{
               fontFamily: 'monospace',
               background: 'rgba(0,0,0,0.3)',
               padding: '0.4rem',
-              borderRadius: '3px',
-              fontSize: '0.7rem',
+              borderRadius: '4px',
+              fontSize: '0.75rem',
               marginBottom: '0.3rem',
             }}>
               {t('chart.wind_loa_formula')}
             </div>
-            <div style={{ opacity: 0.6, fontSize: '0.65rem', marginBottom: '0.3rem' }}>
+            <div style={{ opacity: 0.6, fontSize: '0.7rem', marginBottom: '0.3rem' }}>
               <div><b>Wind</b> = {t('chart.wind_loa_var_wind')}</div>
               <div><b>LOA</b> = {t('chart.wind_loa_var_loa')} ({effectiveBoatLength}m)</div>
             </div>
-            <div style={{ opacity: 0.8, marginBottom: '0.15rem', fontWeight: 'bold', fontSize: '0.7rem' }}>
+            <div style={{ opacity: 0.8, marginBottom: '0.15rem', fontWeight: 'bold', fontSize: '0.75rem' }}>
               {t('chart.depth_factors')}:
             </div>
             <div style={{
               fontFamily: 'monospace',
               background: 'rgba(0,0,0,0.3)',
               padding: '0.3rem',
-              borderRadius: '3px',
-              fontSize: '0.65rem',
+              borderRadius: '4px',
+              fontSize: '0.7rem',
             }}>
               {t('chart.depth_factor_shallow')}<br />
               {t('chart.depth_factor_medium')}<br />
@@ -750,7 +751,7 @@ const ChainCalculationInfoDialog: React.FC<{
         {/* Sources */}
         <div style={{
           marginTop: '0.5rem',
-          fontSize: '0.55rem',
+          fontSize: '0.65rem',
           opacity: 0.5,
           borderTop: '1px solid rgba(255,255,255,0.1)',
           paddingTop: '0.4rem',
@@ -1168,8 +1169,8 @@ const ScopeVisualization: React.FC<{
             marginTop: '0.5rem',
             padding: '0.4rem',
             background: 'rgba(255, 255, 255, 0.05)',
-            borderRadius: '4px',
-            fontSize: '0.7rem',
+            borderRadius: '6px',
+            fontSize: '0.75rem',
           }}>
             {/* Quick recommendations - clickable */}
             <div
@@ -1184,35 +1185,35 @@ const ScopeVisualization: React.FC<{
               <div style={{
                 padding: '0.2rem',
                 background: chainLength >= recommendations.min ? 'rgba(102, 187, 106, 0.2)' : 'rgba(239, 83, 80, 0.2)',
-                borderRadius: '3px',
+                borderRadius: '4px',
                 textAlign: 'center',
               }}>
-                <div style={{ fontSize: '0.55rem', opacity: 0.7 }}>{t('chart.minimum')}</div>
-                <div style={{ fontWeight: 'bold', fontSize: '0.75rem' }}>{recommendations.min}m</div>
+                <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.minimum')}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{recommendations.min}m</div>
               </div>
               <div style={{
                 padding: '0.2rem',
                 background: chainLength >= recommendations.recommended ? 'rgba(102, 187, 106, 0.2)' : 'rgba(255, 167, 38, 0.2)',
-                borderRadius: '3px',
+                borderRadius: '4px',
                 textAlign: 'center',
               }}>
-                <div style={{ fontSize: '0.55rem', opacity: 0.7 }}>{t('chart.recommended')}</div>
-                <div style={{ fontWeight: 'bold', fontSize: '0.75rem' }}>{recommendations.recommended}m</div>
+                <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.recommended')}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{recommendations.recommended}m</div>
               </div>
               <div style={{
                 padding: '0.2rem',
                 background: chainLength >= recommendations.storm ? 'rgba(102, 187, 106, 0.2)' : 'rgba(255, 238, 88, 0.2)',
-                borderRadius: '3px',
+                borderRadius: '4px',
                 textAlign: 'center',
               }}>
-                <div style={{ fontSize: '0.55rem', opacity: 0.7 }}>{t('chart.storm')}</div>
-                <div style={{ fontWeight: 'bold', fontSize: '0.75rem' }}>{recommendations.storm}m</div>
+                <div style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.storm')}</div>
+                <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>{recommendations.storm}m</div>
               </div>
             </div>
 
             {/* Tap for info hint */}
             <div style={{
-              fontSize: '0.55rem',
+              fontSize: '0.65rem',
               opacity: 0.5,
               textAlign: 'center',
               marginTop: '0.2rem',
@@ -1227,14 +1228,14 @@ const ScopeVisualization: React.FC<{
                 marginTop: '0.3rem',
                 padding: '0.3rem 0.4rem',
                 background: 'rgba(239, 83, 80, 0.2)',
-                borderRadius: '4px',
-                fontSize: '0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.8rem',
                 color: '#ef5350',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '0.3rem',
               }}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                   <line x1="12" y1="9" x2="12" y2="13" />
                   <line x1="12" y1="17" x2="12.01" y2="17" />
@@ -1536,7 +1537,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
       <CloseButton onClick={onClose} />
       <div
         style={{
-          fontSize: '0.9rem',
+          fontSize: '1.1rem',
           fontWeight: 'bold',
           marginBottom: '0.75rem',
           textAlign: 'center',
@@ -1547,7 +1548,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
 
       {/* Chain Length Input */}
       <div style={{ marginBottom: '0.6rem' }}>
-        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.3rem' }}>
+        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.3rem' }}>
           {t('anchor.chain_out')}
         </div>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.4rem' }}>
@@ -1555,13 +1556,13 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             onClick={() => setChainLength(Math.max(0, Math.ceil(chainLength) - 1))}
             className="touch-btn"
             style={{
-              width: '44px',
-              padding: '0.5rem 0',
-              borderRadius: '4px',
+              width: '52px',
+              padding: '0.6rem 0',
+              borderRadius: '6px',
               background: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255,255,255,0.2)',
               color: '#fff',
-              fontSize: '1.1rem',
+              fontSize: '1.3rem',
               cursor: 'pointer',
             }}
           >
@@ -1580,12 +1581,12 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             }}
             style={{
               flex: 1,
-              padding: '0.5rem',
+              padding: '0.6rem',
               background: 'rgba(255, 255, 255, 0.1)',
               border: chainHasError ? '1px solid #ef5350' : '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: chainHasError ? '#ef5350' : '#fff',
-              fontSize: '0.9rem',
+              fontSize: '1rem',
               textAlign: 'center',
               outline: 'none',
             }}
@@ -1594,13 +1595,13 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             onClick={() => setChainLength(Math.floor(chainLength) + 1)}
             className="touch-btn"
             style={{
-              width: '44px',
-              padding: '0.5rem 0',
-              borderRadius: '4px',
+              width: '52px',
+              padding: '0.6rem 0',
+              borderRadius: '6px',
               background: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255,255,255,0.2)',
               color: '#fff',
-              fontSize: '1.1rem',
+              fontSize: '1.3rem',
               cursor: 'pointer',
             }}
           >
@@ -1608,7 +1609,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           </button>
         </div>
         {chainHasError && (
-          <div style={{ fontSize: '0.65rem', color: '#ef5350', marginTop: '0.2rem' }}>
+          <div style={{ fontSize: '0.75rem', color: '#ef5350', marginTop: '0.2rem' }}>
             {t('validation.invalid_number')}
           </div>
         )}
@@ -1616,7 +1617,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
 
       {/* Depth Input */}
       <div style={{ marginBottom: '0.6rem' }}>
-        <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.3rem' }}>
+        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.3rem' }}>
           {t('anchor.depth_meters')}
         </div>
         <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.4rem' }}>
@@ -1624,13 +1625,13 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             onClick={() => setDepth(Math.max(0, Math.round((depth - 0.5) * 10) / 10))}
             className="touch-btn"
             style={{
-              width: '44px',
-              padding: '0.5rem 0',
-              borderRadius: '4px',
+              width: '52px',
+              padding: '0.6rem 0',
+              borderRadius: '6px',
               background: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255,255,255,0.2)',
               color: '#fff',
-              fontSize: '1.1rem',
+              fontSize: '1.3rem',
               cursor: 'pointer',
             }}
           >
@@ -1655,12 +1656,12 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             }}
             style={{
               flex: 1,
-              padding: '0.5rem',
+              padding: '0.6rem',
               background: 'rgba(255, 255, 255, 0.1)',
               border: depthHasError ? '1px solid #ef5350' : '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '4px',
+              borderRadius: '6px',
               color: depthHasError ? '#ef5350' : '#fff',
-              fontSize: '0.9rem',
+              fontSize: '1rem',
               textAlign: 'center',
               outline: 'none',
             }}
@@ -1669,13 +1670,13 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             onClick={() => setDepth(Math.round((depth + 0.5) * 10) / 10)}
             className="touch-btn"
             style={{
-              width: '44px',
-              padding: '0.5rem 0',
-              borderRadius: '4px',
+              width: '52px',
+              padding: '0.6rem 0',
+              borderRadius: '6px',
               background: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255,255,255,0.2)',
               color: '#fff',
-              fontSize: '1.1rem',
+              fontSize: '1.3rem',
               cursor: 'pointer',
             }}
           >
@@ -1683,7 +1684,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           </button>
         </div>
         {depthHasError && (
-          <div style={{ fontSize: '0.65rem', color: '#ef5350', marginTop: '0.2rem' }}>
+          <div style={{ fontSize: '0.75rem', color: '#ef5350', marginTop: '0.2rem' }}>
             {t('validation.invalid_number')}
           </div>
         )}
@@ -1699,9 +1700,9 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           padding: '0.75rem',
           background: 'rgba(255, 255, 255, 0.05)',
           border: '1px solid rgba(255, 255, 255, 0.15)',
-          borderRadius: '4px',
+          borderRadius: '6px',
           color: anchorPosition ? '#4fc3f7' : 'rgba(255, 255, 255, 0.7)',
-          fontSize: '0.9rem',
+          fontSize: '0.95rem',
           cursor: 'pointer',
           display: 'flex',
           alignItems: 'center',
@@ -1742,7 +1743,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
       {weatherEnabled && (
         <div style={{ marginBottom: '0.5rem' }}>
           {/* Planned Stay Duration Selector */}
-          <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.3rem' }}>
+          <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.3rem' }}>
             {t('anchor.planned_stay')}
           </div>
           <div style={{
@@ -1762,10 +1763,10 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                 className="touch-btn"
                 style={{
                   flex: 1,
-                  padding: '0.5rem 0.4rem',
+                  padding: '0.7rem 0.4rem',
                   background: forecastHours === hours ? 'rgba(79, 195, 247, 0.3)' : 'rgba(255, 255, 255, 0.05)',
                   border: forecastHours === hours ? '1px solid #4fc3f7' : '1px solid rgba(255, 255, 255, 0.1)',
-                  borderRadius: '4px',
+                  borderRadius: '6px',
                   color: forecastHours === hours ? '#4fc3f7' : 'rgba(255, 255, 255, 0.7)',
                   fontSize: '0.9rem',
                   fontWeight: forecastHours === hours ? 'bold' : 'normal',
@@ -1789,7 +1790,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   borderRadius: '4px',
                   textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.4 }}>{t('anchor.min_chain')}</div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.4 }}>{t('anchor.min_chain')}</div>
                   <div style={{
                     width: '2.5rem',
                     height: '1.1rem',
@@ -1805,7 +1806,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   borderRadius: '4px',
                   textAlign: 'center',
                 }}>
-                  <div style={{ fontSize: '0.7rem', opacity: 0.4 }}>{t('anchor.recommended_chain')}</div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.4 }}>{t('anchor.recommended_chain')}</div>
                   <div style={{
                     width: '2.5rem',
                     height: '1.1rem',
@@ -1818,7 +1819,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
               {/* Skeleton for wind/gust row */}
               <div style={{ display: 'flex', gap: '0.3rem' }}>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.4 }}>{t('anchor.max_wind')}</div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.4 }}>{t('anchor.max_wind')}</div>
                   <div style={{
                     width: '2rem',
                     height: '0.7rem',
@@ -1827,7 +1828,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   }} />
                 </div>
                 <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
-                  <div style={{ fontSize: '0.65rem', opacity: 0.4 }}>{t('anchor.max_gust')}</div>
+                  <div style={{ fontSize: '0.8rem', opacity: 0.4 }}>{t('anchor.max_gust')}</div>
                   <div style={{
                     width: '2rem',
                     height: '0.7rem',
@@ -1904,11 +1905,11 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                       borderRadius: '4px',
                       textAlign: 'center',
                     }}>
-                      <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>{t('anchor.min_chain')}</div>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{t('anchor.min_chain')}</div>
                       {depth > 0 ? (
                         <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{minChain}m</div>
                       ) : (
-                        <div style={{ fontSize: '0.55rem', opacity: 0.5 }}>{t('anchor.set_depth')}</div>
+                        <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>{t('anchor.set_depth')}</div>
                       )}
                     </div>
 
@@ -1920,11 +1921,11 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                       borderRadius: '4px',
                       textAlign: 'center',
                     }}>
-                      <div style={{ fontSize: '0.7rem', opacity: 0.6 }}>{t('anchor.recommended_chain')}</div>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{t('anchor.recommended_chain')}</div>
                       {depth > 0 ? (
                         <div style={{ fontWeight: 'bold', fontSize: '1rem' }}>{recommendedChain}m</div>
                       ) : (
-                        <div style={{ fontSize: '0.55rem', opacity: 0.5 }}>{t('anchor.set_depth')}</div>
+                        <div style={{ fontSize: '0.7rem', opacity: 0.5 }}>{t('anchor.set_depth')}</div>
                       )}
                     </div>
                   </div>
@@ -1932,14 +1933,14 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   {/* Wind/Gust values below boxes */}
                   <div style={{ display: 'flex', gap: '0.3rem' }}>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
-                      <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{t('anchor.max_wind')}</div>
-                      <div style={{ fontWeight: 'bold', fontSize: '0.65rem' }}>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{t('anchor.max_wind')}</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
                         {Math.round(convertWind(weatherForecast.maxWind))}{windUnit}
                       </div>
                     </div>
                     <div style={{ flex: 1, display: 'flex', alignItems: 'baseline', justifyContent: 'center', gap: '0.15rem' }}>
-                      <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>{t('anchor.max_gust')}</div>
-                      <div style={{ fontWeight: 'bold', fontSize: '0.65rem' }}>
+                      <div style={{ fontSize: '0.8rem', opacity: 0.6 }}>{t('anchor.max_gust')}</div>
+                      <div style={{ fontWeight: 'bold', fontSize: '0.85rem' }}>
                         {Math.round(convertWind(weatherForecast.maxGusts))}{windUnit}
                       </div>
                     </div>
@@ -1949,7 +1950,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
               );
             })()
           ) : (
-            <div style={{ fontSize: '0.65rem', opacity: 0.5, textAlign: 'center' }}>{t('chart.forecast_unavailable')}</div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.5, textAlign: 'center' }}>{t('chart.forecast_unavailable')}</div>
           )}
         </div>
       )}
@@ -1984,8 +1985,8 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           padding: '0.35rem',
           background: 'rgba(239, 83, 80, 0.2)',
           border: '1px solid rgba(239, 83, 80, 0.4)',
-          borderRadius: '4px',
-          fontSize: '0.7rem',
+          borderRadius: '6px',
+          fontSize: '0.8rem',
           color: '#ef5350',
         }}>
           {t('anchor.chain_gt_depth')}
@@ -1999,13 +2000,13 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           className="touch-btn"
           style={{
             flex: 1,
-            padding: '1rem',
+            padding: '0.9rem',
             background: isEditing ? 'rgba(239, 83, 80, 0.3)' : 'rgba(255, 255, 255, 0.1)',
             border: isEditing ? '1px solid rgba(239, 83, 80, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
-            borderRadius: '4px',
+            borderRadius: '6px',
             color: isEditing ? '#ef5350' : '#fff',
             cursor: 'pointer',
-            fontSize: '0.9rem',
+            fontSize: '1rem',
           }}
         >
           {isEditing ? t('common.delete') : t('common.cancel')}
@@ -2016,15 +2017,15 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           className="touch-btn"
           style={{
             flex: 1,
-            padding: '1rem',
+            padding: '0.9rem',
             background: canActivate
               ? 'rgba(79, 195, 247, 0.5)'
               : 'rgba(255, 255, 255, 0.05)',
             border: 'none',
-            borderRadius: '4px',
+            borderRadius: '6px',
             color: '#fff',
             cursor: canActivate ? 'pointer' : 'not-allowed',
-            fontSize: '0.9rem',
+            fontSize: '1rem',
             fontWeight: 'bold',
             opacity: canActivate ? 1 : 0.5,
           }}

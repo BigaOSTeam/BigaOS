@@ -1755,36 +1755,33 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 style={{
                   background: 'rgba(39, 174, 96, 0.9)',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  padding: '0.75rem 1rem',
                   color: '#fff',
-                  fontSize: '0.8rem',
+                  fontSize: '0.9rem',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '0.6rem',
+                  gap: '0.5rem',
                 }}
               >
                 <svg
-                  width="14"
-                  height="14"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
-                  strokeWidth="2.5"
+                  strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <circle cx="6" cy="8" r="2" fill="currentColor" />
-                  <path d="M6 10v4" />
-                  <path d="M8 12h2" strokeDasharray="2 2" />
-                  <path d="M12 12h2" strokeDasharray="2 2" />
-                  <path
-                    d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z"
-                    fill="currentColor"
-                  />
+                  <circle cx="5" cy="18" r="3" fill="currentColor" />
+                  <line x1="8" y1="16" x2="16" y2="8" strokeDasharray="3 3" />
+                  <path d="M19 3c-3.5 0-5 2.5-5 5s2.5 5 5 5 5-2.5 5-5-1.5-5-5-5z" fill="none" stroke="none" />
+                  <path d="M19 2a4 4 0 0 0-4 4c0 3 4 6 4 6s4-3 4-6a4 4 0 0 0-4-4z" fill="currentColor" stroke="none" />
+                  <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
                 </svg>
                 {navigationTarget.name && (
                   <>
@@ -1799,8 +1796,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 <span style={{ opacity: 0.7 }}>|</span>
                 <span>{formatETA(etaHours)}</span>
                 <svg
-                  width="14"
-                  height="14"
+                  width="18"
+                  height="18"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -1818,14 +1815,21 @@ export const ChartView: React.FC<ChartViewProps> = ({
             {/* Autopilot banner */}
             {autopilotActive && (
               <button
-                onClick={() => setAutopilotOpen(true)}
+                onClick={() => {
+                  setAutopilotOpen(true);
+                  setDepthSettingsOpen(false);
+                  setSearchOpen(false);
+                  setWeatherPanelOpen(false);
+                  setAnchorAlarmDialogOpen(false);
+                  setVesselDetailsDialogOpen(false);
+                }}
                 style={{
                   background: 'rgba(25, 118, 210, 0.9)',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  padding: '0.8rem 1rem 0.7rem',
                   color: '#fff',
-                  fontSize: '0.8rem',
+                  fontSize: '0.9rem',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
@@ -1835,24 +1839,25 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 }}
               >
                 <svg
-                  width="14"
-                  height="14"
-                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  viewBox="-1 -1 26 26"
                   fill="none"
                   stroke="currentColor"
                   strokeWidth="2.5"
                   strokeLinecap="round"
                   strokeLinejoin="round"
+                  style={{ display: 'block', flexShrink: 0, position: 'relative', top: '-1px' }}
                 >
                   <circle cx="12" cy="12" r="10" />
-                  <path d="M12 6v6l4 2" />
+                  <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" fill="currentColor" />
                 </svg>
                 <span>{t('autopilot.autopilot')}</span>
                 {followingRoute && (
                   <>
                     <svg
-                      width="12"
-                      height="12"
+                      width="14"
+                      height="14"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -1873,10 +1878,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
                   <span
                     style={{
                       marginLeft: '0.25rem',
-                      padding: '0.15rem 0.4rem',
+                      padding: '0.2rem 0.5rem',
                       background: 'rgba(255, 193, 7, 0.9)',
-                      borderRadius: '3px',
-                      fontSize: '0.7rem',
+                      borderRadius: '6px',
+                      fontSize: '0.75rem',
                       color: '#000',
                       fontWeight: 'bold',
                     }}
@@ -1895,14 +1900,19 @@ export const ChartView: React.FC<ChartViewProps> = ({
                   setAnchorDepth(anchorAlarm.depth);
                   setAnchorPositionOverride(anchorAlarm.anchorPosition);
                   setAnchorAlarmDialogOpen(true);
+                  setDepthSettingsOpen(false);
+                  setSearchOpen(false);
+                  setAutopilotOpen(false);
+                  setWeatherPanelOpen(false);
+                  setVesselDetailsDialogOpen(false);
                 }}
                 style={{
-                  background: 'rgba(230, 120, 0, 0.9)',
+                  background: 'rgba(39, 174, 96, 0.9)',
                   border: 'none',
-                  borderRadius: '4px',
-                  padding: '0.5rem 0.75rem',
+                  borderRadius: '8px',
+                  padding: '0.8rem 1rem 0.7rem',
                   color: '#fff',
-                  fontSize: '0.8rem',
+                  fontSize: '0.9rem',
                   fontWeight: 'bold',
                   cursor: 'pointer',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
@@ -1912,10 +1922,11 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 }}
               >
                 <svg
-                  width="14"
-                  height="14"
+                  width="16"
+                  height="16"
                   viewBox="0 0 24 24"
                   fill="currentColor"
+                  style={{ display: 'block', flexShrink: 0, position: 'relative', top: '-1px' }}
                 >
                   <path d="M17 15l1.55 1.55c-.96 1.69-3.33 3.04-5.55 3.37V11h3V9h-3V7.82C14.16 7.4 15 6.3 15 5c0-1.65-1.35-3-3-3S9 3.35 9 5c0 1.3.84 2.4 2 2.82V9H8v2h3v8.92c-2.22-.33-4.59-1.68-5.55-3.37L7 15l-4-3v3c0 3.88 4.92 7 9 7s9-3.12 9-7v-3l-4 3zM12 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1z"/>
                 </svg>
@@ -2029,11 +2040,11 @@ export const ChartView: React.FC<ChartViewProps> = ({
               gap: '0.5rem',
             }}
           >
-            <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>
+            <div style={{ fontSize: '0.95rem', opacity: 0.8 }}>
               {t('chart.pan_to_set_anchor')}
             </div>
             {anchorPositionOverride && (
-              <div style={{ fontSize: '0.9rem', color: '#4fc3f7', width: '100%' }}>
+              <div style={{ fontSize: '0.95rem', color: '#4fc3f7', width: '100%' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>{t('chart.distance_from_boat')}</span>
                   <span>{calculateDistanceMeters(
@@ -2062,12 +2073,12 @@ export const ChartView: React.FC<ChartViewProps> = ({
               }}
               className="touch-btn"
               style={{
-                padding: '0.5rem 1.5rem',
+                padding: '0.9rem 1.5rem',
                 background: 'rgba(79, 195, 247, 0.5)',
                 border: 'none',
                 borderRadius: '6px',
                 color: '#fff',
-                fontSize: '0.9rem',
+                fontSize: '1rem',
                 fontWeight: 'bold',
                 cursor: 'pointer',
               }}
@@ -2158,7 +2169,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
             {
               label: t('chart.create_marker'),
               icon: (
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="#4fc3f7" stroke="#fff" strokeWidth="1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="#4fc3f7" stroke="none" strokeWidth="0">
                   <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z" />
                 </svg>
               ),
@@ -2168,11 +2179,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
               label: t('chart.navigate_here'),
               icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#66bb6a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="6" cy="8" r="2" fill="#66bb6a" />
-                  <path d="M6 10v4" />
-                  <path d="M8 12h2" strokeDasharray="2 2" />
-                  <path d="M12 12h2" strokeDasharray="2 2" />
-                  <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="#66bb6a" />
+                  <circle cx="5" cy="18" r="3" fill="#66bb6a" />
+                  <line x1="8" y1="16" x2="16" y2="8" strokeDasharray="3 3" />
+                  <path d="M19 2a4 4 0 0 0-4 4c0 3 4 6 4 6s4-3 4-6a4 4 0 0 0-4-4z" fill="#66bb6a" stroke="none" />
+                  <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
                 </svg>
               ),
               onClick: () => navigateToCoordinates(contextMenu.lat, contextMenu.lon),
@@ -2210,11 +2220,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
               label: t('chart.navigate_to_marker'),
               icon: (
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#66bb6a" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="6" cy="8" r="2" fill="#66bb6a" />
-                  <path d="M6 10v4" />
-                  <path d="M8 12h2" strokeDasharray="2 2" />
-                  <path d="M12 12h2" strokeDasharray="2 2" />
-                  <path d="M18 6c0 3-3 6-3 6s-3-3-3-6a3 3 0 1 1 6 0z" fill="#66bb6a" />
+                  <circle cx="5" cy="18" r="3" fill="#66bb6a" />
+                  <line x1="8" y1="16" x2="16" y2="8" strokeDasharray="3 3" />
+                  <path d="M19 2a4 4 0 0 0-4 4c0 3 4 6 4 6s4-3 4-6a4 4 0 0 0-4-4z" fill="#66bb6a" stroke="none" />
+                  <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
                 </svg>
               ),
               onClick: () => navigateToMarker(markerContextMenu.marker),

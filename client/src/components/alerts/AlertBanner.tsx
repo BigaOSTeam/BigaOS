@@ -33,16 +33,16 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
       style={{
         display: 'flex',
         alignItems: 'center',
-        gap: theme.space.sm,
-        padding: `${theme.space.sm} ${theme.space.md}`,
+        gap: theme.space.md,
+        padding: `${theme.space.md} ${theme.space.lg}`,
         background: getBgColor(),
-        borderRadius: theme.radius.md,
+        borderRadius: '8px',
         boxShadow: theme.shadow.lg,
         cursor: 'pointer',
         animation: isCritical ? 'alertPulse 1s ease-in-out infinite' : 'slideDown 0.3s ease-out',
         transition: `transform ${theme.transition.fast}`,
-        minWidth: '200px',
-        maxWidth: '400px',
+        minWidth: '240px',
+        maxWidth: '440px',
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.transform = 'scale(1.02)';
@@ -58,7 +58,7 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
           minWidth: 0,
           fontWeight: theme.fontWeight.medium,
           color: '#fff',
-          fontSize: theme.fontSize.sm,
+          fontSize: '0.9rem',
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
@@ -71,11 +71,13 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
       <div
         style={{
           color: 'rgba(255, 255, 255, 0.7)',
-          fontSize: theme.fontSize.xs,
+          fontSize: '0.8rem',
           flexShrink: 0,
+          display: 'flex',
+          alignItems: 'center',
         }}
       >
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
           <line x1="18" y1="6" x2="6" y2="18" />
           <line x1="6" y1="6" x2="18" y2="18" />
         </svg>

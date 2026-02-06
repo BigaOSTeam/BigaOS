@@ -158,13 +158,13 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
         }}
       >
-        <div style={{ fontSize: '0.6rem', opacity: 0.6, marginBottom: '0.15rem' }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.15rem' }}>
           {t('chart.speed')}
         </div>
         <div style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>
           {convertedSpeed.toFixed(1)}
         </div>
-        <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>
           {speedConversions[speedUnit].label}
         </div>
       </div>
@@ -183,7 +183,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       >
         <div
           style={{
-            fontSize: '0.6rem',
+            fontSize: '0.65rem',
             opacity: 0.6,
             marginBottom: '0.15rem',
             display: 'flex',
@@ -212,7 +212,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: depthColor }}>
           {convertedDepth.toFixed(1)}
         </div>
-        <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>
+        <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>
           {depthConversions[depthUnit].label}
         </div>
       </div>
@@ -274,7 +274,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               </g>
             )}
           </svg>
-          <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>{t('chart.forecast')}</span>
+          <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.forecast')}</span>
         </button>
       )}
 
@@ -300,7 +300,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           <circle cx="11" cy="11" r="8" />
           <line x1="21" y1="21" x2="16.65" y2="16.65" />
         </svg>
-        <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>{t('chart.search')}</span>
+        <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.search')}</span>
       </button>
 
       {/* Satellite/Street toggle button */}
@@ -345,7 +345,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             <path d="M2 12h20" />
           </svg>
         )}
-        <span style={{ fontSize: '0.55rem', opacity: 0.7 }}>
+        <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>
           {useSatellite ? t('chart.map') : t('chart.satellite')}
         </span>
       </button>

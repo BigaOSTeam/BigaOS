@@ -40,13 +40,13 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
           overflowY: 'auto',
           background: 'rgb(10, 25, 41)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '4px',
+          borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
         }}
       >
-        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>
+        <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.75rem' }}>
           {t('depth.depth_alarm_upper')}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -59,7 +59,7 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
                   ? 'rgba(25, 118, 210, 0.5)'
                   : 'rgba(255, 255, 255, 0.1)',
               border: 'none',
-              borderRadius: '3px',
+              borderRadius: '6px',
               color: '#fff',
               cursor: 'pointer',
               fontSize: '1.1rem',
@@ -79,7 +79,7 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
                     ? 'rgba(25, 118, 210, 0.5)'
                     : 'rgba(255, 255, 255, 0.1)',
                 border: 'none',
-                borderRadius: '3px',
+                borderRadius: '6px',
                 color: '#fff',
                 cursor: 'pointer',
                 fontSize: '1.1rem',
@@ -110,7 +110,7 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
               ? 'rgba(25, 118, 210, 0.5)'
               : 'rgba(255, 255, 255, 0.1)',
             border: 'none',
-            borderRadius: '3px',
+            borderRadius: '6px',
             color: '#fff',
             cursor: 'pointer',
             fontSize: '1.1rem',
@@ -204,13 +204,13 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
           overflowY: 'auto',
           background: 'rgb(10, 25, 41)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '4px',
+          borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
         }}
       >
-        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.75rem' }}>
+        <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.75rem' }}>
           {t('autopilot.autopilot')}
         </div>
 
@@ -221,11 +221,11 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             marginBottom: '1rem',
             padding: '0.75rem',
             background: isActive ? 'rgba(39, 174, 96, 0.2)' : 'rgba(255, 255, 255, 0.05)',
-            borderRadius: '4px',
+            borderRadius: '6px',
             border: isActive ? '1px solid rgba(39, 174, 96, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
           }}
         >
-          <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.25rem' }}>
+          <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>
             {t('autopilot.set_course')}
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>
@@ -240,13 +240,13 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             <button
               onClick={() => adjustHeading(-1)}
               style={{
-                padding: '0.6rem',
+                padding: '0.7rem',
                 background: 'rgba(255, 255, 255, 0.1)',
                 border: 'none',
-                borderRadius: '3px',
+                borderRadius: '6px',
                 color: '#fff',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: '0.95rem',
               }}
             >
               -1°
@@ -254,13 +254,13 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             <button
               onClick={() => adjustHeading(-10)}
               style={{
-                padding: '0.6rem',
+                padding: '0.7rem',
                 background: 'rgba(255, 255, 255, 0.1)',
                 border: 'none',
-                borderRadius: '3px',
+                borderRadius: '6px',
                 color: '#fff',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: '0.95rem',
               }}
             >
               -10°
@@ -271,13 +271,13 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             <button
               onClick={() => adjustHeading(1)}
               style={{
-                padding: '0.6rem',
+                padding: '0.7rem',
                 background: 'rgba(255, 255, 255, 0.1)',
                 border: 'none',
-                borderRadius: '3px',
+                borderRadius: '6px',
                 color: '#fff',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: '0.95rem',
               }}
             >
               +1°
@@ -285,13 +285,13 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             <button
               onClick={() => adjustHeading(10)}
               style={{
-                padding: '0.6rem',
+                padding: '0.7rem',
                 background: 'rgba(255, 255, 255, 0.1)',
                 border: 'none',
-                borderRadius: '3px',
+                borderRadius: '6px',
                 color: '#fff',
                 cursor: 'pointer',
-                fontSize: '0.9rem',
+                fontSize: '0.95rem',
               }}
             >
               +10°
@@ -353,13 +353,13 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
           onClick={onToggleActive}
           style={{
             width: '100%',
-            padding: '0.75rem',
+            padding: '0.9rem',
             background: isActive ? 'rgba(239, 83, 80, 0.3)' : 'rgba(39, 174, 96, 0.3)',
             border: `1px solid ${isActive ? 'rgba(239, 83, 80, 0.5)' : 'rgba(39, 174, 96, 0.5)'}`,
-            borderRadius: '3px',
+            borderRadius: '6px',
             color: '#fff',
             cursor: 'pointer',
-            fontSize: '0.9rem',
+            fontSize: '1rem',
           }}
         >
           {isActive ? t('autopilot.deactivate') : t('autopilot.activate')}
@@ -537,13 +537,13 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           overflowY: 'auto',
           background: 'rgb(10, 25, 41)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '4px',
+          borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
         }}
       >
-        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+        <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.5rem' }}>
           {t('weather.marine_forecast')}
         </div>
 
@@ -571,7 +571,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 }}
                 style={{
                   padding: '0.9rem 0.4rem',
-                  borderRadius: '4px',
+                  borderRadius: '6px',
                   border: 'none',
                   background: displayMode === mode && enabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
                   color: '#fff',
@@ -588,7 +588,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             onClick={() => { if (enabled) onToggleEnabled(); }}
             style={{
               padding: '0.9rem 0.4rem',
-              borderRadius: '4px',
+              borderRadius: '6px',
               border: 'none',
               background: !enabled ? 'rgba(239, 83, 80, 0.5)' : 'rgba(255, 255, 255, 0.1)',
               color: '#fff',
@@ -629,7 +629,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               <span style={{ color: '#4FC3F7' }}>{t('weather.loading')}</span>
             </>
           ) : error ? (
-            <span style={{ color: '#FF9800', fontSize: '0.65rem', textAlign: 'center' }}>{error}</span>
+            <span style={{ color: '#FF9800', fontSize: '0.75rem', textAlign: 'center' }}>{error}</span>
           ) : enabled ? (
             <span style={{ color: '#4FC3F7' }}>{getForecastTime()}</span>
           ) : (
@@ -638,7 +638,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
         </div>
 
         {/* TIME section header */}
-        <div style={{ fontSize: '0.7rem', opacity: 0.5, marginBottom: '0.4rem', marginTop: '0.25rem' }}>
+        <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.4rem', marginTop: '0.25rem' }}>
           {t('weather.time')}
         </div>
 
@@ -655,7 +655,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               onClick={() => handlePresetSelect(opt.hour)}
               style={{
                 padding: '0.9rem 0.3rem',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 border: 'none',
                 background: isSelected(opt.hour) ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
                 color: '#fff',
@@ -670,7 +670,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             onClick={handleOpenCustomDialog}
             style={{
               padding: '0.9rem 0.3rem',
-              borderRadius: '4px',
+              borderRadius: '6px',
               border: 'none',
               background: !isPresetSelected && enabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
               color: '#fff',
@@ -690,7 +690,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
         }}>
           {displayMode === 'wind' ? (
             <>
-              <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
                 {t('weather.wind_speed')} ({unitLabel})
               </div>
               <div style={{
@@ -724,7 +724,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             </>
           ) : displayMode === 'waves' || displayMode === 'swell' ? (
             <>
-              <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
                 {displayMode === 'swell' ? t('weather.swell_height') : t('weather.wave_height')} ({depthConversions[depthUnit].label}) + period (s)
               </div>
               <div style={{
@@ -785,7 +785,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             </>
           ) : displayMode === 'current' ? (
             <>
-              <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
                 {t('weather.current_speed')} (kt)
               </div>
               <div style={{
@@ -819,7 +819,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             </>
           ) : (
             <>
-              <div style={{ fontSize: '0.7rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+              <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>
                 {t('weather.sea_temperature')} ({temperatureConversions[temperatureUnit].label})
               </div>
               <div style={{
@@ -886,7 +886,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           marginTop: '0.75rem',
           paddingTop: '0.5rem',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          fontSize: '0.55rem',
+          fontSize: '0.65rem',
           opacity: 0.5,
           textAlign: 'center',
         }}>
@@ -910,27 +910,27 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             transform: 'translate(-50%, -50%)',
             background: 'rgb(10, 25, 41)',
             border: '1px solid rgba(255, 255, 255, 0.3)',
-            borderRadius: '6px',
+            borderRadius: '8px',
             padding: '1.25rem',
             zIndex: 1100,
             boxShadow: '0 8px 24px rgba(0,0,0,0.5)',
             minWidth: '280px',
           }}
         >
-          <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '1rem' }}>
+          <div style={{ fontSize: '0.9rem', opacity: 0.6, marginBottom: '1rem' }}>
             {t('weather.custom_time')}
           </div>
 
           {/* Days selector */}
           <div style={{ marginBottom: '1rem' }}>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.4rem' }}>{t('weather.days_from_now')}</div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.5, marginBottom: '0.4rem' }}>{t('weather.days_from_now')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button
                 onClick={() => setCustomDays(Math.max(0, customDays - 1))}
                 style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '4px',
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '6px',
                   border: 'none',
                   background: 'rgba(255, 255, 255, 0.1)',
                   color: '#fff',
@@ -951,9 +951,9 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               <button
                 onClick={() => setCustomDays(Math.min(6, customDays + 1))}
                 style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '4px',
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '6px',
                   border: 'none',
                   background: 'rgba(255, 255, 255, 0.1)',
                   color: '#fff',
@@ -968,14 +968,14 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
 
           {/* Hours selector */}
           <div style={{ marginBottom: '1.25rem' }}>
-            <div style={{ fontSize: '0.75rem', opacity: 0.5, marginBottom: '0.4rem' }}>{t('weather.hours')}</div>
+            <div style={{ fontSize: '0.8rem', opacity: 0.5, marginBottom: '0.4rem' }}>{t('weather.hours')}</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <button
                 onClick={() => setCustomHours(Math.max(0, customHours - 1))}
                 style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '4px',
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '6px',
                   border: 'none',
                   background: 'rgba(255, 255, 255, 0.1)',
                   color: '#fff',
@@ -996,9 +996,9 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               <button
                 onClick={() => setCustomHours(Math.min(23, customHours + 1))}
                 style={{
-                  width: '48px',
-                  height: '48px',
-                  borderRadius: '4px',
+                  width: '52px',
+                  height: '52px',
+                  borderRadius: '6px',
                   border: 'none',
                   background: 'rgba(255, 255, 255, 0.1)',
                   color: '#fff',
@@ -1014,12 +1014,12 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           {/* Date/time preview */}
           <div style={{
             textAlign: 'center',
-            fontSize: '0.95rem',
+            fontSize: '1rem',
             color: '#4FC3F7',
             marginBottom: '1rem',
             padding: '0.6rem',
             background: 'rgba(79, 195, 247, 0.1)',
-            borderRadius: '4px',
+            borderRadius: '6px',
           }}>
             {(() => {
               const totalHours = customDays * 24 + customHours;
@@ -1051,11 +1051,11 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               style={{
                 flex: 1,
                 padding: '0.9rem',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 border: 'none',
                 background: 'rgba(255, 255, 255, 0.1)',
                 color: '#fff',
-                fontSize: '0.95rem',
+                fontSize: '1rem',
                 cursor: 'pointer',
               }}
             >
@@ -1066,11 +1066,11 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               style={{
                 flex: 1,
                 padding: '0.9rem',
-                borderRadius: '4px',
+                borderRadius: '6px',
                 border: 'none',
                 background: 'rgba(25, 118, 210, 0.6)',
                 color: '#fff',
-                fontSize: '0.95rem',
+                fontSize: '1rem',
                 cursor: 'pointer',
                 fontWeight: 'bold',
               }}
@@ -1148,11 +1148,11 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           top: '50%',
           transform: 'translateY(-50%)',
           right: `${sidebarWidth + 8}px`,
-          width: '300px',
+          width: '340px',
           maxHeight: 'calc(100vh - 32px)',
           background: 'rgb(10, 25, 41)',
           border: '1px solid rgba(255, 255, 255, 0.2)',
-          borderRadius: '4px',
+          borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
@@ -1161,7 +1161,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           gap: '0.75rem',
         }}
       >
-        <div style={{ fontSize: '0.8rem', opacity: 0.6, marginBottom: '0.25rem' }}>
+        <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.25rem' }}>
           {t('search.search_locations')}
         </div>
 
@@ -1172,8 +1172,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               padding: '0.5rem 0.75rem',
               background: 'rgba(239, 68, 68, 0.15)',
               border: '1px solid rgba(239, 68, 68, 0.4)',
-              borderRadius: '3px',
-              fontSize: '0.75rem',
+              borderRadius: '6px',
+              fontSize: '0.8rem',
               color: 'rgba(239, 68, 68, 0.9)',
               display: 'flex',
               alignItems: 'center',
@@ -1215,9 +1215,9 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               paddingRight: searchLoading ? '2.5rem' : '0.75rem',
               background: 'rgba(255, 255, 255, 0.1)',
               border: '1px solid rgba(255, 255, 255, 0.2)',
-              borderRadius: '3px',
+              borderRadius: '6px',
               color: '#fff',
-              fontSize: '0.9rem',
+              fontSize: '1rem',
               outline: 'none',
             }}
             autoFocus
@@ -1256,7 +1256,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
             <>
               <div
                 style={{
-                  fontSize: '0.7rem',
+                  fontSize: '0.75rem',
                   opacity: 0.5,
                   marginBottom: '0.25rem',
                   marginTop: '0.25rem',
@@ -1274,11 +1274,11 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                     padding: '0.75rem',
                     background: 'rgba(255, 255, 255, 0.1)',
                     border: `1px solid ${marker.color}`,
-                    borderRadius: '3px',
+                    borderRadius: '6px',
                     color: '#fff',
                     cursor: 'pointer',
                     textAlign: 'left',
-                    fontSize: '0.85rem',
+                    fontSize: '0.9rem',
                     display: 'flex',
                     alignItems: 'center',
                     gap: '0.75rem',
@@ -1296,7 +1296,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   </svg>
                   <div>
                     <div style={{ fontWeight: 'bold' }}>{marker.name}</div>
-                    <div style={{ opacity: 0.5, fontSize: '0.7rem' }}>
+                    <div style={{ opacity: 0.5, fontSize: '0.75rem' }}>
                       {marker.lat.toFixed(4)}, {marker.lon.toFixed(4)}
                     </div>
                   </div>
@@ -1351,7 +1351,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               <div
                 style={{
                   opacity: 0.6,
-                  fontSize: '0.85rem',
+                  fontSize: '0.9rem',
                   textAlign: 'center',
                   padding: '1rem',
                 }}
@@ -1369,20 +1369,20 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                 padding: '0.75rem',
                 background: 'rgba(255, 255, 255, 0.1)',
                 border: '1px solid rgba(255, 255, 255, 0.1)',
-                borderRadius: '3px',
+                borderRadius: '6px',
                 color: '#fff',
                 cursor: 'pointer',
                 textAlign: 'left',
-                fontSize: '0.85rem',
+                fontSize: '0.9rem',
               }}
             >
               <div style={{ fontWeight: 'bold', marginBottom: '0.25rem' }}>
                 {result.display_name.split(',')[0]}
               </div>
-              <div style={{ opacity: 0.7, fontSize: '0.75rem' }}>
+              <div style={{ opacity: 0.7, fontSize: '0.8rem' }}>
                 {result.display_name.split(',').slice(1).join(',').trim()}
               </div>
-              <div style={{ opacity: 0.5, fontSize: '0.7rem', marginTop: '0.25rem' }}>
+              <div style={{ opacity: 0.5, fontSize: '0.75rem', marginTop: '0.25rem' }}>
                 {result.type}
               </div>
             </button>
@@ -1394,7 +1394,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           marginTop: '0.5rem',
           paddingTop: '0.5rem',
           borderTop: '1px solid rgba(255, 255, 255, 0.1)',
-          fontSize: '0.55rem',
+          fontSize: '0.65rem',
           opacity: 0.5,
           textAlign: 'center',
         }}>

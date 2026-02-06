@@ -124,7 +124,7 @@ export const AlertContainer: React.FC = () => {
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        gap: theme.space.sm,
+        gap: theme.space.md,
         pointerEvents: 'none',
       }}
     >

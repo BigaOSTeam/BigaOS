@@ -297,9 +297,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onClose,
   sidebarWidth = 0,
 }) => {
-  const menuWidth = 170;
-  const itemHeight = 44;
-  const headerHeight = header ? 32 : 0;
+  const menuWidth = 220;
+  const itemHeight = 48;
+  const headerHeight = header ? 36 : 0;
   const menuHeight = headerHeight + options.length * itemHeight;
   const arrowSize = 8;
   const padding = 10;
@@ -385,9 +385,9 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           {header && (
             <div
               style={{
-                padding: '8px 16px',
+                padding: '10px 16px',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
-                fontSize: '0.75rem',
+                fontSize: '0.8rem',
                 opacity: 0.6,
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
@@ -405,12 +405,12 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
               className="touch-btn"
               style={{
                 width: '100%',
-                padding: '12px 16px',
+                padding: '14px 16px',
                 background: 'transparent',
                 border: 'none',
                 borderBottom: index < options.length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
                 color: '#fff',
-                fontSize: '0.9rem',
+                fontSize: '0.95rem',
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
