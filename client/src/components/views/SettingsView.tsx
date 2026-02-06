@@ -255,6 +255,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     setVesselSettings,
     weatherSettings,
     setWeatherSettings,
+    chartOnly,
+    setChartOnly,
     demoMode,
     setDemoMode,
   } = settings;
@@ -424,6 +426,51 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           }))}
           onChange={(code) => settings.setLanguage(code as LanguageCode)}
         />
+      </div>
+
+      {/* Chart Only Toggle */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: theme.space.lg,
+        background: theme.colors.bgCard,
+        borderRadius: theme.radius.md,
+        border: `1px solid ${theme.colors.border}`,
+        marginBottom: theme.space.lg,
+      }}>
+        <div>
+          <div style={{ fontWeight: theme.fontWeight.medium, marginBottom: theme.space.xs }}>
+            {t('settings.chart_only')}
+          </div>
+          <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+            {t('settings.chart_only_desc')}
+          </div>
+        </div>
+        <button
+          onClick={() => setChartOnly(!chartOnly)}
+          style={{
+            width: '56px',
+            height: '32px',
+            borderRadius: '16px',
+            background: chartOnly ? theme.colors.primary : theme.colors.bgCardActive,
+            border: 'none',
+            cursor: 'pointer',
+            position: 'relative',
+            transition: 'background 0.2s',
+          }}
+        >
+          <div style={{
+            width: '24px',
+            height: '24px',
+            borderRadius: '50%',
+            background: '#fff',
+            position: 'absolute',
+            top: '4px',
+            left: chartOnly ? '28px' : '4px',
+            transition: 'left 0.2s',
+          }} />
+        </button>
       </div>
 
       {/* Demo Mode Toggle */}

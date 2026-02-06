@@ -8,9 +8,10 @@ import { useLanguage } from '../../i18n/LanguageContext';
 
 interface MapPageProps {
   onClose?: () => void;
+  onOpenSettings?: () => void;
 }
 
-export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
+export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => {
   const { t } = useLanguage();
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const { demoMode } = useSettings();
@@ -243,6 +244,7 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose }) => {
         speed={speed}
         depth={sensorData.environment.depth.belowTransducer}
         onClose={onClose}
+        onOpenSettings={onOpenSettings}
       />
 
       {/* Demo mode controls hint */}

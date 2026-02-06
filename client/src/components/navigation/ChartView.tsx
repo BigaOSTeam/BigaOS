@@ -114,6 +114,7 @@ interface ChartViewProps {
   speed: number;
   depth: number;
   onClose?: () => void;
+  onOpenSettings?: () => void;
   hideSidebar?: boolean;
 }
 
@@ -123,6 +124,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
   speed,
   depth,
   onClose,
+  onOpenSettings,
   hideSidebar = false,
 }) => {
   const { t } = useLanguage();
@@ -1686,6 +1688,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           weatherPanelOpen={weatherPanelOpen}
           weatherDisplayMode={weatherOverlay.displayMode}
           onClose={onClose}
+          onOpenSettings={onOpenSettings}
           onDepthClick={() => {
             setDepthSettingsOpen(!depthSettingsOpen);
             setSearchOpen(false);

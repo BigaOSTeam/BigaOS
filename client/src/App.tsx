@@ -30,9 +30,25 @@ function AppContent() {
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showOnlineBanner, setShowOnlineBanner] = useState(false);
   const wasOfflineRef = useRef<boolean | null>(null);
-  const { setCurrentDepth } = useSettings();
+  const { setCurrentDepth, chartOnly } = useSettings();
   const { activeView, navigationParams, navigate, goBack } = useNavigation();
   const repaintIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // In chart-only mode, redirect dashboard to chart
+  useEffect(() => {
+    if (chartOnly && activeView === 'dashboard') {
+      navigate('chart');
+    }
+  }, [chartOnly, activeView, navigate]);
+
+  // In chart-only mode, "go back" means go to chart instead of dashboard
+  const handleGoBack = useCallback(() => {
+    if (chartOnly) {
+      navigate('chart');
+    } else {
+      goBack();
+    }
+  }, [chartOnly, navigate, goBack]);
 
   // Force a repaint periodically to recover from rendering freezes
   const forceRepaint = useCallback(() => {
@@ -262,7 +278,10 @@ function AppContent() {
   if (activeView === 'chart') {
     return (
       <>
-        <MapPage onClose={goBack} />
+        <MapPage
+          onClose={chartOnly ? undefined : handleGoBack}
+          onOpenSettings={chartOnly ? () => navigate('settings') : undefined}
+        />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -273,7 +292,7 @@ function AppContent() {
   if (activeView === 'wind') {
     return (
       <>
-        <WindView sensorData={sensorData} onClose={goBack} />
+        <WindView sensorData={sensorData} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -284,7 +303,7 @@ function AppContent() {
   if (activeView === 'depth') {
     return (
       <>
-        <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={goBack} />
+        <DepthView depth={sensorData.environment.depth.belowTransducer} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -295,7 +314,7 @@ function AppContent() {
   if (activeView === 'settings') {
     return (
       <>
-        <SettingsView onClose={goBack} initialTab={navigationParams.settings?.tab} />
+        <SettingsView onClose={handleGoBack} initialTab={navigationParams.settings?.tab} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -306,7 +325,7 @@ function AppContent() {
   if (activeView === 'speed') {
     return (
       <>
-        <SpeedView speed={sensorData.navigation.speedOverGround} onClose={goBack} />
+        <SpeedView speed={sensorData.navigation.speedOverGround} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -317,7 +336,7 @@ function AppContent() {
   if (activeView === 'heading') {
     return (
       <>
-        <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={goBack} />
+        <HeadingView heading={sensorData.navigation.headingMagnetic} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -328,7 +347,7 @@ function AppContent() {
   if (activeView === 'cog') {
     return (
       <>
-        <COGView cog={sensorData.navigation.courseOverGround} onClose={goBack} />
+        <COGView cog={sensorData.navigation.courseOverGround} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -339,7 +358,7 @@ function AppContent() {
   if (activeView === 'position') {
     return (
       <>
-        <PositionView position={sensorData.navigation.position} onClose={goBack} />
+        <PositionView position={sensorData.navigation.position} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -355,7 +374,7 @@ function AppContent() {
           current={sensorData.electrical.battery.current}
           temperature={sensorData.electrical.battery.temperature}
           stateOfCharge={sensorData.electrical.battery.stateOfCharge}
-          onClose={goBack}
+          onClose={handleGoBack}
         />
         <DemoModeBanner />
         <ConnectivityBanner />

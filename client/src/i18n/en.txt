@@ -45,6 +45,8 @@ settings.alerts=Alerts
 settings.offline_maps=Offline Maps
 settings.advanced=Advanced
 settings.home=Home
+settings.chart_only=Chart Only
+settings.chart_only_desc=Use chart as the main screen
 settings.demo_mode=Demo Mode
 settings.demo_mode_desc=Simulate sensor data for testing
 
@@ -361,6 +363,7 @@ chart.depth=DEPTH
 chart.forecast=FORECAST
 chart.search=SEARCH
 chart.back_to_dashboard=Back to Dashboard
+chart.open_settings=Open Settings
 chart.switch_to_street=Switch to Street View
 chart.switch_to_satellite=Switch to Satellite View
 chart.map=MAP

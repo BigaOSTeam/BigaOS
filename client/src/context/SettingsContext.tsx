@@ -366,6 +366,10 @@ interface SettingsContextType {
   currentDepth: number;
   setCurrentDepth: (depth: number) => void;
 
+  // Chart only mode
+  chartOnly: boolean;
+  setChartOnly: (enabled: boolean) => void;
+
   // Demo mode
   demoMode: boolean;
   setDemoMode: (enabled: boolean) => void;
@@ -427,6 +431,7 @@ const defaultSettings = {
   dateFormat: 'DD/MM/YYYY' as DateFormat,
   depthAlarm: null as number | null,
   soundAlarmEnabled: false,
+  chartOnly: false,
   demoMode: true,
   language: DEFAULT_LANGUAGE as LanguageCode,
   vesselSettings: defaultVesselSettings,
@@ -456,6 +461,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [dateFormat, setDateFormatState] = useState<DateFormat>(defaultSettings.dateFormat);
   const [depthAlarm, setDepthAlarmState] = useState<number | null>(defaultSettings.depthAlarm);
   const [soundAlarmEnabled, setSoundAlarmEnabledState] = useState<boolean>(defaultSettings.soundAlarmEnabled);
+  const [chartOnly, setChartOnlyState] = useState<boolean>(defaultSettings.chartOnly);
   const [demoMode, setDemoModeState] = useState<boolean>(defaultSettings.demoMode);
   const [language, setLanguageState] = useState<LanguageCode>(defaultSettings.language);
   const [mapTileUrls, setMapTileUrlsState] = useState<MapTileUrls>(defaultSettings.mapTileUrls);
@@ -500,6 +506,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       // depthAlarm and soundAlarmEnabled are NOT loaded from settings_sync.
       // They come from the dedicated depth_alarm_sync event (AlertService is authoritative).
+      if (data.settings.chartOnly !== undefined) {
+        setChartOnlyState(data.settings.chartOnly);
+      }
       if (data.settings.demoMode !== undefined) {
         setDemoModeState(data.settings.demoMode);
       }
@@ -560,6 +569,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           break;
         case 'soundAlarmEnabled':
           setSoundAlarmEnabledState(data.value);
+          break;
+        case 'chartOnly':
+          setChartOnlyState(data.value);
           break;
         case 'demoMode':
           setDemoModeState(data.value);
@@ -718,6 +730,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     updateServerSetting('soundAlarmEnabled', enabled);
   }, [updateServerSetting]);
 
+  const setChartOnly = useCallback((enabled: boolean) => {
+    setChartOnlyState(enabled);
+    updateServerSetting('chartOnly', enabled);
+  }, [updateServerSetting]);
+
   const setDemoMode = useCallback((enabled: boolean) => {
     setDemoModeState(enabled);
     updateServerSetting('demoMode', enabled);
@@ -840,6 +857,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     soundAlarmEnabled,
     setSoundAlarmEnabled,
     isDepthAlarmTriggered,
+    chartOnly,
+    setChartOnly,
     demoMode,
     setDemoMode,
     language,

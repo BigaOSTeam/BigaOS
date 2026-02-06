@@ -45,6 +45,8 @@ settings.alerts=Alarme
 settings.offline_maps=Offline-Karten
 settings.advanced=Erweitert
 settings.home=Startseite
+settings.chart_only=Nur Karte
+settings.chart_only_desc=Karte als Hauptbildschirm verwenden
 settings.demo_mode=Demo-Modus
 settings.demo_mode_desc=Sensordaten für Tests simulieren
 
@@ -361,6 +363,7 @@ chart.depth=TIEFE
 chart.forecast=VORHERSAGE
 chart.search=SUCHE
 chart.back_to_dashboard=Zurück zum Dashboard
+chart.open_settings=Einstellungen öffnen
 chart.switch_to_street=Zur Straßenansicht wechseln
 chart.switch_to_satellite=Zur Satellitenansicht wechseln
 chart.map=KARTE
