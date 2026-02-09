@@ -8,6 +8,7 @@ import { tilesController } from '../controllers/tiles.controller';
 import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
 import { unifiedDataController } from '../controllers/unified-data.controller';
+import { systemController } from '../controllers/system.controller';
 
 const router = Router();
 
@@ -99,5 +100,9 @@ router.delete('/weather/cache', weatherController.clearCache.bind(weatherControl
 
 // Geocoding routes (proxied through server for offline awareness)
 router.get('/geocoding/search', tilesController.searchLocations.bind(tilesController));
+
+// System routes
+router.get('/system/update/check', systemController.checkForUpdate.bind(systemController));
+router.post('/system/update/install', systemController.installUpdate.bind(systemController));
 
 export default router;

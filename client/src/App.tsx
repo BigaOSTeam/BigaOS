@@ -29,6 +29,8 @@ function AppContent() {
   const [, forceUpdate] = useState(0);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showOnlineBanner, setShowOnlineBanner] = useState(false);
+  const [systemUpdating, setSystemUpdating] = useState(false);
+  const systemUpdatingRef = useRef(false);
   const wasOfflineRef = useRef<boolean | null>(null);
   const { setCurrentDepth, chartOnly } = useSettings();
   const { activeView, navigationParams, navigate, goBack } = useNavigation();
@@ -106,6 +108,16 @@ function AppContent() {
     // Listen for server reachability changes (WebSocket connection health)
     wsService.on('server_reachability', (data: { reachable: boolean }) => {
       setServerReachable(data.reachable);
+      // After an update, reload when server comes back to get new client assets
+      if (data.reachable && systemUpdatingRef.current) {
+        window.location.reload();
+      }
+    });
+
+    // Listen for system update events
+    wsService.on('system_updating', () => {
+      setSystemUpdating(true);
+      systemUpdatingRef.current = true;
     });
 
     fetchInitialData();
@@ -232,6 +244,56 @@ function AppContent() {
     return null;
   };
 
+  // System updating overlay (full screen)
+  const SystemUpdatingOverlay = () => {
+    if (!systemUpdating) return null;
+    return (
+      <div style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        background: 'rgba(10, 25, 41, 0.97)',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 20000,
+        gap: '24px',
+      }}>
+        <div style={{
+          width: '48px',
+          height: '48px',
+          border: '3px solid rgba(255,255,255,0.1)',
+          borderTopColor: '#4fc3f7',
+          borderRadius: '50%',
+          animation: 'spin 1s linear infinite',
+        }} />
+        <div style={{
+          fontSize: '1.5rem',
+          fontWeight: 600,
+          color: '#e0e0e0',
+        }}>
+          {t('update.overlay_title')}
+        </div>
+        <div style={{
+          fontSize: '0.9rem',
+          color: '#888',
+          textAlign: 'center',
+          maxWidth: '300px',
+        }}>
+          {t('update.overlay_message')}
+        </div>
+        <style>{`
+          @keyframes spin {
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+      </div>
+    );
+  };
+
   // Server unreachable banner (shown at top of screen)
   const ServerUnreachableBanner = () => {
     if (serverReachable) return null;
@@ -285,6 +347,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -296,6 +359,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -307,6 +371,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -318,6 +383,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -329,6 +395,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -340,6 +407,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -351,6 +419,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -362,6 +431,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -379,6 +449,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <SystemUpdatingOverlay />
       </>
     );
   }
@@ -396,6 +467,7 @@ function AppContent() {
       <DemoModeBanner />
       <ConnectivityBanner />
       <ServerUnreachableBanner />
+      <SystemUpdatingOverlay />
     </div>
   );
 }

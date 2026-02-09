@@ -593,3 +593,20 @@ confirm.remove_data=Die heruntergeladenen Daten werden entfernt. Sie können sie
 # ==================== Validierung ====================
 validation.invalid_number=Bitte geben Sie eine gültige Zahl ein
 validation.min_value=Wert muss mindestens {min} betragen
+
+# ==================== System-Update ====================
+update.title=Software-Update
+update.current_version=Aktuelle Version
+update.check=Nach Updates suchen
+update.checking=Suche...
+update.up_to_date=Alles aktuell
+update.available=Update verfügbar
+update.install=Update installieren
+update.installing=Installiere...
+update.release_notes=Versionshinweise
+update.last_checked=Zuletzt geprüft
+update.never_checked=Nie
+update.just_now=Gerade eben
+update.ago=vor {time}
+update.overlay_title=BigaOS wird aktualisiert
+update.overlay_message=Dies kann eine Minute dauern. Die App verbindet sich automatisch neu.

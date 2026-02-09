@@ -385,4 +385,22 @@ export const offlineMapsAPI = {
     api.get<StorageStats>('/tiles/storage'),
 };
 
+// System / Update API
+export interface UpdateInfo {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseNotes: string;
+  publishedAt: string;
+  lastChecked: string;
+}
+
+export const systemAPI = {
+  checkForUpdate: (force: boolean = false) =>
+    api.get<UpdateInfo>('/system/update/check', { params: { force } }),
+
+  installUpdate: () =>
+    api.post<{ status: string; version: string }>('/system/update/install'),
+};
+
 export default api;
