@@ -18,7 +18,7 @@ import {
   temperatureConversions,
 } from '../../context/SettingsContext';
 import { theme } from '../../styles/theme';
-import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats } from '../../services/api';
+import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats, systemAPI, UpdateInfo } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { AlertsTab } from '../settings/AlertsTab';
 import { PluginsTab } from '../settings/PluginsTab';
@@ -44,6 +44,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
   const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
   const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [updateChecking, setUpdateChecking] = useState(false);
+  const [updateInstalling, setUpdateInstalling] = useState(false);
   const { confirm } = useConfirmDialog();
   const { t } = useLanguage();
 
@@ -88,6 +91,37 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
   useEffect(() => {
     fetchDataStatus();
   }, [fetchDataStatus]);
+
+  // Check for updates when General tab is active
+  const checkForUpdate = useCallback(async (force: boolean = false) => {
+    setUpdateChecking(true);
+    try {
+      const response = await systemAPI.checkForUpdate(force);
+      setUpdateInfo(response.data);
+    } catch (error) {
+      console.error('Failed to check for updates:', error);
+    } finally {
+      setUpdateChecking(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'general') {
+      checkForUpdate();
+    }
+  }, [activeTab, checkForUpdate]);
+
+  const handleInstallUpdate = useCallback(async () => {
+    setUpdateInstalling(true);
+    try {
+      await systemAPI.installUpdate();
+      // Server will broadcast system_updating via WebSocket
+      // The overlay in App.tsx will handle it
+    } catch (error) {
+      console.error('Failed to install update:', error);
+      setUpdateInstalling(false);
+    }
+  }, []);
 
   // Listen for WebSocket download progress updates
   useEffect(() => {
@@ -429,6 +463,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
   ];
 
   // Render General Tab
+  const formatLastChecked = (iso: string): string => {
+    if (!iso) return t('update.never_checked');
+    const diff = Date.now() - new Date(iso).getTime();
+    if (diff < 60_000) return t('update.just_now');
+    if (diff < 3600_000) return t('update.ago', { time: `${Math.floor(diff / 60_000)}m` });
+    if (diff < 86400_000) return t('update.ago', { time: `${Math.floor(diff / 3600_000)}h` });
+    return t('update.ago', { time: `${Math.floor(diff / 86400_000)}d` });
+  };
+
   const renderGeneralTab = () => (
     <div>
       {/* Language Selector */}
@@ -450,6 +493,157 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           }))}
           onChange={(code) => settings.setLanguage(code as LanguageCode)}
         />
+      </div>
+
+      {/* Software Update Section */}
+      <div style={{
+        padding: theme.space.lg,
+        background: theme.colors.bgCard,
+        borderRadius: theme.radius.md,
+        border: `1px solid ${updateInfo?.available ? theme.colors.primary : theme.colors.border}`,
+        marginBottom: theme.space.xl,
+      }}>
+        <div style={{
+          fontSize: theme.fontSize.sm,
+          fontWeight: theme.fontWeight.bold,
+          color: theme.colors.textSecondary,
+          textTransform: 'uppercase',
+          letterSpacing: '0.05em',
+          marginBottom: theme.space.md,
+        }}>
+          {t('update.title')}
+        </div>
+
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: theme.space.md,
+        }}>
+          <div>
+            <div style={{ fontSize: theme.fontSize.base, color: theme.colors.textPrimary }}>
+              {t('update.current_version')}: <strong>v{updateInfo?.currentVersion || '...'}</strong>
+            </div>
+            {updateInfo?.lastChecked && (
+              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginTop: theme.space.xs }}>
+                {t('update.last_checked')}: {formatLastChecked(updateInfo.lastChecked)}
+              </div>
+            )}
+          </div>
+          <button
+            onClick={() => checkForUpdate(true)}
+            disabled={updateChecking}
+            style={{
+              padding: `${theme.space.sm} ${theme.space.md}`,
+              background: theme.colors.bgCardActive,
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.radius.md,
+              color: theme.colors.textPrimary,
+              cursor: updateChecking ? 'wait' : 'pointer',
+              fontSize: theme.fontSize.sm,
+              opacity: updateChecking ? 0.7 : 1,
+            }}
+          >
+            {updateChecking ? t('update.checking') : t('update.check')}
+          </button>
+        </div>
+
+        {updateInfo && !updateInfo.available && !updateChecking && !updateInfo.error && (
+          <div style={{
+            padding: theme.space.md,
+            background: `${theme.colors.success}15`,
+            borderRadius: theme.radius.sm,
+            color: theme.colors.success,
+            fontSize: theme.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            gap: theme.space.sm,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            {t('update.up_to_date')}
+          </div>
+        )}
+
+        {updateInfo?.error && !updateChecking && (
+          <div style={{
+            padding: theme.space.md,
+            background: `${theme.colors.warning}15`,
+            borderRadius: theme.radius.sm,
+            color: theme.colors.warning,
+            fontSize: theme.fontSize.sm,
+            display: 'flex',
+            alignItems: 'center',
+            gap: theme.space.sm,
+          }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+            </svg>
+            {t('update.check_failed')}
+          </div>
+        )}
+
+        {updateInfo?.available && (
+          <>
+            <div style={{
+              padding: theme.space.md,
+              background: `${theme.colors.primary}15`,
+              borderRadius: theme.radius.sm,
+              marginBottom: theme.space.md,
+            }}>
+              <div style={{
+                fontSize: theme.fontSize.base,
+                fontWeight: theme.fontWeight.bold,
+                color: theme.colors.primary,
+                marginBottom: theme.space.xs,
+              }}>
+                {t('update.available')}: v{updateInfo.latestVersion}
+              </div>
+              {updateInfo.releaseNotes && (
+                <div style={{
+                  fontSize: theme.fontSize.sm,
+                  color: theme.colors.textMuted,
+                  lineHeight: 1.5,
+                  maxHeight: '120px',
+                  overflow: 'auto',
+                  whiteSpace: 'pre-wrap',
+                }}>
+                  {updateInfo.releaseNotes}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={handleInstallUpdate}
+              disabled={updateInstalling}
+              style={{
+                width: '100%',
+                padding: theme.space.md,
+                background: theme.colors.primary,
+                border: 'none',
+                borderRadius: theme.radius.md,
+                color: '#fff',
+                cursor: updateInstalling ? 'wait' : 'pointer',
+                fontSize: theme.fontSize.base,
+                fontWeight: theme.fontWeight.bold,
+                opacity: updateInstalling ? 0.7 : 1,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: theme.space.sm,
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                <polyline points="7 10 12 15 17 10" />
+                <line x1="12" y1="15" x2="12" y2="3" />
+              </svg>
+              {updateInstalling ? t('update.installing') : t('update.install')}
+            </button>
+          </>
+        )}
       </div>
 
       {/* Chart Only Toggle */}
@@ -1354,32 +1548,36 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
               </div>
             ) : file.downloadStatus && file.downloadStatus.status === 'error' ? (
               <div style={{ marginTop: theme.space.sm }}>
-                <div style={{
-                  padding: theme.space.md,
-                  background: `${theme.colors.error}10`,
-                  border: `1px solid ${theme.colors.error}40`,
-                  borderRadius: theme.radius.sm,
-                  color: theme.colors.error,
-                  fontSize: theme.fontSize.xs,
-                  marginBottom: theme.space.sm,
-                }}>
-                  {t('downloads.error_download_failed')}{file.downloadStatus.error ? `: ${file.downloadStatus.error}` : ''}
-                </div>
+                {!downloadingFiles.has(file.id) && (
+                  <div style={{
+                    padding: theme.space.md,
+                    background: `${theme.colors.error}10`,
+                    border: `1px solid ${theme.colors.error}40`,
+                    borderRadius: theme.radius.sm,
+                    color: theme.colors.error,
+                    fontSize: theme.fontSize.xs,
+                    marginBottom: theme.space.sm,
+                  }}>
+                    {t('downloads.error_download_failed')}{file.downloadStatus.error ? `: ${file.downloadStatus.error}` : ''}
+                  </div>
+                )}
                 <button
                   onClick={() => handleDownload(file)}
+                  disabled={downloadingFiles.has(file.id)}
                   style={{
                     width: '100%',
                     padding: theme.space.md,
-                    background: theme.colors.primary,
+                    background: downloadingFiles.has(file.id) ? theme.colors.bgCardActive : theme.colors.primary,
                     border: 'none',
                     borderRadius: theme.radius.sm,
                     color: '#fff',
-                    cursor: 'pointer',
+                    cursor: downloadingFiles.has(file.id) ? 'wait' : 'pointer',
                     fontSize: theme.fontSize.sm,
                     fontWeight: theme.fontWeight.bold,
+                    opacity: downloadingFiles.has(file.id) ? 0.7 : 1,
                   }}
                 >
-                  {t('downloads.retry_download')}
+                  {downloadingFiles.has(file.id) ? t('downloads.starting') : t('downloads.retry_download')}
                 </button>
               </div>
             ) : (
@@ -1949,7 +2147,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
         fontSize: theme.fontSize.xs,
         color: theme.colors.textMuted,
       }}>
-        {t('app.version')}
+        BigaOS v{updateInfo?.currentVersion || '...'}
       </div>
     </div>
   );

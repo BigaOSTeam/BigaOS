@@ -1,0 +1,60 @@
+name: Build & Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # Install dependencies
+      - run: npm install
+        working-directory: server
+      - run: npm install
+        working-directory: client
+
+      # Build server (TypeScript → dist/)
+      - run: npm run build
+        working-directory: server
+
+      # Copy non-TS runtime files into dist/
+      - name: Copy server runtime assets
+        run: |
+          cp server/src/database/schema.sql server/dist/database/
+          cp server/src/i18n/*.txt server/dist/i18n/
+
+      # Build client (Vite → dist/)
+      - run: npm run build
+        working-directory: client
+
+      # Package release tarball
+      - name: Create release tarball
+        run: |
+          VERSION=${GITHUB_REF_NAME#v}
+          mkdir -p release/server release/client
+          cp -r server/dist release/server/
+          cp server/package.json server/package-lock.json release/server/
+          cp -r client/dist release/client/
+          cp package.json release/
+          cp install.sh release/
+          cd release
+          tar -czf ../bigaos-${GITHUB_REF_NAME}.tar.gz .
+
+      # Create GitHub release with the tarball
+      - name: Create release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: bigaos-${{ github.ref_name }}.tar.gz
+          generate_release_notes: true

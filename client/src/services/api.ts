@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -383,6 +383,25 @@ export const offlineMapsAPI = {
    */
   getStorageStats: () =>
     api.get<StorageStats>('/tiles/storage'),
+};
+
+// System / Update API
+export interface UpdateInfo {
+  available: boolean;
+  currentVersion: string;
+  latestVersion: string;
+  releaseNotes: string;
+  publishedAt: string;
+  lastChecked: string;
+  error?: string;
+}
+
+export const systemAPI = {
+  checkForUpdate: (force: boolean = false) =>
+    api.get<UpdateInfo>('/system/update/check', { params: { force } }),
+
+  installUpdate: () =>
+    api.post<{ status: string; version: string }>('/system/update/install'),
 };
 
 export default api;

@@ -626,3 +626,22 @@ data_sources.clear_all_help=Clears all current sensor data and resets mappings
 # ==================== Validation ====================
 validation.invalid_number=Please enter a valid number
 validation.min_value=Value must be at least {min}
+
+# ==================== System Update ====================
+update.title=Software Update
+update.current_version=Current Version
+update.check=Check for Updates
+update.checking=Checking...
+update.up_to_date=You're up to date
+update.available=Update Available
+update.install=Install Update
+update.installing=Installing...
+update.release_notes=Release Notes
+update.last_checked=Last checked
+update.never_checked=Never
+update.just_now=Just now
+update.ago={time} ago
+update.check_failed=Could not check for updates
+update.new_version_available=BigaOS v{version} is available
+update.overlay_title=Updating BigaOS
+update.overlay_message=This may take a minute. The app will reconnect automatically.

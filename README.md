@@ -1,57 +1,30 @@
-# Biga OS
+# BigaOS
 
-Boat monitoring and automation system for Raspberry Pi 5.
+**Work in progress** — Marine navigation and boat automation system.
 
-## Quick Start
+BigaOS is a self-hosted web application designed to run on a Raspberry Pi 5 aboard a vessel. It provides real-time sensor data, chart navigation, weather forecasts, anchor alarms, and more — all accessible from any device on the local network.
+
+> **This project is under active development and not yet ready for production use.**
+
+## Install (Raspberry Pi)
 
 ```bash
-# Install dependencies
+curl -sSL https://raw.githubusercontent.com/Johannes-Goetz/BigaOS/main/install.sh | bash
+```
+
+Installs Node.js, downloads the latest release, sets up a systemd service, and starts BigaOS.
+Open `http://<pi-ip>:3000` from any device on the network.
+
+Updates can be installed from Settings or by re-running the script.
+
+## Development
+
+```bash
 npm run install:all
-
-# Start development (run in separate terminals)
-npm run dev:server   # Backend on http://localhost:3000
-npm run dev:client   # Frontend on http://localhost:5173
+npm run dev:server   # Terminal 1 — http://localhost:3000
+npm run dev:client   # Terminal 2 — http://localhost:5173
 ```
 
-## Project Structure
+## License
 
-```
-server/     # Express + Socket.io backend
-client/     # React + Vite frontend
-```
-
-## Key Commands
-
-| Command | Description |
-|---------|-------------|
-| `npm run install:all` | Install all dependencies |
-| `npm run dev:server` | Start server in dev mode |
-| `npm run dev:client` | Start client in dev mode |
-| `npm run build` | Build for production |
-| `npm start` | Run production server |
-
-## Raspberry Pi Deployment
-
-```bash
-./setup-raspberry-pi.sh
-```
-
-Then:
-```bash
-sudo systemctl start bigaos
-sudo systemctl status bigaos
-```
-
-Access at `http://<raspberry-pi-ip>:3000`
-
-## API
-
-- `GET /api/sensors` - All sensor data
-- `GET /api/state` - Current boat state
-- `GET /health` - Server health
-
-WebSocket events: `sensor_update`, `state_change`, `notification`
-
-## Requirements
-
-- Node.js 20+
+MIT

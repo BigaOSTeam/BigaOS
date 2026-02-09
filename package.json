@@ -1,6 +1,6 @@
 {
   "name": "biga-os",
-  "version": "1.0.0",
+  "version": "0.1.3",
   "description": "Intelligent Boat Automation System",
   "scripts": {
     "install:all": "cd server && npm install && cd ../client && npm install",
@@ -13,5 +13,5 @@
   },
   "keywords": ["boat", "marine", "automation", "iot", "signalk"],
   "author": "",
-  "license": "ISC"
+  "license": "MIT"
 }

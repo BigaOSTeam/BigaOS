@@ -701,6 +701,19 @@ export class WebSocketServer {
   /**
    * Stop the WebSocket server
    */
+  public broadcastSystemUpdating(): void {
+    this.io.emit('system_updating', {
+      timestamp: new Date(),
+    });
+  }
+
+  public broadcastUpdateAvailable(version: string): void {
+    this.io.emit('update_available', {
+      version,
+      timestamp: new Date(),
+    });
+  }
+
   public stop(): void {
     this.io.close();
     console.log('[WebSocketServer] Stopped');

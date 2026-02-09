@@ -14,7 +14,7 @@ import { navigationAPI, geocodingAPI } from '../../services/api';
 import { wsService } from '../../services/websocket';
 
 // Hardcoded server proxy URLs for tiles - client always fetches through server
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
 const TILE_URLS = {
   street: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
   satellite: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,

@@ -1,8 +1,10 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
 import routes from './routes';
+import { updateService } from './services/update.service';
 import { WebSocketServer, setWsServerInstance } from './websocket/websocket-server';
 import db from './database/database';
 import { dbWorker } from './services/database-worker.service';
@@ -63,6 +65,10 @@ async function startServer() {
   // API routes
   app.use('/api', routes);
 
+  // Serve client build in production
+  const clientDist = path.join(__dirname, '../../client/dist');
+  app.use(express.static(clientDist));
+
   // Health check endpoint
   app.get('/health', (req, res) => {
     const dbStats = db.getStats();
@@ -77,9 +83,13 @@ async function startServer() {
     });
   });
 
-  // 404 handler
-  app.use((req, res) => {
-    res.status(404).json({ error: 'Endpoint not found' });
+  // SPA fallback - serve index.html for non-API routes
+  app.use((req, res, next) => {
+    if (req.path.startsWith('/api') || req.path === '/health') {
+      res.status(404).json({ error: 'Endpoint not found' });
+    } else {
+      res.sendFile(path.join(clientDist, 'index.html'));
+    }
   });
 
   // Error handler
@@ -91,7 +101,6 @@ async function startServer() {
     });
   });
 
-  // Create HTTP server
   const httpServer = createServer(app);
 
   // Initialize DataController (central data hub + plugin system)
@@ -116,6 +125,11 @@ async function startServer() {
     console.error('Failed to connect WebSocket to DataController:', error);
   }
 
+  // Initialize update service
+  updateService.setUpdateCallback(() => wsServer.broadcastSystemUpdating());
+  updateService.setUpdateAvailableCallback((v) => wsServer.broadcastUpdateAvailable(v));
+  updateService.start();
+
   // Start server
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log('🚤 Biga OS Server Started');
@@ -135,6 +149,7 @@ const serverPromise = startServer();
 async function shutdown(signal: string) {
   console.log(`${signal} received, shutting down gracefully...`);
   const { httpServer, wsServer } = await serverPromise;
+  updateService.stop();
   wsServer.stop();
   await DataController.getInstance().stop();
   await routeWorkerService.terminate();
