@@ -110,6 +110,25 @@ export class WebSocketServer {
         timestamp: new Date(),
       });
     });
+
+    // Plugin system events
+    this.dataController.on('plugin_update', (data: any) => {
+      this.io.emit('plugin_update', {
+        ...data,
+        timestamp: new Date(),
+      });
+    });
+
+    // Sensor mapping events
+    const sensorMapping = this.dataController.getSensorMappingService();
+    if (sensorMapping) {
+      sensorMapping.on('mappings_updated', (mappings: any) => {
+        this.io.emit('sensor_mappings_updated', {
+          mappings,
+          timestamp: new Date(),
+        });
+      });
+    }
   }
 
   /**
@@ -141,6 +160,141 @@ export class WebSocketServer {
       // Handle control commands
       socket.on('control', (data) => {
         this.handleControlCommand(data, socket);
+      });
+
+      // ================================================================
+      // Plugin System Handlers
+      // ================================================================
+
+      socket.on('get_plugins', () => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          if (pm) {
+            socket.emit('plugin_sync', {
+              plugins: pm.getPluginList(),
+              timestamp: new Date(),
+            });
+          }
+        }
+      });
+
+      socket.on('plugin_enable', async (data: { pluginId: string }) => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          if (pm) {
+            await pm.enablePlugin(data.pluginId);
+          }
+        }
+      });
+
+      socket.on('plugin_disable', async (data: { pluginId: string }) => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          if (pm) {
+            await pm.disablePlugin(data.pluginId);
+          }
+        }
+      });
+
+      socket.on('plugin_install', async (data: { pluginId: string; version?: string }) => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          if (pm) {
+            const registry = await pm.fetchRegistry();
+            if (registry) {
+              const entry = registry.plugins.find((p: any) => p.id === data.pluginId);
+              if (entry) {
+                await pm.installPlugin(entry, data.version);
+              }
+            }
+          }
+        }
+      });
+
+      socket.on('plugin_uninstall', async (data: { pluginId: string }) => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          if (pm) {
+            await pm.uninstallPlugin(data.pluginId);
+          }
+        }
+      });
+
+      socket.on('plugin_fetch_registry', async () => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          if (pm) {
+            const registry = await pm.fetchRegistry(true);
+            const installedPlugins = pm.getPluginList();
+            const installedIds = new Set(installedPlugins.map((p: any) => p.id));
+
+            const registryPlugins = (registry?.plugins || []).map((rp: any) => ({
+              ...rp,
+              isInstalled: installedIds.has(rp.id),
+              installedVersion: installedPlugins.find((p: any) => p.id === rp.id)?.installedVersion,
+              hasUpdate: installedIds.has(rp.id) &&
+                installedPlugins.find((p: any) => p.id === rp.id)?.installedVersion !== rp.latestVersion,
+            }));
+
+            socket.emit('plugin_registry_sync', {
+              plugins: registryPlugins,
+              timestamp: new Date(),
+            });
+          }
+        }
+      });
+
+      socket.on('plugin_config_set', async (data: { pluginId: string; key: string; value: any }) => {
+        const fullKey = `plugin.${data.pluginId}.${data.key}`;
+        await dbWorker.setSetting(fullKey, JSON.stringify(data.value));
+      });
+
+      // ================================================================
+      // Sensor Mapping Handlers
+      // ================================================================
+
+      socket.on('get_sensor_mappings', () => {
+        if (this.dataController) {
+          const sm = this.dataController.getSensorMappingService();
+          if (sm) {
+            socket.emit('sensor_mappings_sync', {
+              mappings: sm.getMappings(),
+              debugData: sm.getDebugData(),
+              timestamp: new Date(),
+            });
+          }
+        }
+      });
+
+      socket.on('sensor_mapping_set', async (data: { slotType: string; pluginId: string; streamId: string }) => {
+        if (this.dataController) {
+          const sm = this.dataController.getSensorMappingService();
+          if (sm) {
+            await sm.setMapping(data.slotType, data.pluginId, data.streamId);
+          }
+        }
+      });
+
+      socket.on('sensor_mapping_remove', async (data: { slotType: string; pluginId: string; streamId: string }) => {
+        if (this.dataController) {
+          const sm = this.dataController.getSensorMappingService();
+          if (sm) {
+            await sm.removeMapping(data.slotType, data.pluginId, data.streamId);
+          }
+        }
+      });
+
+      socket.on('sensor_mapping_automap', async (data: { pluginId: string }) => {
+        if (this.dataController) {
+          const pm = this.dataController.getPluginManager();
+          const sm = this.dataController.getSensorMappingService();
+          if (pm && sm) {
+            const streams = pm.getDriverStreams(data.pluginId);
+            if (streams) {
+              await sm.autoMapDriver(data.pluginId, streams);
+            }
+          }
+        }
       });
 
       // Handle anchor alarm updates - forward to alert service AND broadcast
@@ -261,6 +415,26 @@ export class WebSocketServer {
       }
     }
 
+    // Send plugin data
+    if (this.dataController) {
+      const pm = this.dataController.getPluginManager();
+      if (pm) {
+        socket.emit('plugin_sync', {
+          plugins: pm.getPluginList(),
+          timestamp: new Date(),
+        });
+      }
+
+      const sm = this.dataController.getSensorMappingService();
+      if (sm) {
+        socket.emit('sensor_mappings_sync', {
+          mappings: sm.getMappings(),
+          debugData: sm.getDebugData(),
+          timestamp: new Date(),
+        });
+      }
+    }
+
     // Send settings
     await this.sendSettings(socket);
 
@@ -334,7 +508,7 @@ export class WebSocketServer {
 
     // Handle demo navigation updates - sync to all clients
     if (data.type === 'demo_navigation' && this.dataController) {
-      this.dataController.getSensorService().setDemoNavigation(data);
+      this.dataController.setDemoNavigation(data);
       // Broadcast to all clients so other map views sync position
       this.io.emit('demo_navigation_sync', {
         latitude: data.latitude,

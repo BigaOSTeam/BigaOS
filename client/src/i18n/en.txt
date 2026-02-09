@@ -590,6 +590,39 @@ chart.navigate=WASD: navigate ({speed} kt)
 confirm.delete_file=Delete {name}?
 confirm.remove_data=This will remove the downloaded data. You can re-download it later.
 
+# ==================== Plugins ====================
+settings.plugins=Plugins
+settings.data_sources=Data Sources
+plugins.installed_label=Installed
+plugins.marketplace=Marketplace
+plugins.install=Install
+plugins.uninstall=Uninstall
+plugins.uninstall_title=Uninstall Plugin
+plugins.uninstall_message=Are you sure you want to uninstall this plugin? This cannot be undone.
+plugins.update=Update
+plugins.refresh=Refresh
+plugins.no_plugins=No plugins installed
+plugins.no_marketplace=No plugins available in the marketplace
+plugins.loading_marketplace=Loading marketplace...
+
+# ==================== Data Sources ====================
+data_sources.title=Data Sources
+data_sources.subtitle=Manage sensor data inputs and mappings
+data_sources.active_drivers=Active Drivers
+data_sources.no_drivers=No active drivers
+data_sources.auto_map=Auto-Map
+data_sources.streams=streams
+data_sources.no_source=No source
+data_sources.no_data=No data
+data_sources.data_flowing=Data flowing
+data_sources.stale=Stale data
+data_sources.debug_mode=Debug Mode
+data_sources.raw_data=Raw Data
+data_sources.clear_all=Clear All Sensor Data
+data_sources.clear_all_title=Clear All Sensor Data?
+data_sources.clear_all_message=This will reset all sensor data and mappings. Use this to clear demo data before connecting real hardware.
+data_sources.clear_all_help=Clears all current sensor data and resets mappings
+
 # ==================== Validation ====================
 validation.invalid_number=Please enter a valid number
 validation.min_value=Value must be at least {min}

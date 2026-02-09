@@ -1,0 +1,37 @@
+{
+  "id": "bigaos-demo-driver",
+  "name": "Demo Driver",
+  "version": "1.0.0",
+  "description": "Built-in demo data source for testing and development. Generates realistic sensor data without hardware.",
+  "author": "BigaOS Team",
+  "type": "driver",
+  "main": "index.js",
+  "flag": "official",
+  "builtin": true,
+  "capabilities": ["sensor-data", "settings"],
+  "driver": {
+    "protocol": "demo",
+    "dataStreams": [
+      { "id": "gps", "name": "GPS Position", "dataType": "position", "unit": "degrees", "updateRate": 1 },
+      { "id": "sog", "name": "Speed Over Ground", "dataType": "speed_over_ground", "unit": "m/s", "updateRate": 1 },
+      { "id": "cog", "name": "Course Over Ground", "dataType": "course_over_ground", "unit": "degrees", "updateRate": 1 },
+      { "id": "heading_mag", "name": "Heading Magnetic", "dataType": "heading_magnetic", "unit": "degrees", "updateRate": 1 },
+      { "id": "heading_true", "name": "Heading True", "dataType": "heading_true", "unit": "degrees", "updateRate": 1 },
+      { "id": "attitude", "name": "Attitude", "dataType": "attitude", "unit": "degrees", "updateRate": 1 },
+      { "id": "depth", "name": "Depth Below Transducer", "dataType": "depth", "unit": "meters", "updateRate": 1 },
+      { "id": "wind_apparent", "name": "Apparent Wind", "dataType": "wind_apparent", "unit": "m/s", "updateRate": 1 },
+      { "id": "wind_true", "name": "True Wind", "dataType": "wind_true", "unit": "m/s", "updateRate": 1 },
+      { "id": "temp_engine", "name": "Engine Room Temperature", "dataType": "temperature_engine", "unit": "K", "updateRate": 1 },
+      { "id": "temp_cabin", "name": "Cabin Temperature", "dataType": "temperature_cabin", "unit": "K", "updateRate": 1 },
+      { "id": "temp_outside", "name": "Outside Temperature", "dataType": "temperature_outside", "unit": "K", "updateRate": 1 },
+      { "id": "temp_battery", "name": "Battery Temperature", "dataType": "temperature_battery", "unit": "K", "updateRate": 1 },
+      { "id": "batt_voltage", "name": "Battery Voltage", "dataType": "battery_voltage", "unit": "V", "updateRate": 1 },
+      { "id": "batt_current", "name": "Battery Current", "dataType": "battery_current", "unit": "A", "updateRate": 1 },
+      { "id": "batt_soc", "name": "Battery SOC", "dataType": "battery_soc", "unit": "%", "updateRate": 1 },
+      { "id": "batt_temp", "name": "Battery Compartment Temp", "dataType": "battery_temperature", "unit": "K", "updateRate": 1 },
+      { "id": "motor_state", "name": "Motor State", "dataType": "motor_state", "unit": "", "updateRate": 1 },
+      { "id": "motor_temp", "name": "Motor Temperature", "dataType": "motor_temperature", "unit": "K", "updateRate": 1 },
+      { "id": "motor_throttle", "name": "Motor Throttle", "dataType": "motor_throttle", "unit": "%", "updateRate": 1 }
+    ]
+  }
+}

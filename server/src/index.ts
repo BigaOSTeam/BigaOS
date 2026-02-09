@@ -94,11 +94,11 @@ async function startServer() {
   // Create HTTP server
   const httpServer = createServer(app);
 
-  // Initialize DataController (central data hub)
+  // Initialize DataController (central data hub + plugin system)
   const dataController = DataController.getInstance();
   try {
     await dataController.initialize();
-    console.log('[Server] DataController initialized');
+    console.log('[Server] DataController initialized (with plugin system)');
   } catch (error) {
     console.error('Failed to initialize DataController:', error);
     // Continue without DataController - fallback to legacy behavior
@@ -132,11 +132,11 @@ async function startServer() {
 const serverPromise = startServer();
 
 // Graceful shutdown
-process.on('SIGTERM', async () => {
-  console.log('SIGTERM received, shutting down gracefully...');
+async function shutdown(signal: string) {
+  console.log(`${signal} received, shutting down gracefully...`);
   const { httpServer, wsServer } = await serverPromise;
   wsServer.stop();
-  DataController.getInstance().stop();
+  await DataController.getInstance().stop();
   await routeWorkerService.terminate();
   await dbWorker.terminate();
   db.close();
@@ -144,18 +144,7 @@ process.on('SIGTERM', async () => {
     console.log('Server closed');
     process.exit(0);
   });
-});
+}
 
-process.on('SIGINT', async () => {
-  console.log('SIGINT received, shutting down gracefully...');
-  const { httpServer, wsServer } = await serverPromise;
-  wsServer.stop();
-  DataController.getInstance().stop();
-  await routeWorkerService.terminate();
-  await dbWorker.terminate();
-  db.close();
-  httpServer.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
-});
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));

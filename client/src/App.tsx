@@ -15,6 +15,7 @@ import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { AlertProvider } from './context/AlertContext';
+import { PluginProvider } from './context/PluginContext';
 import { AlertContainer } from './components/alerts';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { wsService } from './services/websocket';
@@ -419,12 +420,14 @@ function App() {
       <LanguageProvider>
         <SettingsProvider>
           <LanguageSyncBridge />
-          <AlertProvider>
-            <ConfirmDialogProvider>
-              <AppContent />
-              <AlertContainer />
-            </ConfirmDialogProvider>
-          </AlertProvider>
+          <PluginProvider>
+            <AlertProvider>
+              <ConfirmDialogProvider>
+                <AppContent />
+                <AlertContainer />
+              </ConfirmDialogProvider>
+            </AlertProvider>
+          </PluginProvider>
         </SettingsProvider>
       </LanguageProvider>
     </NavigationProvider>

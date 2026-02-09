@@ -590,6 +590,39 @@ chart.navigate=WASD: navigieren ({speed} kt)
 confirm.delete_file={name} löschen?
 confirm.remove_data=Die heruntergeladenen Daten werden entfernt. Sie können sie später erneut herunterladen.
 
+# ==================== Plugins ====================
+settings.plugins=Plugins
+settings.data_sources=Datenquellen
+plugins.installed_label=Installiert
+plugins.marketplace=Marktplatz
+plugins.install=Installieren
+plugins.uninstall=Deinstallieren
+plugins.uninstall_title=Plugin deinstallieren
+plugins.uninstall_message=Sind Sie sicher, dass Sie dieses Plugin deinstallieren möchten? Dies kann nicht rückgängig gemacht werden.
+plugins.update=Aktualisieren
+plugins.refresh=Aktualisieren
+plugins.no_plugins=Keine Plugins installiert
+plugins.no_marketplace=Keine Plugins im Marktplatz verfügbar
+plugins.loading_marketplace=Marktplatz laden...
+
+# ==================== Datenquellen ====================
+data_sources.title=Datenquellen
+data_sources.subtitle=Sensordaten-Eingänge und Zuordnungen verwalten
+data_sources.active_drivers=Aktive Treiber
+data_sources.no_drivers=Keine aktiven Treiber
+data_sources.auto_map=Auto-Zuordnung
+data_sources.streams=Datenströme
+data_sources.no_source=Keine Quelle
+data_sources.no_data=Keine Daten
+data_sources.data_flowing=Daten fließen
+data_sources.stale=Veraltete Daten
+data_sources.debug_mode=Debug-Modus
+data_sources.raw_data=Rohdaten
+data_sources.clear_all=Alle Sensordaten löschen
+data_sources.clear_all_title=Alle Sensordaten löschen?
+data_sources.clear_all_message=Alle Sensordaten und Zuordnungen werden zurückgesetzt. Verwenden Sie dies, um Demodaten vor dem Anschließen echter Hardware zu löschen.
+data_sources.clear_all_help=Löscht alle aktuellen Sensordaten und setzt Zuordnungen zurück
+
 # ==================== Validierung ====================
 validation.invalid_number=Bitte geben Sie eine gültige Zahl ein
 validation.min_value=Wert muss mindestens {min} betragen
