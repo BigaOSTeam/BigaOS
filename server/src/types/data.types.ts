@@ -6,7 +6,7 @@
  * - Temperature: Kelvin
  * - Pressure: Pascal
  * - Depth: meters
- * - Angles: degrees (0-360)
+ * - Angles: radians (0-2π)
  * - Position: decimal degrees
  */
 
@@ -21,9 +21,9 @@ export interface GeoPosition {
 }
 
 export interface AttitudeData {
-  roll: number; // degrees (heel angle, positive = starboard down)
-  pitch: number; // degrees (positive = bow up)
-  yaw: number; // degrees
+  roll: number; // radians (heel angle, positive = starboard down)
+  pitch: number; // radians (positive = bow up)
+  yaw: number; // radians
 }
 
 // ============================================================================
@@ -32,10 +32,10 @@ export interface AttitudeData {
 
 export interface StandardNavigationData {
   position: GeoPosition;
-  courseOverGround: number; // degrees (0-360)
+  courseOverGround: number; // radians (0-2π)
   speedOverGround: number; // m/s (standard unit)
-  headingMagnetic: number; // degrees (0-360)
-  headingTrue: number; // degrees (0-360)
+  headingMagnetic: number; // radians (0-2π)
+  headingTrue: number; // radians (0-2π)
   attitude: AttitudeData;
 }
 
@@ -45,9 +45,9 @@ export interface StandardEnvironmentData {
   };
   wind: {
     speedApparent: number; // m/s (standard unit)
-    angleApparent: number; // degrees (0-360, relative to bow)
+    angleApparent: number; // radians (0-2π, relative to bow)
     speedTrue: number; // m/s (standard unit)
-    angleTrue: number; // degrees (0-360, relative to bow)
+    angleTrue: number; // radians (0-2π, relative to bow)
   };
   temperature: {
     engineRoom: number; // Kelvin
@@ -91,19 +91,19 @@ export interface StandardSensorData {
 
 export interface StandardWindData {
   speed: number; // m/s (standard unit)
-  direction: number; // degrees (0-360, direction wind is FROM)
+  direction: number; // radians (0-2π, direction wind is FROM)
   gusts: number; // m/s (standard unit)
 }
 
 export interface StandardWaveData {
   height: number; // meters
-  direction: number; // degrees (0-360)
+  direction: number; // radians (0-2π)
   period: number; // seconds
 }
 
 export interface StandardCurrentData {
   velocity: number; // m/s
-  direction: number; // degrees (0-360, direction current is flowing TO)
+  direction: number; // radians (0-2π, direction current is flowing TO)
 }
 
 export interface StandardWeatherPoint {
@@ -147,10 +147,10 @@ export interface DisplaySensorData {
   timestamp: string;
   navigation: {
     position: GeoPosition;
-    courseOverGround: number; // degrees
+    courseOverGround: number; // radians
     speedOverGround: number; // user's speed unit (kt, km/h, etc.)
-    headingMagnetic: number; // degrees
-    headingTrue: number; // degrees
+    headingMagnetic: number; // radians
+    headingTrue: number; // radians
     attitude: AttitudeData;
   };
   environment: {
@@ -159,9 +159,9 @@ export interface DisplaySensorData {
     };
     wind: {
       speedApparent: number; // user's wind unit
-      angleApparent: number; // degrees
+      angleApparent: number; // radians
       speedTrue: number; // user's wind unit
-      angleTrue: number; // degrees
+      angleTrue: number; // radians
     };
     temperature: {
       engineRoom: number; // user's temperature unit
@@ -195,22 +195,22 @@ export interface DisplayWeatherPoint {
   location: { lat: number; lon: number };
   wind: {
     speed: number; // user's wind unit
-    direction: number; // degrees
+    direction: number; // radians
     gusts: number; // user's wind unit
   };
   waves?: {
     height: number; // user's depth unit
-    direction: number; // degrees
+    direction: number; // radians
     period: number; // seconds
   };
   swell?: {
     height: number; // user's depth unit
-    direction: number; // degrees
+    direction: number; // radians
     period: number; // seconds
   };
   current?: {
     velocity: number; // m/s (usually not converted)
-    direction: number; // degrees
+    direction: number; // radians
   };
   pressure?: number; // user's pressure unit
   seaTemperature?: number; // user's temperature unit

@@ -27,6 +27,8 @@ import {
   CONVERSIONS,
 } from '../types/units.types';
 
+const DEG_TO_RAD = Math.PI / 180;
+
 export class WeatherDataService extends EventEmitter {
   private cachedStandardWeather: StandardWeatherForecast | null = null;
   private getPositionCallback: (() => { lat: number; lon: number } | null) | null = null;
@@ -174,27 +176,27 @@ export class WeatherDataService extends EventEmitter {
       location: point.location,
       wind: {
         speed: knotsToMs(point.wind.speed), // knots → m/s
-        direction: point.wind.direction, // degrees, no conversion
+        direction: point.wind.direction * DEG_TO_RAD, // degrees → radians
         gusts: knotsToMs(point.wind.gusts), // knots → m/s
       },
       waves: point.waves
         ? {
             height: point.waves.height, // meters, no conversion
-            direction: point.waves.direction, // degrees, no conversion
+            direction: point.waves.direction * DEG_TO_RAD, // degrees → radians
             period: point.waves.period, // seconds, no conversion
           }
         : undefined,
       swell: point.swell
         ? {
             height: point.swell.height, // meters, no conversion
-            direction: point.swell.direction, // degrees, no conversion
+            direction: point.swell.direction * DEG_TO_RAD, // degrees → radians
             period: point.swell.period, // seconds, no conversion
           }
         : undefined,
       current: point.current
         ? {
             velocity: point.current.velocity, // m/s, already standard
-            direction: point.current.direction, // degrees, no conversion
+            direction: point.current.direction * DEG_TO_RAD, // degrees → radians
           }
         : undefined,
       pressure: point.pressure !== undefined

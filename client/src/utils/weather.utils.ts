@@ -2,6 +2,8 @@
  * Shared weather utility functions
  */
 
+import { radToDeg } from './angle';
+
 /**
  * Interpolate between two RGB colors
  */
@@ -155,9 +157,11 @@ export function getCurrentColor(velocityMs: number): string {
 }
 
 /**
- * Format wind direction as compass point
+ * Format wind direction as compass point.
+ * Expects direction in radians (internal standard).
  */
-export function formatWindDirection(degrees: number): string {
+export function formatWindDirection(radians: number): string {
+  const degrees = ((radToDeg(radians) % 360) + 360) % 360;
   const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
   const index = Math.round(degrees / 45) % 8;
   return directions[index];

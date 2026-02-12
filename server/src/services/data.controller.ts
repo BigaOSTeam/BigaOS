@@ -2,11 +2,14 @@
  * DataController - Central hub for all data in BigaOS
  *
  * This controller:
- * - Coordinates all data sources (sensors, weather)
+ * - Coordinates all data sources (sensors via plugin system, weather)
  * - Maintains current data snapshot in standard units
  * - Routes data to AlertController for evaluation
  * - Emits events for WebSocket broadcasting
  * - Provides unified data API
+ *
+ * Data pipeline:
+ *   Plugins -> PluginAPI -> SensorMappingService -> DataController -> AlertService -> WebSocket
  *
  * All data is stored in NMEA2000 standard units internally:
  * - Speed: m/s
@@ -19,6 +22,8 @@ import { EventEmitter } from 'events';
 import { SensorDataService, sensorDataService } from './sensor-data.service';
 import { WeatherDataService, weatherDataService } from './weather-data.service';
 import { AlertService, alertService } from './alert.service';
+import { SensorMappingService } from './sensor-mapping.service';
+import { PluginManager } from './plugin-manager';
 import { dbWorker } from './database-worker.service';
 import {
   StandardSensorData,
@@ -36,6 +41,7 @@ import {
   pressureFromStandard,
 } from '../types/units.types';
 import { TriggeredAlert } from '../types/alert.types';
+import { PluginSensorValueEvent, PluginSensorPacketEvent } from '../types/plugin.types';
 
 // Singleton instance
 let instance: DataController | null = null;
@@ -44,6 +50,11 @@ export class DataController extends EventEmitter {
   private sensorService: SensorDataService;
   private weatherService: WeatherDataService;
   private alertServiceInstance: AlertService;
+  private sensorMappingService: SensorMappingService | null = null;
+  private pluginManager: PluginManager | null = null;
+
+  // Reference to the demo driver module for demo navigation control
+  private demoDriverModule: any = null;
 
   private currentSensorData: StandardSensorData | null = null;
   private currentWeatherData: StandardWeatherForecast | null = null;
@@ -80,10 +91,8 @@ export class DataController extends EventEmitter {
     // Initialize alert service
     await this.alertServiceInstance.initialize();
 
-    // Set up sensor data listener
-    this.sensorService.on('sensor_data', (data: StandardSensorData) => {
-      this.onSensorData(data);
-    });
+    // Initialize plugin system
+    await this.initializePluginSystem();
 
     // Set up weather data listener
     this.weatherService.on('weather_data', (data: StandardWeatherForecast) => {
@@ -104,12 +113,80 @@ export class DataController extends EventEmitter {
     });
 
     // Initialize weather service with position callback
-    await this.weatherService.initialize(() => this.sensorService.getCurrentPosition());
-
-    // Start sensor data generation
-    this.sensorService.start();
+    // Try demo driver first, fall back to legacy sensor service
+    await this.weatherService.initialize(() => {
+      if (this.demoDriverModule && typeof this.demoDriverModule.getCurrentPosition === 'function') {
+        return this.demoDriverModule.getCurrentPosition();
+      }
+      return this.sensorService.getCurrentPosition();
+    });
 
     console.log('[DataController] Initialized successfully');
+  }
+
+  /**
+   * Initialize the plugin system: SensorMappingService + PluginManager
+   */
+  private async initializePluginSystem(): Promise<void> {
+    try {
+      // Create and initialize sensor mapping service
+      this.sensorMappingService = new SensorMappingService();
+      await this.sensorMappingService.initialize();
+
+      // Subscribe to assembled sensor data from the mapping service
+      this.sensorMappingService.on('sensor_data', (data: StandardSensorData) => {
+        this.onSensorData(data);
+      });
+
+      // Listen for plugin sensor events on this (DataController) emitter
+      // Plugins push data via PluginAPI -> this emitter -> SensorMappingService
+      this.on('plugin_sensor_data', (event: PluginSensorValueEvent) => {
+        this.sensorMappingService!.onSensorValue(event);
+      });
+
+      this.on('plugin_sensor_packet', (event: PluginSensorPacketEvent) => {
+        this.sensorMappingService!.onSensorPacket(event);
+      });
+
+      // Create and initialize plugin manager
+      this.pluginManager = new PluginManager(this, this.sensorMappingService);
+      await this.pluginManager.initialize();
+
+      // Try to get reference to demo driver for navigation control
+      this.updateDemoDriverRef();
+
+      // Forward plugin updates to this emitter for WebSocket
+      this.pluginManager.on('plugin_update', (data: any) => {
+        this.emit('plugin_update', data);
+      });
+
+      console.log('[DataController] Plugin system initialized');
+    } catch (error) {
+      console.error('[DataController] Plugin system initialization failed, falling back to legacy:', error);
+
+      // Fallback: use legacy SensorDataService directly
+      this.sensorService.on('sensor_data', (data: StandardSensorData) => {
+        this.onSensorData(data);
+      });
+      this.sensorService.start();
+    }
+  }
+
+  /**
+   * Update reference to demo driver module for navigation control.
+   */
+  private updateDemoDriverRef(): void {
+    if (!this.pluginManager) return;
+    const demoPlugin = this.pluginManager.getPlugin('bigaos-demo-driver');
+    if (demoPlugin && demoPlugin.status === 'enabled') {
+      try {
+        const path = require('path');
+        const entryPoint = path.join(__dirname, '../../..', 'plugins', 'bigaos-demo-driver', 'index.js');
+        this.demoDriverModule = require(entryPoint);
+      } catch {
+        this.demoDriverModule = null;
+      }
+    }
   }
 
   /**
@@ -361,6 +438,40 @@ export class DataController extends EventEmitter {
     return this.alertServiceInstance;
   }
 
+  getPluginManager(): PluginManager | null {
+    return this.pluginManager;
+  }
+
+  getSensorMappingService(): SensorMappingService | null {
+    return this.sensorMappingService;
+  }
+
+  // ============================================================================
+  // Demo Driver Control
+  // ============================================================================
+
+  /**
+   * Set demo navigation values (forwarded to demo driver plugin).
+   */
+  setDemoNavigation(data: { latitude?: number; longitude?: number; heading?: number; speed?: number }): void {
+    if (this.demoDriverModule && typeof this.demoDriverModule.setDemoNavigation === 'function') {
+      this.demoDriverModule.setDemoNavigation(data);
+    } else {
+      // Fallback to legacy sensor service
+      this.sensorService.setDemoNavigation(data);
+    }
+  }
+
+  /**
+   * Get demo navigation state.
+   */
+  getDemoNavigation(): { latitude: number; longitude: number; heading: number; speed: number } | null {
+    if (this.demoDriverModule && typeof this.demoDriverModule.getDemoNavigation === 'function') {
+      return this.demoDriverModule.getDemoNavigation();
+    }
+    return this.sensorService.getDemoNavigation();
+  }
+
   // ============================================================================
   // Cleanup
   // ============================================================================
@@ -368,7 +479,13 @@ export class DataController extends EventEmitter {
   /**
    * Stop all services and clean up
    */
-  stop(): void {
+  async stop(): Promise<void> {
+    if (this.pluginManager) {
+      await this.pluginManager.stop();
+    }
+    if (this.sensorMappingService) {
+      this.sensorMappingService.stop();
+    }
     this.sensorService.stop();
     this.weatherService.stop();
     console.log('[DataController] Stopped');

@@ -11,6 +11,7 @@ interface CustomSelectProps<T extends string | number> {
   options: SelectOption<T>[];
   onChange: (value: T) => void;
   placeholder?: string;
+  compact?: boolean;
 }
 
 export function CustomSelect<T extends string | number>({
@@ -18,6 +19,7 @@ export function CustomSelect<T extends string | number>({
   options,
   onChange,
   placeholder = 'Select...',
+  compact = false,
 }: CustomSelectProps<T>) {
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -41,18 +43,20 @@ export function CustomSelect<T extends string | number>({
   const selectedOption = options.find((opt) => opt.value === value);
 
   return (
-    <div ref={containerRef} style={{ position: 'relative' }}>
+    <div ref={containerRef} style={{ position: 'relative', height: '100%' }}>
       <button
         type="button"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           width: '100%',
-          padding: theme.space.md,
+          height: '100%',
+          padding: compact ? `${theme.space.xs} ${theme.space.sm}` : theme.space.md,
+          boxSizing: 'border-box',
           background: theme.colors.bgCardActive,
           border: `1px solid ${isOpen ? theme.colors.primary : theme.colors.border}`,
-          borderRadius: theme.radius.md,
+          borderRadius: compact ? theme.radius.sm : theme.radius.md,
           color: selectedOption ? theme.colors.textPrimary : theme.colors.textMuted,
-          fontSize: theme.fontSize.md,
+          fontSize: compact ? theme.fontSize.xs : theme.fontSize.md,
           cursor: 'pointer',
           display: 'flex',
           justifyContent: 'space-between',
@@ -63,8 +67,8 @@ export function CustomSelect<T extends string | number>({
       >
         <span>{selectedOption?.label ?? placeholder}</span>
         <svg
-          width="16"
-          height="16"
+          width={compact ? '12' : '16'}
+          height={compact ? '12' : '16'}
           viewBox="0 0 24 24"
           fill="none"
           stroke="currentColor"
@@ -106,11 +110,11 @@ export function CustomSelect<T extends string | number>({
               }}
               style={{
                 width: '100%',
-                padding: `${theme.space.sm} ${theme.space.md}`,
+                padding: compact ? `${theme.space.xs} ${theme.space.sm}` : `${theme.space.sm} ${theme.space.md}`,
                 background: option.value === value ? theme.colors.primaryLight : 'transparent',
                 border: 'none',
                 color: option.value === value ? theme.colors.primary : theme.colors.textPrimary,
-                fontSize: theme.fontSize.md,
+                fontSize: compact ? theme.fontSize.xs : theme.fontSize.md,
                 cursor: 'pointer',
                 textAlign: 'left',
                 transition: `background ${theme.transition.fast}`,

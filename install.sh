@@ -1,12 +1,12 @@
 #!/bin/bash
 # BigaOS Installer & Updater
-# Fresh install:  curl -sSL https://raw.githubusercontent.com/Johannes-Goetz/BigaOS/main/install.sh | bash
+# Fresh install:  curl -sSL https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/install.sh | bash
 # Update:         bash ~/BigaOS/install.sh
 
 set -e
 
 # ── Configuration ──────────────────────────────────────────
-GITHUB_REPO="Johannes-Goetz/BigaOS"
+GITHUB_REPO="BigaOSTeam/BigaOS"
 INSTALL_DIR="$HOME/BigaOS"
 SERVICE_NAME="bigaos"
 

@@ -3,6 +3,7 @@ import { SearchResult } from '../../../services/geocoding';
 import { CustomMarker, markerIcons } from './map-icons';
 import { useSettings, windConversions, depthConversions, temperatureConversions } from '../../../context/SettingsContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { radToDeg, degToRad, TWO_PI } from '../../../utils/angle';
 
 interface DepthSettingsPanelProps {
   sidebarWidth: number;
@@ -180,14 +181,14 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
   const { t } = useLanguage();
   const settingsPanelWidth = 200;
 
-  const adjustHeading = (delta: number) => {
+  const adjustHeading = (deltaDeg: number) => {
     // Turn off follow mode when manually adjusting
     if (followingRoute) {
       onToggleFollowRoute();
     }
-    let newHeading = targetHeading + delta;
-    if (newHeading >= 360) newHeading -= 360;
-    if (newHeading < 0) newHeading += 360;
+    let newHeading = targetHeading + degToRad(deltaDeg);
+    if (newHeading >= TWO_PI) newHeading -= TWO_PI;
+    if (newHeading < 0) newHeading += TWO_PI;
     onSetHeading(newHeading);
   };
 
@@ -229,7 +230,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             {t('autopilot.set_course')}
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>
-            {targetHeading.toFixed(0)}°
+            {radToDeg(targetHeading).toFixed(0)}°
           </div>
         </div>
 
@@ -316,7 +317,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
                 {t('autopilot.follow_route')}
               </div>
               <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                {currentBearing.toFixed(0)}°
+                {radToDeg(currentBearing).toFixed(0)}°
               </div>
             </div>
             <button

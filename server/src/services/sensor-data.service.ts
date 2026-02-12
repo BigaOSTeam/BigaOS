@@ -6,7 +6,7 @@
  * - Speed: m/s
  * - Temperature: Kelvin
  * - Depth: meters
- * - Angles: degrees
+ * - Angles: radians
  *
  * When real NMEA2000 hardware is connected, this service will be replaced
  * by actual hardware data feeds.
@@ -22,6 +22,8 @@ import {
   StandardPropulsionData,
 } from '../types/data.types';
 import { knotsToMs, celsiusToKelvin } from '../types/units.types';
+
+const DEG_TO_RAD = Math.PI / 180;
 
 export class SensorDataService extends EventEmitter {
   private currentState: BoatState = BoatState.DRIFTING;
@@ -156,17 +158,17 @@ export class SensorDataService extends EventEmitter {
     const batteryCompartmentTempC = this.randomVariation(24, 2);
     const motorTempC = motorRunning ? this.randomVariation(40, 3) : this.randomVariation(25, 2);
 
-    // Build sensor data in STANDARD units
+    // Build sensor data in STANDARD units (angles in radians)
     const navigation: StandardNavigationData = {
       position: { ...position },
-      courseOverGround: heading,
+      courseOverGround: heading * DEG_TO_RAD,
       speedOverGround: knotsToMs(speedKnots), // Convert to m/s
-      headingMagnetic: heading,
-      headingTrue: this.normalizeAngle(heading + 12), // Add magnetic variation
+      headingMagnetic: heading * DEG_TO_RAD,
+      headingTrue: this.normalizeAngle(heading + 12) * DEG_TO_RAD, // Add magnetic variation
       attitude: {
-        roll: heelAngle,
-        pitch: this.randomVariation(2, 1),
-        yaw: heading,
+        roll: heelAngle * DEG_TO_RAD,
+        pitch: this.randomVariation(2, 1) * DEG_TO_RAD,
+        yaw: heading * DEG_TO_RAD,
       },
     };
 
@@ -176,9 +178,9 @@ export class SensorDataService extends EventEmitter {
       },
       wind: {
         speedApparent: knotsToMs(windSpeedKnots), // Convert to m/s
-        angleApparent: this.randomVariation(45, 10),
+        angleApparent: this.randomVariation(45, 10) * DEG_TO_RAD,
         speedTrue: knotsToMs(this.randomVariation(windSpeedKnots - 1, 1)), // Convert to m/s
-        angleTrue: this.randomVariation(50, 10),
+        angleTrue: this.randomVariation(50, 10) * DEG_TO_RAD,
       },
       temperature: {
         engineRoom: celsiusToKelvin(engineRoomTempC),

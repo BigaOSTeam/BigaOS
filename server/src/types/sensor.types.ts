@@ -7,10 +7,10 @@ export interface SensorData {
 
 export interface NavigationData {
   position: GeoPosition;
-  courseOverGround: number;      // Degrees
+  courseOverGround: number;      // Radians
   speedOverGround: number;        // Knots
-  headingMagnetic: number;        // Degrees
-  headingTrue: number;            // Degrees
+  headingMagnetic: number;        // Radians
+  headingTrue: number;            // Radians
   attitude: AttitudeData;
 }
 
@@ -21,9 +21,9 @@ export interface GeoPosition {
 }
 
 export interface AttitudeData {
-  roll: number;   // Heel angle in degrees
-  pitch: number;  // Pitch in degrees
-  yaw: number;    // Yaw in degrees
+  roll: number;   // Heel angle in radians
+  pitch: number;  // Pitch in radians
+  yaw: number;    // Yaw in radians
 }
 
 export interface EnvironmentData {
@@ -32,9 +32,9 @@ export interface EnvironmentData {
   };
   wind: {
     speedApparent: number;        // Knots
-    angleApparent: number;        // Degrees
+    angleApparent: number;        // Radians
     speedTrue: number;            // Knots
-    angleTrue: number;            // Degrees
+    angleTrue: number;            // Radians
   };
   temperature: {
     engineRoom: number;           // Celsius

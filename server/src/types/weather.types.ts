@@ -5,19 +5,19 @@
 
 export interface WindData {
   speed: number; // knots
-  direction: number; // degrees (direction wind is coming FROM, 0 = North)
+  direction: number; // radians (direction wind is coming FROM, 0 = North)
   gusts: number; // knots
 }
 
 export interface WaveData {
   height: number; // meters
-  direction: number; // degrees
+  direction: number; // radians
   period: number; // seconds
 }
 
 export interface CurrentData {
   velocity: number; // m/s
-  direction: number; // degrees (direction current is flowing TO)
+  direction: number; // radians (direction current is flowing TO)
 }
 
 export interface WeatherPoint {

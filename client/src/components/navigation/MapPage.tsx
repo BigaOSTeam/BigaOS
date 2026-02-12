@@ -3,8 +3,9 @@ import { ChartView } from './ChartView';
 import { SensorData, GeoPosition } from '../../types';
 import { wsService } from '../../services/websocket';
 import { sensorAPI, navigationAPI } from '../../services/api';
-import { useSettings } from '../../context/SettingsContext';
+import { usePlugins } from '../../context/PluginContext';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { degToRad, TWO_PI } from '../../utils/angle';
 
 interface MapPageProps {
   onClose?: () => void;
@@ -14,7 +15,7 @@ interface MapPageProps {
 export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => {
   const { t } = useLanguage();
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
-  const { demoMode } = useSettings();
+  const { isDemoActive: demoMode } = usePlugins();
 
   // Dummy drive mode state - controlled position when in demo mode
   const [dummyLat, setDummyLat] = useState(43.45); // Default: Adriatic Sea, west of Split
@@ -110,13 +111,13 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
 
     const interval = setInterval(() => {
       const keys = keysPressed.current;
-      const turnRate = 3; // degrees per tick
+      const turnRate = degToRad(3); // 3 degrees per tick in radians
 
       if (keys.has('a')) {
-        setDummyHeading(prev => (prev - turnRate + 360) % 360);
+        setDummyHeading(prev => (prev - turnRate + TWO_PI) % TWO_PI);
       }
       if (keys.has('d')) {
-        setDummyHeading(prev => (prev + turnRate) % 360);
+        setDummyHeading(prev => (prev + turnRate) % TWO_PI);
       }
     }, 50); // 20 times per second
 
@@ -140,10 +141,9 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
         // So 1 knot ≈ 0.0005144 / 111 ≈ 0.00000463 degrees/second
         const speedInDegreesPerSecond = dummySpeed * 0.00000463;
 
-        // Calculate movement
-        const headingRad = (dummyHeading * Math.PI) / 180;
-        const deltaLat = Math.cos(headingRad) * speedInDegreesPerSecond * deltaTime;
-        const deltaLon = Math.sin(headingRad) * speedInDegreesPerSecond * deltaTime / Math.cos((dummyLat * Math.PI) / 180);
+        // Calculate movement (heading is already in radians)
+        const deltaLat = Math.cos(dummyHeading) * speedInDegreesPerSecond * deltaTime;
+        const deltaLon = Math.sin(dummyHeading) * speedInDegreesPerSecond * deltaTime / Math.cos((dummyLat * Math.PI) / 180);
 
         setDummyLat(prev => prev + deltaLat);
         setDummyLon(prev => prev + deltaLon);

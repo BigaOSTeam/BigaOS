@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { radToDeg } from '../../utils/angle';
 
 interface COGViewProps {
-  cog: number; // Current course over ground in degrees
+  cog: number; // Current course over ground in radians
   onClose: () => void;
 }
 
@@ -132,7 +133,7 @@ export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
         })}
 
         {/* COG pointer - arrow style */}
-        <g transform={`rotate(${cog}, ${center}, ${center})`}>
+        <g transform={`rotate(${radToDeg(cog)}, ${center}, ${center})`}>
           {/* Arrow pointer */}
           <polygon
             points={`${center},${center - outerRadius + 10} ${center - 15},${center + 20} ${center},${center} ${center + 15},${center + 20}`}
@@ -207,14 +208,14 @@ export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
             color: '#42a5f5',
             lineHeight: 1,
           }}>
-            {Math.round(cog)}°
+            {Math.round(radToDeg(cog))}°
           </div>
           <div style={{
             fontSize: '1.5rem',
             opacity: 0.6,
             marginTop: '0.25rem',
           }}>
-            {getCardinalDirection(cog)}
+            {getCardinalDirection(radToDeg(cog))}
           </div>
         </div>
       </div>

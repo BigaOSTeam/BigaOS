@@ -1377,6 +1377,7 @@ const calculateHorizontalDistance = (chainLength: number, depth: number): number
 
 // Calculate anchor position given boat position, heading, and distance
 // Boat heading is where the bow points - anchor is deployed from the bow, so it's in front of the boat
+// Note: boatHeading is in radians; lat/lon are in decimal degrees
 const calculateAnchorPosition = (
   boatLat: number,
   boatLon: number,
@@ -1384,15 +1385,13 @@ const calculateAnchorPosition = (
   distanceMeters: number
 ): { lat: number; lon: number } => {
   // Anchor is in the direction of heading (in front of the boat at the bow)
-  const anchorBearing = boatHeading;
-
-  // Convert bearing to radians
-  const bearingRad = (anchorBearing * Math.PI) / 180;
+  // boatHeading is already in radians
+  const bearingRad = boatHeading;
 
   // Earth radius in meters
   const earthRadius = 6371000;
 
-  // Convert boat position to radians
+  // Convert boat position to radians (lat/lon are still in degrees)
   const lat1 = (boatLat * Math.PI) / 180;
   const lon1 = (boatLon * Math.PI) / 180;
 
@@ -1406,7 +1405,7 @@ const calculateAnchorPosition = (
     Math.cos(distanceMeters / earthRadius) - Math.sin(lat1) * Math.sin(lat2)
   );
 
-  // Convert back to degrees
+  // Convert back to degrees (geographic coordinates)
   return {
     lat: (lat2 * 180) / Math.PI,
     lon: (lon2 * 180) / Math.PI,

@@ -1,0 +1,39 @@
+{
+  "id": "bigaos-demo-driver",
+  "name": "Demo Driver",
+  "version": "1.0.0",
+  "description": "Built-in demo data source for testing and development. Generates random sensor data without hardware.",
+  "author": "BigaOS Team",
+  "type": "driver",
+  "main": "index.js",
+  "flag": "official",
+  "builtin": true,
+  "capabilities": ["sensor-data", "settings"],
+  "driver": {
+    "protocol": "demo",
+    "dataStreams": [
+      { "id": "gps", "name": "GPS Position", "dataType": "position", "unit": "degrees", "updateRate": 1 },
+      { "id": "heading", "name": "Heading", "dataType": "heading", "unit": "degrees", "updateRate": 1 },
+      { "id": "depth", "name": "Depth", "dataType": "depth", "unit": "meters", "updateRate": 1 },
+      { "id": "stw", "name": "Speed Through Water", "dataType": "speed_through_water", "unit": "m/s", "updateRate": 1 },
+      { "id": "roll", "name": "Roll", "dataType": "roll", "unit": "degrees", "updateRate": 1 },
+      { "id": "voltage", "name": "Battery Voltage", "dataType": "voltage", "unit": "V", "updateRate": 1 },
+      { "id": "current", "name": "Battery Current", "dataType": "current", "unit": "A", "updateRate": 1 },
+      { "id": "soc", "name": "State of Charge", "dataType": "soc", "unit": "%", "updateRate": 1 },
+      { "id": "wind_speed", "name": "Wind Speed", "dataType": "wind_speed", "unit": "m/s", "updateRate": 1 },
+      { "id": "wind_angle", "name": "Wind Angle", "dataType": "wind_angle", "unit": "degrees", "updateRate": 1 },
+      { "id": "temperature", "name": "Temperature", "dataType": "temperature", "unit": "°C", "updateRate": 1 },
+      { "id": "water_temp", "name": "Water Temperature", "dataType": "water_temperature", "unit": "°C", "updateRate": 1 },
+      { "id": "pressure", "name": "Barometric Pressure", "dataType": "barometric_pressure", "unit": "hPa", "updateRate": 1 },
+      { "id": "humidity", "name": "Humidity", "dataType": "humidity", "unit": "%", "updateRate": 1 },
+      { "id": "fuel_level", "name": "Fuel Level", "dataType": "fuel_level", "unit": "%", "updateRate": 1 },
+      { "id": "rpm", "name": "Engine RPM", "dataType": "rpm", "unit": "rpm", "updateRate": 1 },
+      { "id": "rudder", "name": "Rudder Angle", "dataType": "rudder_angle", "unit": "degrees", "updateRate": 1 },
+      { "id": "tank_fresh", "name": "Fresh Water Tank", "dataType": "tank_level", "unit": "%", "updateRate": 1 },
+      { "id": "tank_waste", "name": "Waste Tank", "dataType": "tank_level", "unit": "%", "updateRate": 1 },
+      { "id": "solar_voltage", "name": "Solar Panel Voltage", "dataType": "voltage", "unit": "V", "updateRate": 1 },
+      { "id": "solar_current", "name": "Solar Panel Current", "dataType": "current", "unit": "A", "updateRate": 1 },
+      { "id": "chain_counter", "name": "Anchor Chain", "dataType": "chain_length", "unit": "m", "updateRate": 1 }
+    ]
+  }
+}

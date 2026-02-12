@@ -4,6 +4,7 @@ import { useSettings } from '../../../context/SettingsContext';
 import { theme } from '../../../styles/theme';
 import { wsService } from '../../../services/websocket';
 import { getWindColor, formatWindDirection } from '../../../utils/weather.utils';
+import { radToDeg } from '../../../utils/angle';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface WeatherForecastItemProps {
@@ -130,7 +131,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
           height="36"
           viewBox="0 0 24 24"
           style={{
-            transform: `rotate(${(current.wind.direction + 180) % 360}deg)`,
+            transform: `rotate(${radToDeg(current.wind.direction + Math.PI)}deg)`,
             transition: `transform ${theme.transition.slow}`,
             flexShrink: 0,
           }}
@@ -210,7 +211,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
                   height="16"
                   viewBox="0 0 24 24"
                   style={{
-                    transform: `rotate(${(hour.wind.direction + 180) % 360}deg)`,
+                    transform: `rotate(${radToDeg(hour.wind.direction + Math.PI)}deg)`,
                     margin: '2px 0',
                   }}
                 >

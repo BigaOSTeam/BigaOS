@@ -311,6 +311,8 @@ downloads.loading_data=Datenstatus laden...
 downloads.installed_label=Installiert
 downloads.error_download_failed=Download fehlgeschlagen
 downloads.starting=Starten...
+downloads.attribution=Daten: OSM Water Layer von Dai Yamazaki (Universität Tokio)
+downloads.license_link=Lizenz (CC BY 4.0)
 
 # ==================== Erweitert ====================
 advanced.map_tiles=Kartenkacheln
@@ -589,6 +591,43 @@ chart.navigate=WASD: navigieren ({speed} kt)
 # ==================== Bestätigungsdialoge ====================
 confirm.delete_file={name} löschen?
 confirm.remove_data=Die heruntergeladenen Daten werden entfernt. Sie können sie später erneut herunterladen.
+
+# ==================== Plugins ====================
+settings.plugins=Plugins
+plugins.installed=Installiert
+plugins.installed_label=Installiert
+plugins.marketplace=Marktplatz
+plugins.install=Installieren
+plugins.uninstall=Deinstallieren
+plugins.uninstall_title=Plugin deinstallieren
+plugins.uninstall_message=Sind Sie sicher, dass Sie dieses Plugin deinstallieren möchten? Dies kann nicht rückgängig gemacht werden.
+plugins.update=Aktualisieren
+plugins.refresh=Aktualisieren
+plugins.no_plugins=Keine Plugins installiert
+plugins.no_marketplace=Keine Plugins im Marktplatz verfügbar
+plugins.loading_marketplace=Marktplatz laden...
+plugins.status_enabled=Aktiviert
+plugins.status_disabled=Deaktiviert
+plugins.status_loading=Laden...
+plugins.status_error=Fehler
+plugins.status_installed=Installiert
+plugins.official=Offiziell
+plugins.community=Community
+plugins.type_driver=Treiber
+plugins.type_ui-extension=UI-Erweiterung
+plugins.type_service=Dienst
+plugins.type_integration=Integration
+plugins.settings=Einstellungen
+plugins.streams=Datenströme
+plugins.search=Plugins suchen...
+plugins.filter_all=Alle Typen
+plugins.conflict_warning=Konflikt: {plugin} liefert ebenfalls {dataType}
+plugins.debug=Debug
+plugins.debug_no_data=Keine Debug-Daten verfügbar
+plugins.no_streams=Keine Datenströme
+plugins.data_flowing=Aktiv
+plugins.data_stale=Veraltet
+plugins.no_data=Keine Daten
 
 # ==================== Validierung ====================
 validation.invalid_number=Bitte geben Sie eine gültige Zahl ein

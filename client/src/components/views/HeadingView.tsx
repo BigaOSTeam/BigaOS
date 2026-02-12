@@ -2,9 +2,10 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { radToDeg } from '../../utils/angle';
 
 interface HeadingViewProps {
-  heading: number; // Current heading in degrees
+  heading: number; // Current heading in radians
   onClose: () => void;
 }
 
@@ -132,7 +133,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
         })}
 
         {/* Heading pointer */}
-        <g transform={`rotate(${heading}, ${center}, ${center})`}>
+        <g transform={`rotate(${radToDeg(heading)}, ${center}, ${center})`}>
           {/* North pointer (red) */}
           <polygon
             points={`${center},${center - outerRadius + 5} ${center - 12},${center} ${center + 12},${center}`}
@@ -212,14 +213,14 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
             color: '#ffa726',
             lineHeight: 1,
           }}>
-            {Math.round(heading)}°
+            {Math.round(radToDeg(heading))}°
           </div>
           <div style={{
             fontSize: '1.5rem',
             opacity: 0.6,
             marginTop: '0.25rem',
           }}>
-            {getCardinalDirection(heading)}
+            {getCardinalDirection(radToDeg(heading))}
           </div>
         </div>
       </div>

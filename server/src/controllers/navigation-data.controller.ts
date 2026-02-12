@@ -17,7 +17,7 @@ const NAVIGATION_DATA_FILES: DataFileConfig[] = [
     name: 'Navigation Data',
     description: 'OSM Water Layer - oceans, lakes, rivers (90m resolution)',
     category: 'navigation',
-    defaultUrl: 'http://hydro.iis.u-tokyo.ac.jp/~yamadai/OSM_water/v2.0_2021Feb/OSM_WaterLayer_tif.tar.gz',
+    defaultUrl: 'https://github.com/BigaOSTeam/BigaOS-data/releases/download/navigation-data-v2.0/OSM_WaterLayer_tif.tar.gz',
     localPath: 'navigation-data'
   }
 ];

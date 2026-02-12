@@ -12,7 +12,9 @@
  * 4 = Canal
  * 5 = Small Stream
  *
- * Data source: http://hydro.iis.u-tokyo.ac.jp/~yamadai/OSM_water/
+ * Data: OSM Water Layer by Dai Yamazaki (University of Tokyo)
+ * License: CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/)
+ * Source: https://global-hydrodynamics.github.io/OSM_WaterLayer/
  */
 
 import * as fs from 'fs';

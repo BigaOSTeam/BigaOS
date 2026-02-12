@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 
+const TWO_PI = 2 * Math.PI;
+
 // TODO: Implement actual autopilot control logic
 // This controller currently stores the autopilot state but does not control any physical hardware
 
@@ -41,9 +43,9 @@ class AutopilotController {
     try {
       const { heading } = req.body;
 
-      if (typeof heading !== 'number' || heading < 0 || heading >= 360) {
+      if (typeof heading !== 'number' || heading < 0 || heading >= TWO_PI) {
         return res.status(400).json({
-          error: 'Invalid heading. Must be a number between 0 and 359',
+          error: 'Invalid heading. Must be a number in radians between 0 and 2π',
         });
       }
 
@@ -51,7 +53,7 @@ class AutopilotController {
       this.state.lastUpdated = new Date();
 
       // TODO: Send heading to actual autopilot hardware/controller
-      console.log(`[Autopilot] Heading set to ${heading}°`);
+      console.log(`[Autopilot] Heading set to ${(heading * 180 / Math.PI).toFixed(1)}°`);
 
       res.json({
         success: true,
@@ -73,9 +75,9 @@ class AutopilotController {
       const { heading } = req.body;
 
       if (heading !== undefined) {
-        if (typeof heading !== 'number' || heading < 0 || heading >= 360) {
+        if (typeof heading !== 'number' || heading < 0 || heading >= TWO_PI) {
           return res.status(400).json({
-            error: 'Invalid heading. Must be a number between 0 and 359',
+            error: 'Invalid heading. Must be a number in radians between 0 and 2π',
           });
         }
         this.state.targetHeading = heading;
@@ -85,7 +87,7 @@ class AutopilotController {
       this.state.lastUpdated = new Date();
 
       // TODO: Send activation command to actual autopilot hardware/controller
-      console.log(`[Autopilot] Activated with heading ${this.state.targetHeading}°`);
+      console.log(`[Autopilot] Activated with heading ${(this.state.targetHeading * 180 / Math.PI).toFixed(1)}°`);
 
       res.json({
         success: true,

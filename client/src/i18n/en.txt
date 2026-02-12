@@ -311,6 +311,8 @@ downloads.loading_data=Loading data status...
 downloads.installed_label=Installed
 downloads.error_download_failed=Download failed
 downloads.starting=Starting...
+downloads.attribution=Data: OSM Water Layer by Dai Yamazaki (University of Tokyo)
+downloads.license_link=License (CC BY 4.0)
 
 # ==================== Advanced ====================
 advanced.map_tiles=Map Tiles
@@ -589,6 +591,43 @@ chart.navigate=WASD: navigate ({speed} kt)
 # ==================== Confirmation Dialogs ====================
 confirm.delete_file=Delete {name}?
 confirm.remove_data=This will remove the downloaded data. You can re-download it later.
+
+# ==================== Plugins ====================
+settings.plugins=Plugins
+plugins.installed=Installed
+plugins.installed_label=Installed
+plugins.marketplace=Marketplace
+plugins.install=Install
+plugins.uninstall=Uninstall
+plugins.uninstall_title=Uninstall Plugin
+plugins.uninstall_message=Are you sure you want to uninstall this plugin? This cannot be undone.
+plugins.update=Update
+plugins.refresh=Refresh
+plugins.no_plugins=No plugins installed
+plugins.no_marketplace=No plugins available in the marketplace
+plugins.loading_marketplace=Loading marketplace...
+plugins.status_enabled=Enabled
+plugins.status_disabled=Disabled
+plugins.status_loading=Loading...
+plugins.status_error=Error
+plugins.status_installed=Installed
+plugins.official=Official
+plugins.community=Community
+plugins.type_driver=Driver
+plugins.type_ui-extension=UI Extension
+plugins.type_service=Service
+plugins.type_integration=Integration
+plugins.settings=Settings
+plugins.streams=Data Streams
+plugins.search=Search plugins...
+plugins.filter_all=All Types
+plugins.conflict_warning=Conflict: {plugin} also provides {dataType}
+plugins.debug=Debug
+plugins.debug_no_data=No debug data available
+plugins.no_streams=No data streams
+plugins.data_flowing=Active
+plugins.data_stale=Stale
+plugins.no_data=No data
 
 # ==================== Validation ====================
 validation.invalid_number=Please enter a valid number

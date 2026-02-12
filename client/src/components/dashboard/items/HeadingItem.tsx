@@ -1,6 +1,7 @@
 import React from 'react';
 import { theme } from '../../../styles/theme';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { radToDeg } from '../../../utils/angle';
 
 interface HeadingItemProps {
   heading: number;
@@ -38,9 +39,9 @@ export const HeadingItem: React.FC<HeadingItemProps> = ({ heading }) => {
         lineHeight: 1,
         marginTop: theme.space.xs,
       }}>
-        {heading.toFixed(0)}°
+        {radToDeg(heading).toFixed(0)}°
       </div>
-      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{getCardinalDirection(heading)}</div>
+      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{getCardinalDirection(radToDeg(heading))}</div>
     </div>
   );
 };

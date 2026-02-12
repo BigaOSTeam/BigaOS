@@ -156,7 +156,7 @@ class NavigationController {
 
       const dataController = getDataController();
       if (dataController) {
-        dataController.getSensorService().setDemoNavigation({
+        dataController.setDemoNavigation({
           latitude,
           longitude,
           heading,
@@ -166,7 +166,7 @@ class NavigationController {
 
       res.json({
         success: true,
-        navigation: dataController?.getSensorService().getDemoNavigation()
+        navigation: dataController?.getDemoNavigation()
       });
     } catch (error) {
       console.error('Demo navigation update error:', error);
@@ -181,10 +181,9 @@ class NavigationController {
   async getDemoNavigation(req: Request, res: Response) {
     try {
       const dataController = getDataController();
-      const sensorService = dataController?.getSensorService();
       res.json({
-        demoMode: sensorService?.isDemoMode() ?? false,
-        navigation: sensorService?.getDemoNavigation()
+        demoMode: true,
+        navigation: dataController?.getDemoNavigation()
       });
     } catch (error) {
       console.error('Demo navigation get error:', error);

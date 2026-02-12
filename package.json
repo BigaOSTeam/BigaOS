@@ -1,6 +1,6 @@
 {
   "name": "biga-os",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "description": "Intelligent Boat Automation System",
   "scripts": {
     "install:all": "cd server && npm install && cd ../client && npm install",
@@ -9,6 +9,7 @@
     "build:server": "cd server && npm run build",
     "build:client": "cd client && npm run build",
     "build": "npm run build:server && npm run build:client",
+    "build:plugins": "node plugin-sources/build-plugins.js",
     "start": "cd server && npm start"
   },
   "keywords": ["boat", "marine", "automation", "iot", "signalk"],

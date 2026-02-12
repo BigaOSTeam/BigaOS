@@ -1,6 +1,7 @@
 import React from 'react';
 import { theme } from '../../../styles/theme';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { radToDeg } from '../../../utils/angle';
 
 interface COGItemProps {
   cog: number;
@@ -38,9 +39,9 @@ export const COGItem: React.FC<COGItemProps> = ({ cog }) => {
         lineHeight: 1,
         marginTop: theme.space.xs,
       }}>
-        {cog.toFixed(0)}°
+        {radToDeg(cog).toFixed(0)}°
       </div>
-      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{getCardinalDirection(cog)}</div>
+      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{getCardinalDirection(radToDeg(cog))}</div>
     </div>
   );
 };

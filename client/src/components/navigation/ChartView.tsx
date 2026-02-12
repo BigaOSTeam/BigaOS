@@ -8,6 +8,7 @@ import {
   distanceConversions,
 } from '../../context/SettingsContext';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
 import { SearchResult } from '../../services/geocoding';
 import { navigationAPI, geocodingAPI } from '../../services/api';
@@ -456,10 +457,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
     const startHeading = autopilotHeading;
 
-    // Calculate the shortest path (handle 359 -> 1 case)
+    // Calculate the shortest path (handle wraparound)
     let delta = targetHeading - startHeading;
-    if (delta > 180) delta -= 360;
-    if (delta < -180) delta += 360;
+    if (delta > Math.PI) delta -= TWO_PI;
+    if (delta < -Math.PI) delta += TWO_PI;
 
     headingTransitionRef.current = setInterval(() => {
       stepCount++;
@@ -480,10 +481,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
         : 1 - Math.pow(-2 * progress + 2, 2) / 2;
 
       let newHeading = startHeading + delta * eased;
-      if (newHeading >= 360) newHeading -= 360;
-      if (newHeading < 0) newHeading += 360;
+      if (newHeading >= TWO_PI) newHeading -= TWO_PI;
+      if (newHeading < 0) newHeading += TWO_PI;
 
-      setAutopilotHeading(Math.round(newHeading));
+      setAutopilotHeading(newHeading);
     }, TRANSITION_INTERVAL_MS);
   }, [autopilotHeading]);
 
@@ -526,16 +527,16 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
       // Calculate heading difference
       let headingDiff = Math.abs(nextBearing - currentBearing);
-      if (headingDiff > 180) headingDiff = 360 - headingDiff;
+      if (headingDiff > Math.PI) headingDiff = TWO_PI - headingDiff;
 
       // Only warn if heading change is significant (> 5 degrees)
-      if (headingDiff > 5 && etaSeconds <= 120 && etaSeconds > 0) {
+      if (headingDiff > degToRad(5) && etaSeconds <= 120 && etaSeconds > 0) {
         const newWarning = {
           secondsUntil: Math.round(etaSeconds),
-          newHeading: Math.round(nextBearing),
+          newHeading: nextBearing,
         };
         // Reset dismissed state if the target heading changed significantly
-        if (courseChangeWarning && Math.abs(courseChangeWarning.newHeading - newWarning.newHeading) > 5) {
+        if (courseChangeWarning && Math.abs(courseChangeWarning.newHeading - newWarning.newHeading) > degToRad(5)) {
           setWarningDismissed(false);
         }
         setCourseChangeWarning(newWarning);
@@ -549,16 +550,15 @@ export const ChartView: React.FC<ChartViewProps> = ({
     }
 
     // Update heading - use smooth transition if heading change is significant
-    const roundedBearing = Math.round(currentBearing);
-    let headingDiff = Math.abs(roundedBearing - autopilotHeading);
-    if (headingDiff > 180) headingDiff = 360 - headingDiff;
+    let headingDiff = Math.abs(currentBearing - autopilotHeading);
+    if (headingDiff > Math.PI) headingDiff = TWO_PI - headingDiff;
 
-    if (headingDiff > 10) {
+    if (headingDiff > degToRad(10)) {
       // Significant change - transition smoothly
-      smoothTransitionToHeading(roundedBearing);
+      smoothTransitionToHeading(currentBearing);
     } else if (headingDiff > 0) {
       // Small adjustment - apply directly
-      setAutopilotHeading(roundedBearing);
+      setAutopilotHeading(currentBearing);
     }
   }, [followingRoute, navigationTarget, routeWaypoints, position.latitude, position.longitude, speed, smoothTransitionToHeading]);
 
@@ -694,9 +694,8 @@ export const ChartView: React.FC<ChartViewProps> = ({
   // Memoize boat icon to prevent recreation on every render
   // Round heading to nearest degree to reduce unnecessary updates
   const boatIcon = useMemo(() => {
-    const roundedHeading = Math.round(heading);
-    return createBoatIcon(roundedHeading);
-  }, [Math.round(heading)]);
+    return createBoatIcon(heading);
+  }, [Math.round(radToDeg(heading))]);
 
   // Force map to recalculate size on mount and visibility changes
   useEffect(() => {
@@ -1872,7 +1871,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                   </>
                 )}
                 <span style={{ opacity: 0.9, fontWeight: 'normal' }}>
-                  {autopilotHeading}°
+                  {radToDeg(autopilotHeading).toFixed(0)}°
                 </span>
                 {courseChangeWarning && (
                   <span
@@ -1886,7 +1885,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                       fontWeight: 'bold',
                     }}
                   >
-                    {courseChangeWarning.secondsUntil}s → {courseChangeWarning.newHeading}°
+                    {courseChangeWarning.secondsUntil}s → {radToDeg(courseChangeWarning.newHeading).toFixed(0)}°
                   </span>
                 )}
               </button>
@@ -1998,7 +1997,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
             {courseChangeWarning.secondsUntil}s
           </div>
           <div style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            <span style={{ opacity: 0.7 }}>{autopilotHeading}°</span>
+            <span style={{ opacity: 0.7 }}>{radToDeg(autopilotHeading).toFixed(0)}°</span>
             <svg
               width="16"
               height="16"
@@ -2012,7 +2011,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
               <path d="M5 12h14" />
               <path d="M12 5l7 7-7 7" />
             </svg>
-            <span style={{ fontWeight: 'bold' }}>{courseChangeWarning.newHeading}°</span>
+            <span style={{ fontWeight: 'bold' }}>{radToDeg(courseChangeWarning.newHeading).toFixed(0)}°</span>
           </div>
         </div>
       )}
@@ -2056,12 +2055,12 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                   <span>{t('chart.bearing')}</span>
-                  <span>{calculateBearing(
+                  <span>{radToDeg(calculateBearing(
                     position.latitude,
                     position.longitude,
                     anchorPositionOverride.lat,
                     anchorPositionOverride.lon
-                  ).toFixed(0)}°</span>
+                  )).toFixed(0)}°</span>
                 </div>
               </div>
             )}

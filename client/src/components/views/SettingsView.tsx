@@ -21,12 +21,14 @@ import { theme } from '../../styles/theme';
 import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats, systemAPI, UpdateInfo } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { AlertsTab } from '../settings/AlertsTab';
+import { PluginsTab } from '../settings/PluginsTab';
+
 import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LANGUAGES, LanguageCode } from '../../i18n/languages';
 import { CustomSelect } from '../ui/CustomSelect';
 
-type SettingsTab = 'general' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'advanced';
+type SettingsTab = 'general' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'plugins' | 'advanced';
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -289,10 +291,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     setVesselSettings,
     weatherSettings,
     setWeatherSettings,
-    chartOnly,
-    setChartOnly,
-    demoMode,
-    setDemoMode,
   } = settings;
 
   const renderUnitSelector = <T extends string>(
@@ -422,6 +420,19 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
           <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+        </svg>
+      ),
+    },
+    {
+      id: 'plugins' as SettingsTab,
+      label: t('settings.plugins'),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="2" width="8" height="8" rx="1" />
+          <rect x="14" y="2" width="8" height="8" rx="1" />
+          <rect x="2" y="14" width="8" height="8" rx="1" />
+          <path d="M18 14v4h-4" />
+          <path d="M14 18h4v-4" />
         </svg>
       ),
     },
@@ -620,96 +631,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
             </button>
           </>
         )}
-      </div>
-
-      {/* Chart Only Toggle */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: theme.space.lg,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        border: `1px solid ${theme.colors.border}`,
-        marginBottom: theme.space.lg,
-      }}>
-        <div>
-          <div style={{ fontWeight: theme.fontWeight.medium, marginBottom: theme.space.xs }}>
-            {t('settings.chart_only')}
-          </div>
-          <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
-            {t('settings.chart_only_desc')}
-          </div>
-        </div>
-        <button
-          onClick={() => setChartOnly(!chartOnly)}
-          style={{
-            width: '56px',
-            height: '32px',
-            borderRadius: '16px',
-            background: chartOnly ? theme.colors.primary : theme.colors.bgCardActive,
-            border: 'none',
-            cursor: 'pointer',
-            position: 'relative',
-            transition: 'background 0.2s',
-          }}
-        >
-          <div style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: '#fff',
-            position: 'absolute',
-            top: '4px',
-            left: chartOnly ? '28px' : '4px',
-            transition: 'left 0.2s',
-          }} />
-        </button>
-      </div>
-
-      {/* Demo Mode Toggle */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: theme.space.lg,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        border: `1px solid ${theme.colors.border}`,
-        marginBottom: theme.space.lg,
-      }}>
-        <div>
-          <div style={{ fontWeight: theme.fontWeight.medium, marginBottom: theme.space.xs }}>
-            {t('settings.demo_mode')}
-          </div>
-          <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
-            {t('settings.demo_mode_desc')}
-          </div>
-        </div>
-        <button
-          onClick={() => setDemoMode(!demoMode)}
-          style={{
-            width: '56px',
-            height: '32px',
-            borderRadius: '16px',
-            background: demoMode ? theme.colors.primary : theme.colors.bgCardActive,
-            border: 'none',
-            cursor: 'pointer',
-            position: 'relative',
-            transition: 'background 0.2s',
-          }}
-        >
-          <div style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: '#fff',
-            position: 'absolute',
-            top: '4px',
-            left: demoMode ? '28px' : '4px',
-            transition: 'left 0.2s',
-          }} />
-        </button>
       </div>
 
     </div>
@@ -1658,6 +1579,35 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           </div>
         ))
       )}
+
+      {/* Attribution */}
+      {!loadingFiles && (
+        <div style={{
+          marginTop: theme.space.lg,
+          padding: `${theme.space.sm} ${theme.space.md}`,
+          fontSize: theme.fontSize.xs,
+          color: theme.colors.textMuted,
+          borderTop: `1px solid ${theme.colors.border}`,
+        }}>
+          <a
+            href="https://global-hydrodynamics.github.io/OSM_WaterLayer/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: theme.colors.textMuted, textDecoration: 'underline' }}
+          >
+            {t('downloads.attribution')}
+          </a>
+          {' · '}
+          <a
+            href="https://creativecommons.org/licenses/by/4.0/"
+            target="_blank"
+            rel="noopener noreferrer"
+            style={{ color: theme.colors.textMuted, textDecoration: 'underline' }}
+          >
+            {t('downloads.license_link')}
+          </a>
+        </div>
+      )}
     </div>
   );
 
@@ -2024,6 +1974,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
         return renderDownloadsTab();
       case 'alerts':
         return <AlertsTab />;
+      case 'plugins':
+        return <PluginsTab />;
       case 'advanced':
         return renderAdvancedTab();
     }

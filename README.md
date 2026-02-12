@@ -9,7 +9,7 @@ BigaOS is a self-hosted web application designed to run on a Raspberry Pi 5 aboa
 ## Install (Raspberry Pi)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/Johannes-Goetz/BigaOS/main/install.sh | bash
+curl -sSL https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/install.sh | bash
 ```
 
 Installs Node.js, downloads the latest release, sets up a systemd service, and starts BigaOS.

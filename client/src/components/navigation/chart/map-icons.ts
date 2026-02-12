@@ -1,4 +1,5 @@
 import L from 'leaflet';
+import { radToDeg } from '../../../utils/angle';
 
 // Custom marker interface
 export interface CustomMarker {
@@ -43,7 +44,7 @@ export const markerColors = [
  */
 export const createBoatIcon = (heading: number): L.DivIcon => {
   const svgIcon = `
-    <div class="boat-icon-inner" style="transform: rotate(${heading}deg); width: 50px; height: 50px;">
+    <div class="boat-icon-inner" style="transform: rotate(${radToDeg(heading)}deg); width: 50px; height: 50px;">
       <svg width="50" height="50" viewBox="0 0 50 50" xmlns="http://www.w3.org/2000/svg">
         <g transform="translate(25, 25)">
           <!-- Boat arrow with V-shaped back -->

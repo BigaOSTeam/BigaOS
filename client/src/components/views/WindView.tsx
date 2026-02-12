@@ -2,6 +2,7 @@ import React from 'react';
 import { SensorData } from '../../types';
 import { useSettings, windConversions } from '../../context/SettingsContext';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { radToDeg } from '../../utils/angle';
 
 interface WindViewProps {
   sensorData: SensorData;
@@ -179,7 +180,7 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
             />
 
             {/* Apparent wind arrow */}
-            <g transform={`rotate(${wind.angleApparent} 175 175)`}>
+            <g transform={`rotate(${radToDeg(wind.angleApparent)} 175 175)`}>
               <line
                 x1="175"
                 y1="175"
@@ -196,7 +197,7 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
             </g>
 
             {/* True wind arrow (if different) */}
-            <g transform={`rotate(${wind.angleTrue} 175 175)`}>
+            <g transform={`rotate(${radToDeg(wind.angleTrue)} 175 175)`}>
               <line
                 x1="175"
                 y1="175"
@@ -240,10 +241,10 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
             </div>
             <div style={{ fontSize: '1rem', opacity: 0.6 }}>{unitLabel}</div>
             <div style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#ffa726' }}>
-              {wind.angleApparent.toFixed(0)}°
+              {radToDeg(wind.angleApparent).toFixed(0)}°
             </div>
             <div style={{ fontSize: '0.875rem', opacity: 0.6 }}>
-              {getWindSector(wind.angleApparent)}
+              {getWindSector(radToDeg(wind.angleApparent))}
             </div>
           </div>
 
@@ -263,10 +264,10 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
             </div>
             <div style={{ fontSize: '1rem', opacity: 0.6 }}>{unitLabel}</div>
             <div style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#4fc3f7' }}>
-              {wind.angleTrue.toFixed(0)}°
+              {radToDeg(wind.angleTrue).toFixed(0)}°
             </div>
             <div style={{ fontSize: '0.875rem', opacity: 0.6 }}>
-              {getWindSector(wind.angleTrue)}
+              {getWindSector(radToDeg(wind.angleTrue))}
             </div>
           </div>
         </div>

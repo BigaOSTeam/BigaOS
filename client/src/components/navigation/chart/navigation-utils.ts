@@ -1,4 +1,5 @@
 // Navigation utility functions for distance, bearing, and ETA calculations
+import { TWO_PI } from '../../../utils/angle';
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -70,7 +71,8 @@ export const calculateDistanceMeters = (
 
 /**
  * Calculate bearing from one point to another
- * @returns Bearing in degrees (0-360)
+ * Note: lat/lon inputs are still in decimal degrees (geographic coordinates)
+ * @returns Bearing in radians [0, 2π)
  */
 export const calculateBearing = (
   lat1: number,
@@ -87,8 +89,8 @@ export const calculateBearing = (
     Math.cos(lat1Rad) * Math.sin(lat2Rad) -
     Math.sin(lat1Rad) * Math.cos(lat2Rad) * Math.cos(dLon);
 
-  let bearing = (Math.atan2(y, x) * 180) / Math.PI;
-  return (bearing + 360) % 360;
+  const bearing = Math.atan2(y, x);
+  return (bearing + TWO_PI) % TWO_PI;
 };
 
 /**

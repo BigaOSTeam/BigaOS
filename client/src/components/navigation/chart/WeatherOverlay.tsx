@@ -4,6 +4,7 @@ import L from 'leaflet';
 import { weatherAPI, navigationAPI } from '../../../services/api';
 import { WeatherGridPoint } from '../../../types';
 import { getWindColor, getWaveColor, getWaterTempColor, getCurrentColor } from '../../../utils/weather.utils';
+import { TWO_PI } from '../../../utils/angle';
 import { useSettings } from '../../../context/SettingsContext';
 
 // Debounce delay for fetch requests (ms)
@@ -109,22 +110,22 @@ function interpolateWind(
     totalWeight += weight;
 
     // Convert wind to U/V components for proper direction averaging
-    const dirRad = (point.wind!.direction * Math.PI) / 180;
-    weightedU += Math.sin(dirRad) * weight;
-    weightedV += Math.cos(dirRad) * weight;
+    // Direction is already in radians
+    weightedU += Math.sin(point.wind!.direction) * weight;
+    weightedV += Math.cos(point.wind!.direction) * weight;
     weightedSpeed += point.wind!.speed * weight;
     weightedGusts += point.wind!.gusts * weight;
   }
 
-  // Calculate interpolated direction from averaged U/V
+  // Calculate interpolated direction from averaged U/V (result in radians)
   const avgU = weightedU / totalWeight;
   const avgV = weightedV / totalWeight;
-  let direction = (Math.atan2(avgU, avgV) * 180) / Math.PI;
-  if (direction < 0) direction += 360;
+  let direction = Math.atan2(avgU, avgV);
+  if (direction < 0) direction += TWO_PI;
 
   return {
     speed: weightedSpeed / totalWeight,
-    direction: Math.round(direction),
+    direction,
     gusts: weightedGusts / totalWeight,
   };
 }
@@ -167,21 +168,21 @@ function interpolateWaves(
     const weight = 1 / (dist * dist);
     totalWeight += weight;
 
-    const dirRad = (point.waves!.direction * Math.PI) / 180;
-    weightedU += Math.sin(dirRad) * weight;
-    weightedV += Math.cos(dirRad) * weight;
+    // Direction is already in radians
+    weightedU += Math.sin(point.waves!.direction) * weight;
+    weightedV += Math.cos(point.waves!.direction) * weight;
     weightedHeight += point.waves!.height * weight;
     weightedPeriod += point.waves!.period * weight;
   }
 
   const avgU = weightedU / totalWeight;
   const avgV = weightedV / totalWeight;
-  let direction = (Math.atan2(avgU, avgV) * 180) / Math.PI;
-  if (direction < 0) direction += 360;
+  let direction = Math.atan2(avgU, avgV);
+  if (direction < 0) direction += TWO_PI;
 
   return {
     height: weightedHeight / totalWeight,
-    direction: Math.round(direction),
+    direction,
     period: weightedPeriod / totalWeight,
   };
 }
@@ -264,21 +265,21 @@ function interpolateSwell(
     const weight = 1 / (dist * dist);
     totalWeight += weight;
 
-    const dirRad = (point.swell!.direction * Math.PI) / 180;
-    weightedU += Math.sin(dirRad) * weight;
-    weightedV += Math.cos(dirRad) * weight;
+    // Direction is already in radians
+    weightedU += Math.sin(point.swell!.direction) * weight;
+    weightedV += Math.cos(point.swell!.direction) * weight;
     weightedHeight += point.swell!.height * weight;
     weightedPeriod += point.swell!.period * weight;
   }
 
   const avgU = weightedU / totalWeight;
   const avgV = weightedV / totalWeight;
-  let direction = (Math.atan2(avgU, avgV) * 180) / Math.PI;
-  if (direction < 0) direction += 360;
+  let direction = Math.atan2(avgU, avgV);
+  if (direction < 0) direction += TWO_PI;
 
   return {
     height: weightedHeight / totalWeight,
-    direction: Math.round(direction),
+    direction,
     period: weightedPeriod / totalWeight,
   };
 }
@@ -320,20 +321,20 @@ function interpolateCurrent(
     const weight = 1 / (dist * dist);
     totalWeight += weight;
 
-    const dirRad = (point.current!.direction * Math.PI) / 180;
-    weightedU += Math.sin(dirRad) * weight;
-    weightedV += Math.cos(dirRad) * weight;
+    // Direction is already in radians
+    weightedU += Math.sin(point.current!.direction) * weight;
+    weightedV += Math.cos(point.current!.direction) * weight;
     weightedVelocity += point.current!.velocity * weight;
   }
 
   const avgU = weightedU / totalWeight;
   const avgV = weightedV / totalWeight;
-  let direction = (Math.atan2(avgU, avgV) * 180) / Math.PI;
-  if (direction < 0) direction += 360;
+  let direction = Math.atan2(avgU, avgV);
+  if (direction < 0) direction += TWO_PI;
 
   return {
     velocity: weightedVelocity / totalWeight,
-    direction: Math.round(direction),
+    direction,
   };
 }
 
@@ -581,7 +582,8 @@ class WeatherCanvasLayer extends L.Layer {
     const arrowWidth = 6;
 
     // Direction is where wind comes FROM, arrow points where it goes TO
-    const angle = ((direction + 180) * Math.PI) / 180;
+    // Direction is already in radians
+    const angle = direction + Math.PI;
 
     ctx.save();
     ctx.translate(x, y);
@@ -633,7 +635,8 @@ class WeatherCanvasLayer extends L.Layer {
     const arrowWidth = 6;
 
     // Direction is where waves come FROM, arrow points where they go TO
-    const angle = ((direction + 180) * Math.PI) / 180;
+    // Direction is already in radians
+    const angle = direction + Math.PI;
 
     ctx.save();
     ctx.translate(x, y);
@@ -705,7 +708,8 @@ class WeatherCanvasLayer extends L.Layer {
     const arrowWidth = 6;
 
     // Direction is where swell comes FROM, arrow points where it goes TO
-    const angle = ((direction + 180) * Math.PI) / 180;
+    // Direction is already in radians
+    const angle = direction + Math.PI;
 
     ctx.save();
     ctx.translate(x, y);
@@ -756,7 +760,8 @@ class WeatherCanvasLayer extends L.Layer {
     const arrowWidth = 6;
 
     // Current direction is where it flows TO (unlike wind/waves which is FROM)
-    const angle = (direction * Math.PI) / 180;
+    // Direction is already in radians
+    const angle = direction;
 
     ctx.save();
     ctx.translate(x, y);

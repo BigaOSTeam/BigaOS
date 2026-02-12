@@ -1,6 +1,8 @@
 import { BoatState, StateInputs, GeoPosition } from '../types/boat-state.types';
 import { SensorData } from '../types/sensor.types';
 
+const DEG_TO_RAD = Math.PI / 180;
+
 class DummyDataService {
   private currentState: BoatState = BoatState.DRIFTING;
   private basePosition: GeoPosition = {
@@ -90,14 +92,14 @@ class DummyDataService {
     return {
       navigation: {
         position: { ...position },
-        courseOverGround: heading,
+        courseOverGround: heading * DEG_TO_RAD,
         speedOverGround: speed,
-        headingMagnetic: heading,
-        headingTrue: this.normalizeAngle(heading + 12), // Add magnetic variation
+        headingMagnetic: heading * DEG_TO_RAD,
+        headingTrue: this.normalizeAngle(heading + 12) * DEG_TO_RAD, // Add magnetic variation
         attitude: {
-          roll: heelAngle,
-          pitch: this.randomVariation(2, 1),
-          yaw: heading
+          roll: heelAngle * DEG_TO_RAD,
+          pitch: this.randomVariation(2, 1) * DEG_TO_RAD,
+          yaw: heading * DEG_TO_RAD
         }
       },
       environment: {
@@ -106,9 +108,9 @@ class DummyDataService {
         },
         wind: {
           speedApparent: windSpeed,
-          angleApparent: this.randomVariation(45, 10),
+          angleApparent: this.randomVariation(45, 10) * DEG_TO_RAD,
           speedTrue: this.randomVariation(windSpeed - 1, 1),
-          angleTrue: this.randomVariation(50, 10)
+          angleTrue: this.randomVariation(50, 10) * DEG_TO_RAD
         },
         temperature: {
           engineRoom: this.randomVariation(motorRunning ? 35 : 28, 2),

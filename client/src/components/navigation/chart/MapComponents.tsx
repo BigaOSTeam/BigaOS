@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { GeoPosition } from '../../../types';
+import { radToDeg } from '../../../utils/angle';
 
 interface MapControllerProps {
   position: GeoPosition;
@@ -436,8 +437,12 @@ interface CompassProps {
 /**
  * Compass component with animated cardinal line
  * Shows a green indicator pointing to the navigation target when active
+ * heading and bearingToTarget arrive in radians; convert to degrees for display
  */
-export const Compass: React.FC<CompassProps> = ({ heading, bearingToTarget }) => {
+export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingToTarget: bearingToTargetRad }) => {
+  // Convert radians to degrees for compass display logic
+  const heading = radToDeg(headingRad);
+  const bearingToTarget = bearingToTargetRad != null ? radToDeg(bearingToTargetRad) : bearingToTargetRad;
   const points = [
     { deg: 0, label: 'N' },
     { deg: 45, label: 'NE' },

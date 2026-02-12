@@ -1,0 +1,72 @@
+{
+  "id": "bigaos-macarthur-hat",
+  "name": "MacArthur HAT",
+  "version": "1.0.0",
+  "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Currently supports NMEA 2000 via CAN bus.",
+  "author": "BigaOS Team",
+  "type": "driver",
+  "main": "index.js",
+  "flag": "official",
+  "builtin": false,
+  "capabilities": ["sensor-data", "settings", "alerts", "network"],
+  "driver": {
+    "protocol": "nmea2000",
+    "dataStreams": [
+      { "id": "gps", "name": "GPS Position", "dataType": "position", "unit": "degrees", "updateRate": 5, "description": "Position from PGN 129025 (Position Rapid Update)" },
+      { "id": "cog", "name": "Course Over Ground", "dataType": "course_over_ground", "unit": "radians", "updateRate": 5, "description": "COG from PGN 129026" },
+      { "id": "sog", "name": "Speed Over Ground", "dataType": "speed_over_ground", "unit": "m/s", "updateRate": 5, "description": "SOG from PGN 129026" },
+      { "id": "heading_magnetic", "name": "Heading (Magnetic)", "dataType": "heading_magnetic", "unit": "radians", "updateRate": 5, "description": "Magnetic heading from PGN 127250" },
+      { "id": "heading_true", "name": "Heading (True)", "dataType": "heading_true", "unit": "radians", "updateRate": 5, "description": "True heading from PGN 127250" },
+      { "id": "stw", "name": "Speed Through Water", "dataType": "speed_through_water", "unit": "m/s", "updateRate": 2, "description": "STW from PGN 128259" },
+      { "id": "depth", "name": "Water Depth", "dataType": "depth", "unit": "meters", "updateRate": 2, "description": "Depth below transducer from PGN 128267" },
+      { "id": "wind_speed_apparent", "name": "Apparent Wind Speed", "dataType": "wind_speed", "unit": "m/s", "updateRate": 2, "description": "Apparent wind speed from PGN 130306" },
+      { "id": "wind_angle_apparent", "name": "Apparent Wind Angle", "dataType": "wind_angle", "unit": "radians", "updateRate": 2, "description": "Apparent wind angle from PGN 130306" },
+      { "id": "wind_speed_true", "name": "True Wind Speed", "dataType": "wind_speed", "unit": "m/s", "updateRate": 2, "description": "True wind speed from PGN 130306" },
+      { "id": "wind_angle_true", "name": "True Wind Angle", "dataType": "wind_angle", "unit": "radians", "updateRate": 2, "description": "True wind angle from PGN 130306" },
+      { "id": "roll", "name": "Roll", "dataType": "roll", "unit": "radians", "updateRate": 5, "description": "Roll from PGN 127257 (Attitude)" },
+      { "id": "pitch", "name": "Pitch", "dataType": "pitch", "unit": "radians", "updateRate": 5, "description": "Pitch from PGN 127257 (Attitude)" },
+      { "id": "yaw", "name": "Yaw", "dataType": "yaw", "unit": "radians", "updateRate": 5, "description": "Yaw from PGN 127257 (Attitude)" },
+      { "id": "rudder", "name": "Rudder Angle", "dataType": "rudder_angle", "unit": "radians", "updateRate": 2, "description": "Rudder position from PGN 127245" },
+      { "id": "battery_0_voltage", "name": "Battery Voltage", "dataType": "voltage", "unit": "V", "updateRate": 1, "description": "Battery voltage from PGN 127508" },
+      { "id": "battery_0_current", "name": "Battery Current", "dataType": "current", "unit": "A", "updateRate": 1, "description": "Battery current from PGN 127508" },
+      { "id": "battery_0_temp", "name": "Battery Temperature", "dataType": "temperature", "unit": "K", "updateRate": 1, "description": "Battery temperature from PGN 127508" },
+      { "id": "battery_0_soc", "name": "Battery State of Charge", "dataType": "soc", "unit": "%", "updateRate": 1, "description": "Battery SOC from PGN 127508 (if supported)" },
+      { "id": "engine_0_rpm", "name": "Engine RPM", "dataType": "rpm", "unit": "rpm", "updateRate": 2, "description": "Engine speed from PGN 127488" },
+      { "id": "engine_0_temp", "name": "Engine Temperature", "dataType": "temperature", "unit": "K", "updateRate": 1, "description": "Engine coolant temp from PGN 127489" },
+      { "id": "water_temp", "name": "Water Temperature", "dataType": "water_temperature", "unit": "K", "updateRate": 1, "description": "Sea water temp from PGN 130310/130311" },
+      { "id": "pressure", "name": "Atmospheric Pressure", "dataType": "barometric_pressure", "unit": "Pa", "updateRate": 1, "description": "Atmospheric pressure from PGN 130310/130311" },
+      { "id": "humidity", "name": "Humidity", "dataType": "humidity", "unit": "%", "updateRate": 1, "description": "Humidity from PGN 130311" },
+      { "id": "fuel_level", "name": "Fuel Level", "dataType": "fuel_level", "unit": "%", "updateRate": 1, "description": "Fuel tank level from PGN 127505" }
+    ],
+    "configSchema": [
+      {
+        "key": "canInterface",
+        "label": "CAN Interface",
+        "type": "string",
+        "default": "can0",
+        "description": "SocketCAN interface name (e.g. can0, vcan0)"
+      },
+      {
+        "key": "autoReconnect",
+        "label": "Auto Reconnect",
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically reconnect when the CAN bus connection is lost"
+      },
+      {
+        "key": "reconnectInterval",
+        "label": "Reconnect Interval (seconds)",
+        "type": "number",
+        "default": 5,
+        "description": "Seconds to wait between reconnection attempts"
+      },
+      {
+        "key": "pgnFilter",
+        "label": "PGN Filter",
+        "type": "string",
+        "default": "",
+        "description": "Comma-separated list of PGNs to listen for (empty = all supported)"
+      }
+    ]
+  }
+}

@@ -4,7 +4,7 @@ import fs from 'fs';
 import https from 'https';
 import { db } from '../database/database';
 
-const GITHUB_REPO = 'Johannes-Goetz/BigaOS';
+const GITHUB_REPO = 'BigaOSTeam/BigaOS';
 
 const CHECK_INTERVAL_MS = 6 * 60 * 60 * 1000; // 6 hours
 

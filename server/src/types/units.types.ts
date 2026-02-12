@@ -6,7 +6,7 @@
  * - Temperature: Kelvin
  * - Pressure: Pascal
  * - Depth: meters
- * - Angles: degrees (0-360)
+ * - Angles: radians (0-2π)
  * - Position: decimal degrees
  */
 
