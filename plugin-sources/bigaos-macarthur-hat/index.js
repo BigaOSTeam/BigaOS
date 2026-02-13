@@ -64,18 +64,26 @@ function processFrame(frame) {
     dst = 255;
   }
 
-  // Format data as comma-separated decimal bytes for canboatjs
-  const dataStr = Array.from(frame.data).join(',');
+  // Format as Actisense N2K ASCII: timestamp,prio,pgn,src,dst,len,hex_bytes
+  const dataHex = Array.from(frame.data).map(b => b.toString(16).padStart(2, '0')).join(',');
+  const line = `${new Date().toISOString()},${priority},${pgn},${src},${dst},${frame.data.length},${dataHex}`;
+
+  // Log first 10 frames in detail
+  if (rawFrameCount <= 10) {
+    api.log(`[RAW] Frame #${rawFrameCount}: CAN ID=0x${canId.toString(16)}, PGN=${pgn}, src=${src}, dst=${dst}, prio=${priority}, data=[${dataHex}]`);
+    api.log(`[FMT] Actisense line: ${line}`);
+  }
 
   try {
-    const parsed = fromPgn.parseString(JSON.stringify({
-      pgn,
-      src,
-      dst,
-      prio: priority,
-      data: dataStr,
-      timestamp: new Date().toISOString(),
-    }));
+    const parsed = fromPgn.parseString(line);
+
+    if (rawFrameCount <= 10) {
+      if (parsed) {
+        api.log(`[PARSE] Result type=${typeof parsed}, keys=${JSON.stringify(Object.keys(parsed))}, pgn=${parsed.pgn}, fields=${parsed.fields ? JSON.stringify(parsed.fields).substring(0, 200) : 'NONE'}`);
+      } else {
+        api.log(`[PARSE] Result: ${String(parsed)} (falsy)`);
+      }
+    }
 
     if (parsed && parsed.fields) {
       frameCount++;
@@ -83,8 +91,9 @@ function processFrame(frame) {
       pgnHandlers.handle(parsed);
     }
   } catch (err) {
-    if (rawFrameCount <= 5) {
-      api.log(`Parse error for PGN ${pgn}: ${err.message}`);
+    api.log(`[ERROR] Parse error for PGN ${pgn} (frame #${rawFrameCount}): ${err.message}`);
+    if (rawFrameCount <= 3) {
+      api.log(`[ERROR] Stack: ${err.stack}`);
     }
   }
 }
@@ -151,11 +160,13 @@ module.exports = {
 
     api.log(`Config: interface=${canInterface}, autoReconnect=${autoReconnect}, reconnectInterval=${reconnectInterval}s`);
 
-    // Initialize canboatjs PGN parser (synchronous parseString API)
+    // Initialize canboatjs PGN parser
     try {
       const { FromPgn } = require('@canboat/canboatjs');
       fromPgn = new FromPgn();
-      api.log('canboatjs PGN parser initialized');
+      const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(fromPgn)).filter(m => typeof fromPgn[m] === 'function');
+      api.log(`canboatjs FromPgn initialized. Methods: ${methods.join(', ')}`);
+      api.log(`fromPgn is Transform stream: ${typeof fromPgn.write === 'function'}, is EventEmitter: ${typeof fromPgn.on === 'function'}`);
     } catch (err) {
       api.log(`ERROR: Failed to load canboatjs: ${err.message}`);
       api.triggerAlert({

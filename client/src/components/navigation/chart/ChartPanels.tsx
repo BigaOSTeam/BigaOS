@@ -1417,13 +1417,6 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           zIndex: 999,
         }}
       />
-
-      {/* Spinner animation */}
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </>
   );
 };

@@ -1495,11 +1495,6 @@ export const ChartView: React.FC<ChartViewProps> = ({
             <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 500 }}>
               {t('chart.calculating_route')}
             </div>
-            <style>{`
-              @keyframes spin {
-                to { transform: rotate(360deg); }
-              }
-            `}</style>
           </div>
         </div>
       )}

@@ -296,11 +296,6 @@ function AppContent() {
         }}>
           {t('update.overlay_message')}
         </div>
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
       </div>
     );
   };
