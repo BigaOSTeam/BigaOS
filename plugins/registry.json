@@ -29,7 +29,7 @@
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",
-      "latestVersion": "1.1.0",
+      "latestVersion": "1.1.1",
       "capabilities": ["sensor-data", "settings", "alerts", "network"],
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
@@ -45,6 +45,12 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
           "releaseDate": "2026-02-13",
           "changelog": "Add system setup automation, diagnostics logging, fix triggerAlert API"
+        },
+        {
+          "version": "1.1.1",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
+          "releaseDate": "2026-02-13",
+          "changelog": "Fix canboatjs PGN parser API (use event-based FromPgn stream)"
         }
       ]
     }
