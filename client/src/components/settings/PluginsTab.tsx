@@ -37,6 +37,7 @@ export const PluginsTab: React.FC = () => {
     registryPlugins,
     registryLoading,
     refreshRegistry,
+    installingPlugins,
     installPlugin,
     uninstallPlugin,
     enablePlugin,
@@ -58,7 +59,11 @@ export const PluginsTab: React.FC = () => {
   const [marketplaceSearch, setMarketplaceSearch] = useState('');
   const [marketplaceFilter, setMarketplaceFilter] = useState<string>('all');
 
-  // Fetch registry when marketplace tab is opened
+  // Fetch registry on mount (for update badges) and when marketplace tab is opened
+  useEffect(() => {
+    refreshRegistry();
+  }, []);  // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (subTab === 'marketplace') {
       refreshRegistry();
@@ -356,6 +361,53 @@ export const PluginsTab: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: theme.space.sm }}>
+              {/* Update button if registry has a newer version */}
+              {(() => {
+                const rp = registryPlugins.find(r => r.id === plugin.id);
+                if (!rp || !rp.hasUpdate) return null;
+                const isUpdating = installingPlugins.has(plugin.id);
+                return (
+                  <button
+                    onClick={() => !isUpdating && installPlugin(plugin.id, rp.latestVersion)}
+                    disabled={isUpdating}
+                    className="touch-btn"
+                    style={{
+                      padding: `${theme.space.sm} ${theme.space.md}`,
+                      background: isUpdating ? theme.colors.bgCardActive : theme.colors.warning,
+                      border: 'none',
+                      borderRadius: theme.radius.sm,
+                      color: isUpdating ? theme.colors.textMuted : '#000',
+                      fontSize: theme.fontSize.sm,
+                      fontWeight: theme.fontWeight.medium,
+                      cursor: isUpdating ? 'default' : 'pointer',
+                      minHeight: '44px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: theme.space.xs,
+                    }}
+                  >
+                    {isUpdating ? (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                          style={{ animation: 'spin 1s linear infinite' }}>
+                          <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                        </svg>
+                        {t('plugins.updating')}
+                      </>
+                    ) : (
+                      <>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                          <polyline points="7 10 12 15 17 10" />
+                          <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                        {t('plugins.update')} v{rp.latestVersion}
+                      </>
+                    )}
+                  </button>
+                );
+              })()}
+
               {/* Settings button for drivers with configSchema */}
               {plugin.manifest.type === 'driver' && plugin.manifest.driver?.configSchema && plugin.manifest.driver.configSchema.length > 0 && (
                 <button
@@ -542,7 +594,31 @@ export const PluginsTab: React.FC = () => {
             </div>
 
             {/* Install/Update button */}
-            {!rp.isInstalled ? (
+            {installingPlugins.has(rp.id) ? (
+              <button
+                disabled
+                className="touch-btn"
+                style={{
+                  padding: `${theme.space.sm} ${theme.space.lg}`,
+                  background: theme.colors.bgCardActive,
+                  border: `1px solid ${theme.colors.border}`,
+                  borderRadius: theme.radius.sm,
+                  color: theme.colors.textMuted,
+                  fontSize: theme.fontSize.sm,
+                  fontWeight: theme.fontWeight.medium,
+                  cursor: 'default',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: theme.space.xs,
+                }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  style={{ animation: 'spin 1s linear infinite' }}>
+                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                </svg>
+                {t('plugins.installing')}
+              </button>
+            ) : !rp.isInstalled ? (
               <button
                 onClick={() => installPlugin(rp.id)}
                 className="touch-btn"
@@ -580,8 +656,14 @@ export const PluginsTab: React.FC = () => {
               <span style={{
                 padding: `${theme.space.sm} ${theme.space.lg}`,
                 fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
+                color: '#22c55e',
+                display: 'flex',
+                alignItems: 'center',
+                gap: theme.space.xs,
               }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
                 {t('plugins.installed_label')}
               </span>
             )}

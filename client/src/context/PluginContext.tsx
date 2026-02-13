@@ -117,6 +117,9 @@ interface PluginContextType {
   registryLoading: boolean;
   refreshRegistry: () => void;
 
+  // Install/update progress
+  installingPlugins: Set<string>;
+
   // Plugin actions
   installPlugin: (pluginId: string, version?: string) => void;
   uninstallPlugin: (pluginId: string) => void;
@@ -147,6 +150,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [registryPlugins, setRegistryPlugins] = useState<RegistryPlugin[]>([]);
   const [registryLoading, setRegistryLoading] = useState(false);
+  const [installingPlugins, setInstallingPlugins] = useState<Set<string>>(new Set());
   const [sensorMappings, setSensorMappings] = useState<SensorMappingInfo[]>([]);
   const [debugData, setDebugData] = useState<DebugDataEntry[]>([]);
   const [pluginConfigs, setPluginConfigs] = useState<Record<string, Record<string, any>>>({});
@@ -158,6 +162,17 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const handlePluginUpdate = (data: { plugins: PluginInfo[] }) => {
       setPlugins(data.plugins);
+      // Clear installing state for plugins that are now installed
+      setInstallingPlugins(prev => {
+        const installedIds = new Set(data.plugins.map(p => p.id));
+        const next = new Set(prev);
+        for (const id of prev) {
+          if (installedIds.has(id)) next.delete(id);
+        }
+        return next.size === prev.size ? prev : next;
+      });
+      // Refresh registry so marketplace shows updated install state
+      wsService.emit('plugin_fetch_registry', {});
     };
 
     const handleMappingsSync = (data: { mappings: SensorMappingInfo[]; debugData?: DebugDataEntry[] }) => {
@@ -210,6 +225,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const installPlugin = useCallback((pluginId: string, version?: string) => {
+    setInstallingPlugins(prev => new Set(prev).add(pluginId));
     wsService.emit('plugin_install', { pluginId, version });
   }, []);
 
@@ -263,6 +279,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     registryPlugins,
     registryLoading,
     refreshRegistry,
+    installingPlugins,
     installPlugin,
     uninstallPlugin,
     enablePlugin,
