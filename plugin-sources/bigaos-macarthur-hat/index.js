@@ -67,15 +67,26 @@ function processFrame(frame) {
   // Format data as comma-separated decimal bytes for canboatjs
   const dataStr = Array.from(frame.data).join(',');
 
-  // Write to canboatjs FromPgn transform stream (event-based API)
-  fromPgn.write(JSON.stringify({
-    pgn,
-    src,
-    dst,
-    prio: priority,
-    data: dataStr,
-    timestamp: new Date().toISOString(),
-  }) + '\n');
+  try {
+    const parsed = fromPgn.parseString(JSON.stringify({
+      pgn,
+      src,
+      dst,
+      prio: priority,
+      data: dataStr,
+      timestamp: new Date().toISOString(),
+    }));
+
+    if (parsed && parsed.fields) {
+      frameCount++;
+      lastFrameTime = Date.now();
+      pgnHandlers.handle(parsed);
+    }
+  } catch (err) {
+    if (rawFrameCount <= 5) {
+      api.log(`Parse error for PGN ${pgn}: ${err.message}`);
+    }
+  }
 }
 
 function startHealthCheck() {
@@ -140,30 +151,10 @@ module.exports = {
 
     api.log(`Config: interface=${canInterface}, autoReconnect=${autoReconnect}, reconnectInterval=${reconnectInterval}s`);
 
-    // Initialize canboatjs PGN parser (event-based Transform stream)
+    // Initialize canboatjs PGN parser (synchronous parseString API)
     try {
       const { FromPgn } = require('@canboat/canboatjs');
       fromPgn = new FromPgn();
-
-      // Handle parsed PGN messages
-      fromPgn.on('pgn', (parsed) => {
-        if (parsed && parsed.fields) {
-          frameCount++;
-          lastFrameTime = Date.now();
-          pgnHandlers.handle(parsed);
-        }
-      });
-
-      fromPgn.on('warning', () => {
-        // Silently ignore warnings (unknown PGNs, etc.)
-      });
-
-      fromPgn.on('error', (err) => {
-        if (rawFrameCount <= 5) {
-          api.log(`Parse error: ${err.message}`);
-        }
-      });
-
       api.log('canboatjs PGN parser initialized');
     } catch (err) {
       api.log(`ERROR: Failed to load canboatjs: ${err.message}`);

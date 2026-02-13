@@ -1,0 +1,12 @@
+{
+  "id": "bigaos-chart-only",
+  "name": "Chart Only Mode",
+  "version": "1.0.0",
+  "description": "Use the nautical chart as the main screen instead of the dashboard.",
+  "author": "BigaOS Team",
+  "type": "service",
+  "main": "index.js",
+  "flag": "official",
+  "builtin": true,
+  "capabilities": []
+}

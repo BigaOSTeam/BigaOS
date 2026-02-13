@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-02-12T00:00:00Z",
+  "updatedAt": "2026-02-13T00:00:00Z",
   "plugins": [
     {
       "id": "bigaos-demo-driver",
@@ -29,7 +29,7 @@
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",
-      "latestVersion": "1.1.1",
+      "latestVersion": "1.1.2",
       "capabilities": ["sensor-data", "settings", "alerts", "network"],
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
@@ -51,6 +51,32 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
           "releaseDate": "2026-02-13",
           "changelog": "Fix canboatjs PGN parser API (use event-based FromPgn stream)"
+        },
+        {
+          "version": "1.1.2",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
+          "releaseDate": "2026-02-13",
+          "changelog": "Fix PGN parser: use synchronous parseString API instead of stream"
+        }
+      ]
+    },
+    {
+      "id": "bigaos-chart-only",
+      "name": "Chart Only Mode",
+      "description": "Use the nautical chart as the main screen instead of the dashboard.",
+      "author": "BigaOS Team",
+      "type": "service",
+      "flag": "official",
+      "latestVersion": "1.0.0",
+      "capabilities": [],
+      "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-chart-only.tar.gz",
+      "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-chart-only",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-chart-only.tar.gz",
+          "releaseDate": "2026-02-13",
+          "changelog": "Initial release"
         }
       ]
     }
