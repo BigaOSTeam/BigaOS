@@ -425,7 +425,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
       ),
     },
     {
-      id: 'plugins' as SettingsTab,
+      id: 'plugins',
       label: t('settings.plugins'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -646,9 +646,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     value: number | undefined,
     onChange: (value: number) => void,
     unit: string,
-    _step: number = 0.1,
     min: number = 0,
-    _description?: string,
     noMargin: boolean = false
   ) => {
     const safeValue = value ?? 0;
@@ -905,9 +903,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.length,
           (v) => setVesselSettings({ ...vesselSettings, length: v }),
           'meters',
-          0.1,
           1,
-          undefined,
           true
         )}
         {renderVesselNumberInput(
@@ -915,9 +911,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.waterlineLength,
           (v) => setVesselSettings({ ...vesselSettings, waterlineLength: v }),
           'meters',
-          0.1,
           1,
-          undefined,
           true
         )}
       </div>
@@ -933,9 +927,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.beam,
           (v) => setVesselSettings({ ...vesselSettings, beam: v }),
           'meters',
-          0.1,
           0.5,
-          undefined,
           true
         )}
         {renderVesselNumberInput(
@@ -943,9 +935,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.draft,
           (v) => setVesselSettings({ ...vesselSettings, draft: v }),
           'meters',
-          0.1,
           0.3,
-          undefined,
           true
         )}
       </div>
@@ -961,9 +951,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.freeboardHeight,
           (v) => setVesselSettings({ ...vesselSettings, freeboardHeight: v }),
           'meters',
-          0.1,
           0.3,
-          t('vessel.freeboard_desc'),
           true
         )}
         {renderVesselNumberInput(
@@ -972,8 +960,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           (v) => setVesselSettings({ ...vesselSettings, displacement: v }),
           'tons',
           0.5,
-          0.5,
-          undefined,
           true
         )}
       </div>
@@ -1002,9 +988,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.totalChainLength,
           (v) => setVesselSettings({ ...vesselSettings, totalChainLength: v }),
           'meters',
-          5,
           10,
-          undefined,
           true
         )}
         {renderVesselNumberInput(
@@ -1012,9 +996,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           vesselSettings.chainDiameter,
           (v) => setVesselSettings({ ...vesselSettings, chainDiameter: v }),
           'mm',
-          1,
           4,
-          undefined,
           true
         )}
       </div>

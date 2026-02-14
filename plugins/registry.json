@@ -29,7 +29,7 @@
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",
-      "latestVersion": "1.4.2",
+      "latestVersion": "1.4.3",
       "capabilities": ["sensor-data", "settings", "alerts", "network"],
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
@@ -105,6 +105,12 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
           "releaseDate": "2026-02-14",
           "changelog": "Fix gpio-poweroff pin (GPIO 16→26) and add active_low for correct power latch behavior"
+        },
+        {
+          "version": "1.4.3",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
+          "releaseDate": "2026-02-14",
+          "changelog": "Fix package.json version sync, remove unused code"
         }
       ]
     },

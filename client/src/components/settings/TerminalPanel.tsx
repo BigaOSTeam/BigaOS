@@ -269,7 +269,7 @@ export const TerminalPanel: React.FC = () => {
       <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <div style={sectionHeader}>
-            Terminal
+            {t('terminal.terminal') || 'Terminal'}
           </div>
           <button
             onClick={() => setShowHelp(!showHelp)}

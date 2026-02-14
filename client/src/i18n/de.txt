@@ -344,6 +344,7 @@ terminal.loading=Lade Logs...
 terminal.placeholder=Befehl eingeben...
 terminal.run=Ausführen
 terminal.quick_commands=Schnellbefehle
+terminal.terminal=Terminal
 
 # ==================== Offline-Karten ====================
 offline_maps.download_new_region=Neue Region herunterladen
