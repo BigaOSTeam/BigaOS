@@ -144,17 +144,19 @@ class UpdateService {
     // Give WebSocket a moment to broadcast before the process dies
     await new Promise(resolve => setTimeout(resolve, 500));
 
-    // Use systemd-run to spawn the install script in a separate scope.
-    // This ensures the script survives when systemd stops the BigaOS service
-    // (systemd kills all processes in the service cgroup on stop).
-    // --uid ensures bash runs as the service user (not root), since install.sh
-    // refuses to run as root. --setenv passes HOME so $HOME/BigaOS resolves.
+    // Use systemd-run to create a transient service unit for the update.
+    // Unlike --scope, this is fully independent: systemd-run sends a D-Bus
+    // message to create the unit and returns immediately. The update script
+    // runs in its own unit, completely unaffected when "systemctl stop bigaos"
+    // kills all processes in the bigaos.service cgroup.
     const user = process.env.USER || process.env.LOGNAME || 'pi';
     const home = process.env.HOME || `/home/${user}`;
     const child = spawn('sudo', [
-      'systemd-run', '--scope',
+      'systemd-run',
+      '--unit=bigaos-update',
       `--uid=${user}`,
       `--setenv=HOME=${home}`,
+      `--working-directory=${path.join(__dirname, '../../..')}`,
       'bash', installScript,
     ], {
       cwd: path.join(__dirname, '../../..'),
