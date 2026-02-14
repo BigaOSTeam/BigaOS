@@ -39,7 +39,7 @@ export const HeadingItem: React.FC<HeadingItemProps> = ({ heading }) => {
         lineHeight: 1,
         marginTop: theme.space.xs,
       }}>
-        {radToDeg(heading).toFixed(0)}°
+        {(Math.round(radToDeg(heading)) % 360)}°
       </div>
       <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{getCardinalDirection(radToDeg(heading))}</div>
     </div>

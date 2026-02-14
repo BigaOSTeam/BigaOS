@@ -39,7 +39,7 @@ export const COGItem: React.FC<COGItemProps> = ({ cog }) => {
         lineHeight: 1,
         marginTop: theme.space.xs,
       }}>
-        {radToDeg(cog).toFixed(0)}°
+        {(Math.round(radToDeg(cog)) % 360)}°
       </div>
       <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{getCardinalDirection(radToDeg(cog))}</div>
     </div>

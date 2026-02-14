@@ -208,7 +208,7 @@ export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
             color: '#42a5f5',
             lineHeight: 1,
           }}>
-            {Math.round(radToDeg(cog))}°
+            {Math.round(radToDeg(cog)) % 360}°
           </div>
           <div style={{
             fontSize: '1.5rem',
@@ -289,7 +289,7 @@ export const COGView: React.FC<COGViewProps> = ({ cog, onClose }) => {
             yHeadroom={0}
             yUnit="°"
             yMinValue={0}
-            yMaxValue={360}
+            yMaxValue={359}
             lineColor="#42a5f5"
             fillGradient={false}
           />

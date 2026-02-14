@@ -213,7 +213,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
             color: '#ffa726',
             lineHeight: 1,
           }}>
-            {Math.round(radToDeg(heading))}°
+            {Math.round(radToDeg(heading)) % 360}°
           </div>
           <div style={{
             fontSize: '1.5rem',
@@ -294,7 +294,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
             yHeadroom={0}
             yUnit="°"
             yMinValue={0}
-            yMaxValue={360}
+            yMaxValue={359}
             lineColor="#ffa726"
             fillGradient={false}
           />

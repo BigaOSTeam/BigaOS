@@ -230,7 +230,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             {t('autopilot.set_course')}
           </div>
           <div style={{ fontSize: '2rem', fontWeight: 'bold' }}>
-            {radToDeg(targetHeading).toFixed(0)}°
+            {(Math.round(radToDeg(targetHeading)) % 360)}°
           </div>
         </div>
 
@@ -317,7 +317,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
                 {t('autopilot.follow_route')}
               </div>
               <div style={{ fontSize: '0.75rem', opacity: 0.6 }}>
-                {radToDeg(currentBearing).toFixed(0)}°
+                {(Math.round(radToDeg(currentBearing)) % 360)}°
               </div>
             </div>
             <button

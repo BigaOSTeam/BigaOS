@@ -27,7 +27,7 @@ export function normalizeRad(rad: number): number {
 
 /** Format an angle in radians as a degree string, e.g. "045°" */
 export function formatAngle(rad: number): string {
-  return `${Math.round(radToDeg(rad))}°`;
+  return `${Math.round(radToDeg(rad)) % 360}°`;
 }
 
 /** Get cardinal direction from angle in radians */

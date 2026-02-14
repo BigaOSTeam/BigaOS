@@ -1866,7 +1866,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                   </>
                 )}
                 <span style={{ opacity: 0.9, fontWeight: 'normal' }}>
-                  {radToDeg(autopilotHeading).toFixed(0)}°
+                  {(Math.round(radToDeg(autopilotHeading)) % 360)}°
                 </span>
                 {courseChangeWarning && (
                   <span
@@ -1880,7 +1880,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                       fontWeight: 'bold',
                     }}
                   >
-                    {courseChangeWarning.secondsUntil}s → {radToDeg(courseChangeWarning.newHeading).toFixed(0)}°
+                    {courseChangeWarning.secondsUntil}s → {(Math.round(radToDeg(courseChangeWarning.newHeading)) % 360)}°
                   </span>
                 )}
               </button>
@@ -1992,7 +1992,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
             {courseChangeWarning.secondsUntil}s
           </div>
           <div style={{ fontSize: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
-            <span style={{ opacity: 0.7 }}>{radToDeg(autopilotHeading).toFixed(0)}°</span>
+            <span style={{ opacity: 0.7 }}>{(Math.round(radToDeg(autopilotHeading)) % 360)}°</span>
             <svg
               width="16"
               height="16"
@@ -2006,7 +2006,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
               <path d="M5 12h14" />
               <path d="M12 5l7 7-7 7" />
             </svg>
-            <span style={{ fontWeight: 'bold' }}>{radToDeg(courseChangeWarning.newHeading).toFixed(0)}°</span>
+            <span style={{ fontWeight: 'bold' }}>{(Math.round(radToDeg(courseChangeWarning.newHeading)) % 360)}°</span>
           </div>
         </div>
       )}
