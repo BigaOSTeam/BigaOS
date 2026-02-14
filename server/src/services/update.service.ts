@@ -147,9 +147,17 @@ class UpdateService {
     // Use systemd-run to spawn the install script in a separate scope.
     // This ensures the script survives when systemd stops the BigaOS service
     // (systemd kills all processes in the service cgroup on stop).
-    const child = spawn('sudo', ['systemd-run', '--scope', 'bash', installScript], {
+    // --uid ensures bash runs as the service user (not root), since install.sh
+    // refuses to run as root. --setenv passes HOME so $HOME/BigaOS resolves.
+    const user = process.env.USER || process.env.LOGNAME || 'pi';
+    const home = process.env.HOME || `/home/${user}`;
+    const child = spawn('sudo', [
+      'systemd-run', '--scope',
+      `--uid=${user}`,
+      `--setenv=HOME=${home}`,
+      'bash', installScript,
+    ], {
       cwd: path.join(__dirname, '../../..'),
-      env: { ...process.env, HOME: process.env.HOME || '/home/pi' },
       detached: true,
       stdio: 'ignore',
     });

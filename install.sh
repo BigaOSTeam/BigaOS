@@ -179,7 +179,7 @@ WantedBy=multi-user.target
 EOF
 
   # Allow passwordless restart for the update system
-  SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart ${SERVICE_NAME}, /usr/bin/systemctl stop ${SERVICE_NAME}, /usr/bin/systemctl start ${SERVICE_NAME}, /usr/bin/systemd-run, /usr/bin/bash $INSTALL_DIR/plugins/*/setup.sh"
+  SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart ${SERVICE_NAME}, /usr/bin/systemctl stop ${SERVICE_NAME}, /usr/bin/systemctl start ${SERVICE_NAME}, /usr/bin/systemd-run, /usr/bin/bash $INSTALL_DIR/plugins/*/setup.sh, /sbin/reboot"
   SUDOERS_FILE="/etc/sudoers.d/bigaos"
   if [ ! -f "$SUDOERS_FILE" ]; then
     echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null

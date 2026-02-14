@@ -267,7 +267,7 @@ export class WebSocketServer {
         this.broadcastSystemUpdating();
         const { exec } = require('child_process');
         setTimeout(() => {
-          exec('sudo reboot', (err: any) => {
+          exec('sudo /sbin/reboot', (err: any) => {
             if (err) console.error('[WebSocket] Reboot failed:', err.message);
           });
         }, 1000);
