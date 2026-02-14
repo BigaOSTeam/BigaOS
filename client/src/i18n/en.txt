@@ -671,4 +671,4 @@ update.overlay_message=This may take a minute. The app will reconnect automatica
 reboot.overlay_title=Rebooting
 reboot.overlay_message=The system is restarting. The app will reconnect automatically.
 shutdown.overlay_title=Shutting Down
-shutdown.overlay_message=BigaOS is shutting down safely. You can disconnect power when the screen goes dark.
+shutdown.overlay_message=BigaOS is shutting down safely.

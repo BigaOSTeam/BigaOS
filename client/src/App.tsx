@@ -143,6 +143,7 @@ function AppContent() {
 
     wsService.on('system_shutting_down', () => {
       setSystemShuttingDown(true);
+      startReloadPoll();
     });
 
     // Listen for new version available (broadcast once by server per new version)

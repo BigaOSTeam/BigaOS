@@ -87,12 +87,12 @@ if [ -f "$BOOT_CONFIG" ]; then
     echo "CAN overlay already configured"
   fi
 
-  # ── Safe shutdown via power module (GPIO 21 in, GPIO 16 out) ──
+  # ── Safe shutdown via power module (GPIO 21 in, GPIO 26 out) ──
   if ! grep -q "^dtoverlay=gpio-shutdown" "$BOOT_CONFIG"; then
     echo "" >> "$BOOT_CONFIG"
     echo "# MacArthur HAT - Safe shutdown (power module)" >> "$BOOT_CONFIG"
     echo "dtoverlay=gpio-shutdown,gpio_pin=21" >> "$BOOT_CONFIG"
-    echo "dtoverlay=gpio-poweroff,gpiopin=16" >> "$BOOT_CONFIG"
+    echo "dtoverlay=gpio-poweroff,gpiopin=26,active_low=y" >> "$BOOT_CONFIG"
     echo "Safe shutdown overlays added to $BOOT_CONFIG"
     REBOOT_NEEDED=true
   else

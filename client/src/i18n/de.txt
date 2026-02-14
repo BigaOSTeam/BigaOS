@@ -671,4 +671,4 @@ update.overlay_message=Dies kann eine Minute dauern. Die App verbindet sich auto
 reboot.overlay_title=Neustart
 reboot.overlay_message=Das System wird neu gestartet. Die App verbindet sich automatisch neu.
 shutdown.overlay_title=Herunterfahren
-shutdown.overlay_message=BigaOS fahrt sicher herunter. Sie konnen den Strom trennen, wenn der Bildschirm dunkel wird.
+shutdown.overlay_message=BigaOS fährt sicher herunter.
