@@ -143,8 +143,14 @@ function AppContent() {
 
     wsService.on('system_shutting_down', () => {
       setSystemShuttingDown(true);
-      // Clear overlay after 5s so normal "Server Unreachable" banner takes over
-      setTimeout(() => setSystemShuttingDown(false), 5000);
+      // Keep overlay until server becomes unreachable, then clear so
+      // the normal "Server Unreachable" banner takes over
+      const checkGone = setInterval(() => {
+        fetch('/health').then(() => {}).catch(() => {
+          clearInterval(checkGone);
+          setSystemShuttingDown(false);
+        });
+      }, 2000);
     });
 
     // Listen for new version available (broadcast once by server per new version)
