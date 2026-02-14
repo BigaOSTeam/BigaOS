@@ -642,6 +642,9 @@ plugins.no_streams=Keine Datenströme
 plugins.data_flowing=Aktiv
 plugins.data_stale=Veraltet
 plugins.no_data=Keine Daten
+plugins.data_sources=Datenquellen
+plugins.advanced_settings=Erweiterte Einstellungen
+plugins.not_yet_supported=Noch nicht unterstutzt:
 
 # ==================== Validierung ====================
 validation.invalid_number=Bitte geben Sie eine gültige Zahl ein
@@ -667,3 +670,5 @@ update.overlay_title=BigaOS wird aktualisiert
 update.overlay_message=Dies kann eine Minute dauern. Die App verbindet sich automatisch neu.
 reboot.overlay_title=Neustart
 reboot.overlay_message=Das System wird neu gestartet. Die App verbindet sich automatisch neu.
+shutdown.overlay_title=Herunterfahren
+shutdown.overlay_message=BigaOS fahrt sicher herunter. Sie konnen den Strom trennen, wenn der Bildschirm dunkel wird.

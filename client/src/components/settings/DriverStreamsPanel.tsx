@@ -757,6 +757,28 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
             )}
           </div>
         )}
+
+        {/* Unsupported interfaces info (MacArthur HAT only) */}
+        {plugin.id === 'bigaos-macarthur-hat' && (
+          <div style={{
+            marginTop: theme.space.lg,
+            padding: theme.space.md,
+            background: theme.colors.bgCard,
+            borderRadius: theme.radius.md,
+            border: `1px solid ${theme.colors.border}`,
+          }}>
+            <div style={{
+              fontSize: theme.fontSize.xs,
+              color: theme.colors.textMuted,
+              lineHeight: 1.5,
+            }}>
+              <span style={{ fontWeight: theme.fontWeight.semibold, color: theme.colors.textSecondary }}>
+                {t('plugins.not_yet_supported') || 'Not yet supported:'}
+              </span>{' '}
+              NMEA 0183 (2 in / 2 out), Seatalk1 (1 in), 1-Wire temperature sensors, GPS/AIS via MAIANA add-on.
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

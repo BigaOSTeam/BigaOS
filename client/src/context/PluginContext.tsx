@@ -225,8 +225,18 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       }));
     };
 
+    const handleInstallError = (data: { pluginId: string; error: string }) => {
+      console.warn(`[PluginContext] Install failed for ${data.pluginId}: ${data.error}`);
+      setInstallingPlugins(prev => {
+        const next = new Set(prev);
+        next.delete(data.pluginId);
+        return next;
+      });
+    };
+
     wsService.on('plugin_sync', handlePluginSync);
     wsService.on('plugin_update', handlePluginUpdate);
+    wsService.on('plugin_install_error', handleInstallError);
     wsService.on('sensor_mappings_sync', handleMappingsSync);
     wsService.on('sensor_mappings_updated', handleMappingsUpdated);
     wsService.on('plugin_registry_sync', handleRegistrySync);
@@ -239,6 +249,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return () => {
       wsService.off('plugin_sync', handlePluginSync);
       wsService.off('plugin_update', handlePluginUpdate);
+      wsService.off('plugin_install_error', handleInstallError);
       wsService.off('sensor_mappings_sync', handleMappingsSync);
       wsService.off('sensor_mappings_updated', handleMappingsUpdated);
       wsService.off('plugin_registry_sync', handleRegistrySync);

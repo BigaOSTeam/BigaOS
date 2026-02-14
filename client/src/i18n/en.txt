@@ -642,6 +642,9 @@ plugins.no_streams=No data streams
 plugins.data_flowing=Active
 plugins.data_stale=Stale
 plugins.no_data=No data
+plugins.data_sources=Data Sources
+plugins.advanced_settings=Advanced Settings
+plugins.not_yet_supported=Not yet supported:
 
 # ==================== Validation ====================
 validation.invalid_number=Please enter a valid number
@@ -667,3 +670,5 @@ update.overlay_title=Updating BigaOS
 update.overlay_message=This may take a minute. The app will reconnect automatically.
 reboot.overlay_title=Rebooting
 reboot.overlay_message=The system is restarting. The app will reconnect automatically.
+shutdown.overlay_title=Shutting Down
+shutdown.overlay_message=BigaOS is shutting down safely. You can disconnect power when the screen goes dark.

@@ -149,6 +149,7 @@ const serverPromise = startServer();
 async function shutdown(signal: string) {
   console.log(`${signal} received, shutting down gracefully...`);
   const { httpServer, wsServer } = await serverPromise;
+  wsServer.broadcastSystemShuttingDown();
   updateService.stop();
   wsServer.stop();
   await DataController.getInstance().stop();

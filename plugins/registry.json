@@ -29,7 +29,7 @@
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",
-      "latestVersion": "1.4.0",
+      "latestVersion": "1.4.1",
       "capabilities": ["sensor-data", "settings", "alerts", "network"],
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
@@ -93,6 +93,12 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
           "releaseDate": "2026-02-14",
           "changelog": "Unified heading with auto magnetic declination, remove imu_yaw, fix auto-map liveness, uninstall script, advanced settings UI"
+        },
+        {
+          "version": "1.4.1",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
+          "releaseDate": "2026-02-14",
+          "changelog": "Safe shutdown via power module (GPIO 21/16), plugin install error handling, unsupported interfaces info"
         }
       ]
     },

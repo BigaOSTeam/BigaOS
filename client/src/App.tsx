@@ -32,6 +32,7 @@ function AppContent() {
   const [showOnlineBanner, setShowOnlineBanner] = useState(false);
   const [systemUpdating, setSystemUpdating] = useState(false);
   const [systemRebooting, setSystemRebooting] = useState(false);
+  const [systemShuttingDown, setSystemShuttingDown] = useState(false);
   const systemUpdatingRef = useRef(false);
   const wasOfflineRef = useRef<boolean | null>(null);
   const { setCurrentDepth } = useSettings();
@@ -138,6 +139,10 @@ function AppContent() {
       setSystemRebooting(true);
       systemUpdatingRef.current = true;
       startReloadPoll();
+    });
+
+    wsService.on('system_shutting_down', () => {
+      setSystemShuttingDown(true);
     });
 
     // Listen for new version available (broadcast once by server per new version)
@@ -273,11 +278,15 @@ function AppContent() {
     return null;
   };
 
-  // System updating/rebooting overlay (full screen)
+  // System updating/rebooting/shutting down overlay (full screen)
   const SystemUpdatingOverlay = () => {
-    if (!systemUpdating && !systemRebooting) return null;
-    const title = systemRebooting ? t('reboot.overlay_title') : t('update.overlay_title');
-    const message = systemRebooting ? t('reboot.overlay_message') : t('update.overlay_message');
+    if (!systemUpdating && !systemRebooting && !systemShuttingDown) return null;
+    const title = systemShuttingDown
+      ? t('shutdown.overlay_title')
+      : systemRebooting ? t('reboot.overlay_title') : t('update.overlay_title');
+    const message = systemShuttingDown
+      ? t('shutdown.overlay_message')
+      : systemRebooting ? t('reboot.overlay_message') : t('update.overlay_message');
     return (
       <div style={{
         position: 'fixed',

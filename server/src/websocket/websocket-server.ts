@@ -201,12 +201,19 @@ export class WebSocketServer {
         if (this.dataController) {
           const pm = this.dataController.getPluginManager();
           if (pm) {
-            const registry = await pm.fetchRegistry();
-            if (registry) {
-              const entry = registry.plugins.find((p: any) => p.id === data.pluginId);
+            try {
+              const registry = await pm.fetchRegistry();
+              const entry = registry?.plugins.find((p: any) => p.id === data.pluginId);
               if (entry) {
-                await pm.installPlugin(entry, data.version);
+                const success = await pm.installPlugin(entry, data.version);
+                if (!success) {
+                  socket.emit('plugin_install_error', { pluginId: data.pluginId, error: 'Installation failed' });
+                }
+              } else {
+                socket.emit('plugin_install_error', { pluginId: data.pluginId, error: 'Plugin not found in registry' });
               }
+            } catch (err: any) {
+              socket.emit('plugin_install_error', { pluginId: data.pluginId, error: err.message });
             }
           }
         }
@@ -780,6 +787,12 @@ export class WebSocketServer {
 
   public broadcastSystemRebooting(): void {
     this.io.emit('system_rebooting', {
+      timestamp: new Date(),
+    });
+  }
+
+  public broadcastSystemShuttingDown(): void {
+    this.io.emit('system_shutting_down', {
       timestamp: new Date(),
     });
   }
