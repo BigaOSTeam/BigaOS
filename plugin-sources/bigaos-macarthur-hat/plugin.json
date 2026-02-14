@@ -1,7 +1,7 @@
 {
   "id": "bigaos-macarthur-hat",
   "name": "MacArthur HAT",
-  "version": "1.4.2",
+  "version": "1.4.4",
   "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus and ICM-20948 IMU via I2C.",
   "author": "BigaOS Team",
   "type": "driver",
