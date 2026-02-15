@@ -24,6 +24,7 @@ common.tomorrow=Morgen
 common.loading_history=Verlauf laden...
 common.no_data=Keine Daten
 common.starting=Starten...
+common.other=Sonstige
 
 # ==================== App ====================
 app.demo=DEMO
@@ -89,6 +90,14 @@ units.weight=Gewicht
 units.temperature=Temperatur
 units.time_format=Zeitformat
 units.date_format=Datumsformat
+units.meters=Meter
+units.tons=Tonnen
+units.mm=mm
+units.knots=Knoten
+units.beaufort=Beaufort
+units.hpa=hPa
+units.speed_label=Geschwindigkeit
+units.depth_label=Tiefe
 units.change_note=Das Ändern der Einheiten aktualisiert alle Anzeigen in der Anwendung. Der Tiefenalarm wird beim Ändern der Tiefeneinheit zurückgesetzt.
 
 # ==================== Dashboard ====================
@@ -345,6 +354,16 @@ terminal.placeholder=Befehl eingeben...
 terminal.run=Ausführen
 terminal.quick_commands=Schnellbefehle
 terminal.terminal=Terminal
+terminal.cmd_sysinfo=Systeminfo
+terminal.cmd_uptime=Betriebszeit
+terminal.cmd_disk=Speicherplatz
+terminal.cmd_memory=Arbeitsspeicher
+terminal.cmd_temp=Temperatur
+terminal.cmd_ip=IP-Adressen
+terminal.cmd_can=CAN-Status
+terminal.cmd_i2c=I2C-Geräte
+terminal.cmd_status=BigaOS-Status
+terminal.cmd_node=Node-Version
 
 # ==================== Offline-Karten ====================
 offline_maps.download_new_region=Neue Region herunterladen
@@ -645,7 +664,47 @@ plugins.data_stale=Veraltet
 plugins.no_data=Keine Daten
 plugins.data_sources=Datenquellen
 plugins.advanced_settings=Erweiterte Einstellungen
-plugins.not_yet_supported=Noch nicht unterstutzt:
+plugins.not_yet_supported=Noch nicht unterstützt:
+
+# ==================== Slot-Typ-Bezeichnungen ====================
+slot.position=GPS-Position
+slot.course_over_ground=Kurs über Grund
+slot.speed_over_ground=Geschwindigkeit über Grund
+slot.heading=Kurs
+slot.speed_through_water=Fahrt durchs Wasser
+slot.depth=Tiefe
+slot.roll=Krängung
+slot.pitch=Stampfen
+slot.yaw=Gieren
+slot.rudder_angle=Ruderwinkel
+slot.wind_speed_apparent=Windgeschwindigkeit (Scheinbar)
+slot.wind_angle_apparent=Windwinkel (Scheinbar)
+slot.wind_speed_true=Windgeschwindigkeit (Wahr)
+slot.wind_angle_true=Windwinkel (Wahr)
+slot.voltage=Batteriespannung
+slot.current=Batteriestrom
+slot.temperature=Temperatur
+slot.soc=Ladezustand
+slot.rpm=Motordrehzahl
+slot.water_temperature=Wassertemperatur
+slot.barometric_pressure=Luftdruck
+slot.humidity=Luftfeuchtigkeit
+slot.fuel_level=Kraftstoffstand
+
+# ==================== Slot-Kategorien ====================
+slot_cat.navigation=Navigation
+slot_cat.environment=Umwelt
+slot_cat.electrical=Elektrik
+slot_cat.propulsion=Antrieb
+
+# ==================== Schnittstellen-Bezeichnungen ====================
+iface.nmea2000=NMEA 2000
+iface.nmea0183=NMEA 0183
+iface.imu=IMU
+iface.i2c=I²C
+iface.demo=Demo
+iface.gps=GPS
+iface.serial=Seriell
 
 # ==================== Validierung ====================
 validation.invalid_number=Bitte geben Sie eine gültige Zahl ein

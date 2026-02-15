@@ -11,28 +11,28 @@ import { theme } from '../../styles/theme';
 import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { usePlugins } from '../../context/PluginContext';
+import { SButton, SSection } from '../ui/SettingsUI';
 
 const HELPFUL_COMMANDS = [
-  { label: 'System Info', cmd: 'uname -a' },
-  { label: 'Uptime', cmd: 'uptime' },
-  { label: 'Disk Usage', cmd: 'df -h' },
-  { label: 'Memory', cmd: 'free -h' },
-  { label: 'Temperature', cmd: 'vcgencmd measure_temp 2>/dev/null || echo "N/A"' },
-  { label: 'IP Addresses', cmd: 'hostname -I' },
-  { label: 'CAN Status', cmd: 'ip -details link show can0 2>/dev/null || echo "CAN interface not found"' },
-  { label: 'I2C Devices', cmd: 'i2cdetect -y 1 2>/dev/null || echo "i2c-tools not installed"' },
-  { label: 'BigaOS Status', cmd: 'systemctl status bigaos --no-pager -l' },
-  { label: 'Node Version', cmd: 'node --version' },
+  { labelKey: 'terminal.cmd_sysinfo', cmd: 'uname -a' },
+  { labelKey: 'terminal.cmd_uptime', cmd: 'uptime' },
+  { labelKey: 'terminal.cmd_disk', cmd: 'df -h' },
+  { labelKey: 'terminal.cmd_memory', cmd: 'free -h' },
+  { labelKey: 'terminal.cmd_temp', cmd: 'vcgencmd measure_temp 2>/dev/null || echo "N/A"' },
+  { labelKey: 'terminal.cmd_ip', cmd: 'hostname -I' },
+  { labelKey: 'terminal.cmd_can', cmd: 'ip -details link show can0 2>/dev/null || echo "CAN interface not found"' },
+  { labelKey: 'terminal.cmd_i2c', cmd: 'i2cdetect -y 1 2>/dev/null || echo "i2c-tools not installed"' },
+  { labelKey: 'terminal.cmd_status', cmd: 'systemctl status bigaos --no-pager -l' },
+  { labelKey: 'terminal.cmd_node', cmd: 'node --version' },
 ];
 
 const MONO_FONT = '"Cascadia Code", "Fira Code", "Source Code Pro", "Consolas", monospace';
 
-const sectionHeader: React.CSSProperties = {
-  fontSize: theme.fontSize.xs,
-  fontWeight: theme.fontWeight.semibold,
-  color: theme.colors.textMuted,
-  textTransform: 'uppercase',
-  letterSpacing: '0.05em',
+// Terminal buttons use smaller sizing — keep them compact
+const termBtnStyle: React.CSSProperties = {
+  padding: `${theme.space.xs} ${theme.space.sm}`,
+  fontSize: theme.fontSize.sm,
+  minHeight: '36px',
 };
 
 interface TerminalLine {
@@ -166,85 +166,64 @@ export const TerminalPanel: React.FC = () => {
       {/* ── Server Logs ─────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={sectionHeader}>
-            {t('terminal.title')}
-          </div>
+          <SSection style={{ marginBottom: 0 }}>{t('terminal.title')}</SSection>
           <div style={{ display: 'flex', gap: theme.space.xs }}>
-            <button
+            <SButton
+              variant="outline"
               onClick={refreshLogs}
-              className="touch-btn"
               title={t('terminal.refresh')}
-              style={{
-                padding: `${theme.space.xs} ${theme.space.sm}`,
-                background: 'transparent',
-                border: `1px solid ${theme.colors.border}`,
-                borderRadius: theme.radius.sm,
-                color: theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: theme.space.xs,
-              }}
+              style={termBtnStyle}
+              icon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M23 4v6h-6" />
+                  <path d="M1 20v-6h6" />
+                  <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                </svg>
+              }
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M23 4v6h-6" />
-                <path d="M1 20v-6h6" />
-                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-              </svg>
               {t('terminal.refresh')}
-            </button>
-            <button
+            </SButton>
+            <SButton
+              variant={following ? 'primary' : 'outline'}
               onClick={toggleFollow}
-              className="touch-btn"
               style={{
-                padding: `${theme.space.xs} ${theme.space.sm}`,
-                background: following ? theme.colors.primaryLight : 'transparent',
-                border: `1px solid ${following ? theme.colors.primary : theme.colors.border}`,
-                borderRadius: theme.radius.sm,
-                color: following ? theme.colors.primary : theme.colors.textMuted,
-                fontSize: theme.fontSize.xs,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: theme.space.xs,
+                ...termBtnStyle,
+                ...(following ? {} : {}),
               }}
+              icon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill={following ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              }
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill={following ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
               {following ? t('terminal.following') : t('terminal.follow')}
-            </button>
-            <button
+            </SButton>
+            <SButton
+              variant="outline"
               onClick={() => rebootSystem()}
-              className="touch-btn"
               title={t('terminal.reboot')}
               style={{
-                padding: `${theme.space.xs} ${theme.space.sm}`,
-                background: 'transparent',
-                border: `1px solid ${theme.colors.warning}66`,
-                borderRadius: theme.radius.sm,
-                color: theme.colors.warning,
-                fontSize: theme.fontSize.xs,
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: theme.space.xs,
+                ...termBtnStyle,
+                background: theme.colors.warningLight,
+                color: '#fff',
               }}
+              icon={
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
+                  <line x1="12" y1="2" x2="12" y2="12" />
+                </svg>
+              }
             >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-                <line x1="12" y1="2" x2="12" y2="12" />
-              </svg>
               {t('terminal.reboot')}
-            </button>
+            </SButton>
           </div>
         </div>
 
         <pre
           ref={logRef}
           onScroll={handleLogScroll}
+          className="settings-scroll"
           style={{
             background: '#000',
             color: '#c8d6e5',
@@ -252,7 +231,7 @@ export const TerminalPanel: React.FC = () => {
             fontSize: '11px',
             lineHeight: 1.5,
             padding: theme.space.md,
-            borderRadius: theme.radius.sm,
+            borderRadius: theme.radius.md,
             border: `1px solid ${theme.colors.border}`,
             height: '260px',
             overflow: 'auto',
@@ -268,30 +247,20 @@ export const TerminalPanel: React.FC = () => {
       {/* ── Terminal ──────────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.sm }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div style={sectionHeader}>
-            {t('terminal.terminal') || 'Terminal'}
-          </div>
-          <button
+          <SSection style={{ marginBottom: 0 }}>{t('terminal.terminal') || 'Terminal'}</SSection>
+          <SButton
+            variant="ghost"
             onClick={() => setShowHelp(!showHelp)}
-            className="touch-btn"
-            style={{
-              padding: `${theme.space.xs} ${theme.space.sm}`,
-              background: 'transparent',
-              border: 'none',
-              color: theme.colors.textMuted,
-              fontSize: theme.fontSize.xs,
-              cursor: 'pointer',
-              display: 'flex',
-              alignItems: 'center',
-              gap: theme.space.xs,
-            }}
+            style={termBtnStyle}
+            icon={
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                style={{ transform: showHelp ? 'rotate(90deg)' : 'none', transition: `transform ${theme.transition.fast}` }}>
+                <polyline points="9 18 15 12 9 6" />
+              </svg>
+            }
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-              style={{ transform: showHelp ? 'rotate(90deg)' : 'none', transition: 'transform 0.15s' }}>
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
             {t('terminal.quick_commands')}
-          </button>
+          </SButton>
         </div>
 
         {showHelp && (
@@ -301,24 +270,20 @@ export const TerminalPanel: React.FC = () => {
             gap: theme.space.xs,
             padding: `${theme.space.xs} 0`,
           }}>
-            {HELPFUL_COMMANDS.map(({ label, cmd }) => (
-              <button
+            {HELPFUL_COMMANDS.map(({ labelKey, cmd }) => (
+              <SButton
                 key={cmd}
+                variant="outline"
                 onClick={() => { setCommand(cmd); inputRef.current?.focus(); }}
-                className="touch-btn"
                 title={cmd}
                 style={{
-                  padding: `${theme.space.xs} ${theme.space.sm}`,
-                  background: theme.colors.bgCard,
-                  border: `1px solid ${theme.colors.border}`,
-                  borderRadius: theme.radius.sm,
-                  color: theme.colors.textSecondary,
-                  fontSize: theme.fontSize.xs,
-                  cursor: 'pointer',
+                  padding: `${theme.space.xs} ${theme.space.md}`,
+                  fontSize: theme.fontSize.sm,
+                  minHeight: '36px',
                 }}
               >
-                {label}
-              </button>
+                {t(labelKey)}
+              </SButton>
             ))}
           </div>
         )}
@@ -326,13 +291,14 @@ export const TerminalPanel: React.FC = () => {
         {/* Terminal output */}
         <div
           ref={termRef}
+          className="settings-scroll"
           style={{
             background: '#000',
             fontFamily: MONO_FONT,
             fontSize: '11px',
             lineHeight: 1.5,
             padding: theme.space.md,
-            borderRadius: `${theme.radius.sm} ${theme.radius.sm} 0 0`,
+            borderRadius: `${theme.radius.md} ${theme.radius.md} 0 0`,
             border: `1px solid ${theme.colors.border}`,
             borderBottom: 'none',
             height: '180px',
@@ -364,7 +330,7 @@ export const TerminalPanel: React.FC = () => {
           display: 'flex',
           background: '#0a0a0a',
           border: `1px solid ${theme.colors.border}`,
-          borderRadius: `0 0 ${theme.radius.sm} ${theme.radius.sm}`,
+          borderRadius: `0 0 ${theme.radius.md} ${theme.radius.md}`,
           marginTop: '-1px',
           overflow: 'hidden',
         }}>
@@ -395,22 +361,18 @@ export const TerminalPanel: React.FC = () => {
               outline: 'none',
             }}
           />
-          <button
+          <SButton
+            variant="primary"
             onClick={() => executeCommand()}
-            className="touch-btn"
             disabled={!command.trim()}
             style={{
               padding: `${theme.space.sm} ${theme.space.md}`,
-              background: theme.colors.primary,
-              border: 'none',
-              color: '#fff',
-              fontSize: theme.fontSize.sm,
-              cursor: 'pointer',
               minHeight: '36px',
+              borderRadius: 0,
             }}
           >
             {t('terminal.run')}
-          </button>
+          </SButton>
         </div>
       </div>
     </div>

@@ -4,6 +4,7 @@ import { useSettings, windConversions, speedConversions, depthConversions, tempe
 import { CustomSelect, SelectOption } from '../ui/CustomSelect';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { ALERT_SOUNDS } from '../../utils/audio';
+import { SLabel, SInput, SButton } from '../ui/SettingsUI';
 import {
   AlertDefinition,
   AlertDataSource,
@@ -30,39 +31,24 @@ interface AlertEditDialogProps {
 }
 
 const DATA_SOURCES: AlertDataSource[] = [
-  // Sensor data (measured from boat)
   'wind_speed',
   'speed_over_ground',
   'depth',
   'battery_voltage',
   'battery_soc',
-  // Weather service - current
   'wind_gusts',
   'wave_height',
   'temperature_air',
   'temperature_water',
-  // Weather service - forecast
   'wind_forecast',
   'wave_forecast',
 ];
 
 const SEVERITIES: AlertSeverity[] = ['info', 'warning', 'critical'];
 const TONES: AlertTone[] = [
-  'none',
-  'beep',
-  'notification',
-  'alarm',
-  'chime',
-  'warning',
-  'sonar',
-  'bell',
-  'siren',
-  'gentle',
-  'urgent',
-  'foghorn',
-  'triple',
-  'ascending',
-  'ding',
+  'none', 'beep', 'notification', 'alarm', 'chime', 'warning',
+  'sonar', 'bell', 'siren', 'gentle', 'urgent', 'foghorn',
+  'triple', 'ascending', 'ding',
 ];
 
 export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
@@ -82,7 +68,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
   const isNew = alert === null;
   const isPremade = alert?.isPremade ?? false;
 
-  // Initialize form state
   const [name, setName] = useState(alert?.name ?? '');
   const [dataSource, setDataSource] = useState<AlertDataSource>(
     alert?.dataSource ?? 'wind_forecast'
@@ -105,12 +90,9 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     alert?.message ?? 'Value {condition} {threshold} (current: {value})'
   );
 
-  // Get valid operators for current data source
   const validOperators = DATA_SOURCE_OPERATORS[dataSource];
   const isForecastBased = isWeatherDataSource(dataSource);
 
-  // Get dynamic unit label for current data source based on user settings
-  // Note: Threshold values are already in user's display units (server converts internally)
   const currentUnit = getUnitForDataSource(
     dataSource,
     windConversions[windUnit].label,
@@ -119,7 +101,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     temperatureConversions[temperatureUnit].label
   );
 
-  // Prepare options for selects
   const dataSourceOptions: SelectOption<AlertDataSource>[] = DATA_SOURCES.map((source) => ({
     value: source,
     label: getDataSourceLabel(source, t),
@@ -140,7 +121,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     label: getToneLabel(tone, t),
   }));
 
-  // Update operator when data source changes
   const handleDataSourceChange = (newSource: AlertDataSource) => {
     setDataSource(newSource);
     const newValidOperators = DATA_SOURCE_OPERATORS[newSource];
@@ -149,7 +129,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     }
   };
 
-  // Play tone preview
   const playTonePreview = () => {
     const playFn = ALERT_SOUNDS[tone];
     if (playFn) {
@@ -157,7 +136,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     }
   };
 
-  // Reset to default (for premade alerts)
   const handleResetToDefault = () => {
     if (!alert?.premadeId) return;
     const defaultAlert = PREMADE_ALERTS.find(
@@ -178,7 +156,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     }
   };
 
-  // Save handler
   const handleSave = () => {
     const alertData = {
       ...(alert ?? {}),
@@ -214,6 +191,19 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
     }
   };
 
+  const getSeverityLightColor = (s: AlertSeverity) => {
+    switch (s) {
+      case 'info':
+        return theme.colors.infoLight;
+      case 'warning':
+        return theme.colors.warningLight;
+      case 'critical':
+        return theme.colors.errorLight;
+    }
+  };
+
+  const canSave = name.trim() && !thresholdError && thresholdInput.trim() !== '';
+
   return (
     <div
       style={{
@@ -231,6 +221,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
       onClick={onClose}
     >
       <div
+        className="settings-scroll"
         style={{
           background: theme.colors.bgSecondary,
           borderRadius: theme.radius.lg,
@@ -262,16 +253,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
           >
             {isNew ? t('alerts.create_alert') : t('alerts.edit_alert')}
           </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: theme.colors.textMuted,
-              cursor: 'pointer',
-              padding: theme.space.xs,
-            }}
-          >
+          <SButton variant="ghost" onClick={onClose} style={{ padding: theme.space.xs }}>
             <svg
               width="24"
               height="24"
@@ -283,52 +265,25 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
               <line x1="18" y1="6" x2="6" y2="18" />
               <line x1="6" y1="6" x2="18" y2="18" />
             </svg>
-          </button>
+          </SButton>
         </div>
 
         {/* Form Fields */}
         <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.lg }}>
           {/* Name */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.alert_name')}
-            </label>
-            <input
+            <SLabel>{t('alerts.alert_name')}</SLabel>
+            <SInput
               type="text"
               value={name}
               onChange={(e) => setName(e.target.value)}
               placeholder={t('alerts.alert_name_placeholder')}
-              style={{
-                width: '100%',
-                padding: theme.space.md,
-                background: theme.colors.bgCardActive,
-                border: `1px solid ${theme.colors.border}`,
-                borderRadius: theme.radius.md,
-                color: theme.colors.textPrimary,
-                fontSize: theme.fontSize.md,
-              }}
             />
           </div>
 
           {/* Data Source */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.data_source')}
-            </label>
+            <SLabel>{t('alerts.data_source')}</SLabel>
             <CustomSelect
               value={dataSource}
               options={dataSourceOptions}
@@ -338,16 +293,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
 
           {/* Operator */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.condition')}
-            </label>
+            <SLabel>{t('alerts.condition')}</SLabel>
             <CustomSelect
               value={operator}
               options={operatorOptions}
@@ -363,20 +309,12 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
               gap: theme.space.md,
             }}
           >
-            <div>
-              <label
-                style={{
-                  display: 'block',
-                  fontSize: theme.fontSize.sm,
-                  color: theme.colors.textMuted,
-                  marginBottom: theme.space.xs,
-                }}
-              >
-                {t('alerts.threshold')} ({currentUnit})
-              </label>
-              <input
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <SLabel style={{ flex: 1 }}>{t('alerts.threshold')} ({currentUnit})</SLabel>
+              <SInput
                 type="text"
                 value={thresholdInput}
+                error={thresholdError}
                 onChange={(e) => {
                   const value = e.target.value;
                   setThresholdInput(value);
@@ -389,36 +327,17 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
                   }
                 }}
                 onBlur={() => {
-                  // On blur, format the value if valid
                   if (!thresholdError && thresholdInput.trim() !== '') {
                     setThresholdInput(String(threshold));
                   }
-                }}
-                style={{
-                  width: '100%',
-                  padding: theme.space.md,
-                  background: theme.colors.bgCardActive,
-                  border: `1px solid ${thresholdError ? theme.colors.error : theme.colors.border}`,
-                  borderRadius: theme.radius.md,
-                  color: theme.colors.textPrimary,
-                  fontSize: theme.fontSize.md,
                 }}
               />
             </div>
 
             {isForecastBased && (
-              <div>
-                <label
-                  style={{
-                    display: 'block',
-                    fontSize: theme.fontSize.sm,
-                    color: theme.colors.textMuted,
-                    marginBottom: theme.space.xs,
-                  }}
-                >
-                  {t('alerts.forecast_window')}
-                </label>
-                <input
+              <div style={{ display: 'flex', flexDirection: 'column' }}>
+                <SLabel style={{ flex: 1 }}>{t('alerts.forecast_window')}</SLabel>
+                <SInput
                   type="number"
                   value={forecastHours}
                   onChange={(e) =>
@@ -426,15 +345,6 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
                   }
                   min={1}
                   max={6}
-                  style={{
-                    width: '100%',
-                    padding: theme.space.md,
-                    background: theme.colors.bgCardActive,
-                    border: `1px solid ${theme.colors.border}`,
-                    borderRadius: theme.radius.md,
-                    color: theme.colors.textPrimary,
-                    fontSize: theme.fontSize.md,
-                  }}
                 />
               </div>
             )}
@@ -442,16 +352,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
 
           {/* Snooze Duration */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.snooze_duration')}
-            </label>
+            <SLabel>{t('alerts.snooze_duration')}</SLabel>
             <CustomSelect
               value={snoozeDuration}
               options={snoozeOptions}
@@ -461,16 +362,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
 
           {/* Severity */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.severity')}
-            </label>
+            <SLabel>{t('alerts.severity')}</SLabel>
             <div style={{ display: 'flex', gap: theme.space.sm }}>
               {SEVERITIES.map((s) => (
                 <button
@@ -478,23 +370,20 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
                   onClick={() => setSeverity(s)}
                   style={{
                     flex: 1,
-                    padding: theme.space.md,
+                    padding: '0.5rem 0.75rem',
                     background:
                       severity === s
-                        ? `${getSeverityColor(s)}30`
-                        : theme.colors.bgCardActive,
-                    border: `1px solid ${
-                      severity === s ? getSeverityColor(s) : theme.colors.border
-                    }`,
+                        ? getSeverityLightColor(s)
+                        : 'rgba(255, 255, 255, 0.1)',
+                    border: 'none',
                     borderRadius: theme.radius.md,
-                    color:
-                      severity === s
-                        ? getSeverityColor(s)
-                        : theme.colors.textSecondary,
-                    fontSize: theme.fontSize.sm,
+                    color: '#fff',
+                    fontSize: theme.fontSize.md,
                     textTransform: 'capitalize',
                     cursor: 'pointer',
                     transition: `all ${theme.transition.fast}`,
+                    minHeight: '42px',
+                    fontWeight: severity === s ? theme.fontWeight.bold : theme.fontWeight.normal,
                   }}
                 >
                   {getSeverityLabel(s, t)}
@@ -505,16 +394,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
 
           {/* Tone */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.sound')}
-            </label>
+            <SLabel>{t('alerts.sound')}</SLabel>
             <div style={{ display: 'flex', gap: theme.space.sm }}>
               <div style={{ flex: 1 }}>
                 <CustomSelect
@@ -524,87 +404,32 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
                 />
               </div>
               {tone !== 'none' && (
-                <button
-                  onClick={playTonePreview}
-                  style={{
-                    padding: `${theme.space.xs} ${theme.space.md}`,
-                    background: theme.colors.bgCard,
-                    border: `1px solid ${theme.colors.border}`,
-                    borderRadius: theme.radius.md,
-                    color: theme.colors.textSecondary,
-                    fontSize: theme.fontSize.sm,
-                    cursor: 'pointer',
-                  }}
-                >
+                <SButton variant="outline" onClick={playTonePreview}>
                   {t('alerts.preview')}
-                </button>
+                </SButton>
               )}
             </div>
           </div>
 
           {/* Message */}
           <div>
-            <label
-              style={{
-                display: 'block',
-                fontSize: theme.fontSize.sm,
-                color: theme.colors.textMuted,
-                marginBottom: theme.space.xs,
-              }}
-            >
-              {t('alerts.message_template')}
-            </label>
-            <input
+            <SLabel>{t('alerts.message_template')}</SLabel>
+            <SInput
               type="text"
               value={message}
               onChange={(e) => setMessage(e.target.value)}
               placeholder={t('alerts.message_placeholder')}
-              style={{
-                width: '100%',
-                padding: theme.space.md,
-                background: theme.colors.bgCardActive,
-                border: `1px solid ${theme.colors.border}`,
-                borderRadius: theme.radius.md,
-                color: theme.colors.textPrimary,
-                fontSize: theme.fontSize.md,
-              }}
             />
-            <div
-              style={{
-                fontSize: theme.fontSize.xs,
-                color: theme.colors.textMuted,
-                marginTop: theme.space.sm,
-                lineHeight: 1.6,
-              }}
-            >
-              <div style={{ marginBottom: theme.space.xs }}>
-                <strong>{t('alerts.placeholders')}</strong>
-              </div>
-              <div style={{ display: 'flex', gap: theme.space.lg, flexWrap: 'wrap' }}>
-                <span><code style={{ background: theme.colors.bgCard, padding: '2px 4px', borderRadius: '3px' }}>{'{value}'}</code> {t('alerts.value_desc')}</span>
-                <span><code style={{ background: theme.colors.bgCard, padding: '2px 4px', borderRadius: '3px' }}>{'{threshold}'}</code> {t('alerts.threshold_desc')}</span>
-                <span><code style={{ background: theme.colors.bgCard, padding: '2px 4px', borderRadius: '3px' }}>{'{condition}'}</code> {t('alerts.condition_desc')} ({OPERATOR_LABELS[operator]})</span>
-              </div>
-            </div>
             {/* Live preview */}
+            <SLabel style={{ marginTop: theme.space.md }}>{t('alerts.preview_label')}</SLabel>
             <div
               style={{
-                marginTop: theme.space.md,
                 padding: theme.space.sm,
                 background: theme.colors.bgCardActive,
                 borderRadius: theme.radius.sm,
                 borderLeft: `3px solid ${getSeverityColor(severity)}`,
               }}
             >
-              <div
-                style={{
-                  fontSize: theme.fontSize.xs,
-                  color: theme.colors.textMuted,
-                  marginBottom: theme.space.xs,
-                }}
-              >
-                {t('alerts.preview_label')}
-              </div>
               <div
                 style={{
                   fontSize: theme.fontSize.sm,
@@ -615,6 +440,24 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
                   .replace('{value}', `${(threshold * 1.2).toFixed(1)}${currentUnit}`)
                   .replace('{threshold}', `${threshold.toFixed(1)}${currentUnit}`)
                   .replace('{condition}', OPERATOR_LABELS[operator])}
+              </div>
+            </div>
+            {/* Placeholders */}
+            <div
+              style={{
+                fontSize: theme.fontSize.xs,
+                color: theme.colors.textMuted,
+                marginTop: theme.space.md,
+                lineHeight: 1.6,
+              }}
+            >
+              <div style={{ marginBottom: theme.space.xs }}>
+                <strong>{t('alerts.placeholders')}</strong>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: theme.space.xs }}>
+                <span><code style={{ background: theme.colors.bgCard, padding: '2px 4px', borderRadius: theme.radius.xs }}>{'{value}'}</code> {t('alerts.value_desc')}</span>
+                <span><code style={{ background: theme.colors.bgCard, padding: '2px 4px', borderRadius: theme.radius.xs }}>{'{threshold}'}</code> {t('alerts.threshold_desc')}</span>
+                <span><code style={{ background: theme.colors.bgCard, padding: '2px 4px', borderRadius: theme.radius.xs }}>{'{condition}'}</code> {t('alerts.condition_desc')} ({OPERATOR_LABELS[operator]})</span>
               </div>
             </div>
           </div>
@@ -632,72 +475,27 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
         >
           <div>
             {isPremade && (
-              <button
-                onClick={handleResetToDefault}
-                style={{
-                  padding: `${theme.space.sm} ${theme.space.md}`,
-                  background: 'transparent',
-                  border: `1px solid ${theme.colors.border}`,
-                  borderRadius: theme.radius.md,
-                  color: theme.colors.textMuted,
-                  fontSize: theme.fontSize.sm,
-                  cursor: 'pointer',
-                }}
-              >
+              <SButton variant="outline" onClick={handleResetToDefault}>
                 {t('alerts.reset_to_default')}
-              </button>
+              </SButton>
             )}
             {onDelete && !isPremade && (
-              <button
-                onClick={onDelete}
-                style={{
-                  padding: `${theme.space.sm} ${theme.space.md}`,
-                  background: 'transparent',
-                  border: `1px solid ${theme.colors.error}`,
-                  borderRadius: theme.radius.md,
-                  color: theme.colors.error,
-                  fontSize: theme.fontSize.sm,
-                  cursor: 'pointer',
-                }}
-              >
+              <SButton variant="danger" onClick={onDelete}>
                 {t('common.delete')}
-              </button>
+              </SButton>
             )}
           </div>
           <div style={{ display: 'flex', gap: theme.space.sm }}>
-            <button
-              onClick={onClose}
-              style={{
-                padding: `${theme.space.sm} ${theme.space.lg}`,
-                background: 'transparent',
-                border: `1px solid ${theme.colors.border}`,
-                borderRadius: theme.radius.md,
-                color: theme.colors.textSecondary,
-                fontSize: theme.fontSize.md,
-                cursor: 'pointer',
-              }}
-            >
+            <SButton variant="outline" onClick={onClose}>
               {t('common.cancel')}
-            </button>
-            <button
+            </SButton>
+            <SButton
+              variant="primary"
               onClick={handleSave}
-              disabled={!name.trim() || thresholdError || thresholdInput.trim() === ''}
-              style={{
-                padding: `${theme.space.sm} ${theme.space.lg}`,
-                background: name.trim() && !thresholdError && thresholdInput.trim() !== ''
-                  ? theme.colors.primary
-                  : theme.colors.bgCardActive,
-                border: 'none',
-                borderRadius: theme.radius.md,
-                color: name.trim() && !thresholdError && thresholdInput.trim() !== ''
-                  ? theme.colors.textPrimary
-                  : theme.colors.textDisabled,
-                fontSize: theme.fontSize.md,
-                cursor: name.trim() && !thresholdError && thresholdInput.trim() !== '' ? 'pointer' : 'not-allowed',
-              }}
+              disabled={!canSave}
             >
               {isNew ? t('alerts.create') : t('common.save')}
-            </button>
+            </SButton>
           </div>
         </div>
       </div>

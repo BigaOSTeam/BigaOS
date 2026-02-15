@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   useSettings,
   SpeedUnit,
@@ -28,6 +28,16 @@ import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LANGUAGES, LanguageCode } from '../../i18n/languages';
 import { CustomSelect } from '../ui/CustomSelect';
+import {
+  SLabel,
+  SSection,
+  SInput,
+  SButton,
+  SToggle,
+  SOptionGroup,
+  SCard,
+  SInfoBox,
+} from '../ui/SettingsUI';
 
 type SettingsTab = 'general' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'plugins' | 'advanced';
 
@@ -43,13 +53,18 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
   const [editingUrls, setEditingUrls] = useState<Record<string, string>>({});
   const [savingUrl, setSavingUrl] = useState<string | null>(null);
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
-  const [expandedUrls, setExpandedUrls] = useState<Set<string>>(new Set());
-  const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateInstalling, setUpdateInstalling] = useState(false);
+  const [minCheckSpin, setMinCheckSpin] = useState(false);
+  const [dotCount, setDotCount] = useState(1);
+  const checkTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm } = useConfirmDialog();
   const { t } = useLanguage();
+
+  const isCheckingVisible = minCheckSpin || updateChecking;
 
   const fetchStorageStats = useCallback(async () => {
     try {
@@ -93,9 +108,28 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     fetchDataStatus();
   }, [fetchDataStatus]);
 
+  // Animated dots for checking state
+  useEffect(() => {
+    if (isCheckingVisible) {
+      setDotCount(1);
+      dotIntervalRef.current = setInterval(() => setDotCount(d => (d % 3) + 1), 400);
+    } else {
+      if (dotIntervalRef.current) clearInterval(dotIntervalRef.current);
+    }
+    return () => { if (dotIntervalRef.current) clearInterval(dotIntervalRef.current); };
+  }, [isCheckingVisible]);
+
+  // Cleanup timer on unmount
+  useEffect(() => () => { if (checkTimerRef.current) clearTimeout(checkTimerRef.current); }, []);
+
   // Check for updates when General tab is active
   const checkForUpdate = useCallback(async (force: boolean = false) => {
     setUpdateChecking(true);
+    if (force) {
+      setMinCheckSpin(true);
+      if (checkTimerRef.current) clearTimeout(checkTimerRef.current);
+      checkTimerRef.current = setTimeout(() => setMinCheckSpin(false), 1200);
+    }
     try {
       const response = await systemAPI.checkForUpdate(force);
       setUpdateInfo(response.data);
@@ -116,8 +150,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     setUpdateInstalling(true);
     try {
       await systemAPI.installUpdate();
-      // Server will broadcast system_updating via WebSocket
-      // The overlay in App.tsx will handle it
     } catch (error) {
       console.error('Failed to install update:', error);
       setUpdateInstalling(false);
@@ -144,7 +176,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
         return file;
       }));
 
-      // Update downloadingFiles set based on status
       if (data.status === 'downloading' || data.status === 'extracting' || data.status === 'converting' || data.status === 'indexing') {
         setDownloadingFiles(prev => new Set([...prev, data.fileId]));
       } else {
@@ -153,7 +184,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
           next.delete(data.fileId);
           return next;
         });
-        // Refresh full status when download completes or errors
         if (data.status === 'completed' || data.status === 'error') {
           fetchDataStatus();
         }
@@ -177,13 +207,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
 
   const formatDate = (isoDate?: string): string => {
     if (!isoDate) return 'Unknown';
-    const date = new Date(isoDate);
+    const d = new Date(isoDate);
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const datePart = dateFormat === 'MM/DD/YYYY' ? `${mm}/${dd}/${yyyy}`
+      : dateFormat === 'YYYY-MM-DD' ? `${yyyy}-${mm}-${dd}`
+      : dateFormat === 'DD.MM.YYYY' ? `${dd}.${mm}.${yyyy}`
+      : `${dd}/${mm}/${yyyy}`;
     const timeOptions: Intl.DateTimeFormatOptions = {
       hour: '2-digit',
       minute: '2-digit',
       hour12: timeFormat === '12h'
     };
-    return date.toLocaleDateString() + ' ' + date.toLocaleTimeString([], timeOptions);
+    return datePart + ' ' + d.toLocaleTimeString([], timeOptions);
   };
 
   const hasUpdate = (file: DataFileInfo): boolean => {
@@ -204,7 +241,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     try {
       setDownloadingFiles(prev => new Set([...prev, file.id]));
       await dataAPI.downloadFile(file.id);
-      // Progress updates will come via WebSocket
     } catch (error) {
       console.error('Failed to start download:', error);
       setDownloadingFiles(prev => {
@@ -294,6 +330,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     setWeatherSettings,
   } = settings;
 
+  // ================================================================
+  // Unit selector helper (uses SLabel + SOptionGroup)
+  // ================================================================
+
   const renderUnitSelector = <T extends string>(
     label: string,
     currentValue: T,
@@ -302,42 +342,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     onChange: (value: T) => void
   ) => (
     <div style={{ marginBottom: theme.space.xl }}>
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        color: theme.colors.textMuted,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        marginBottom: theme.space.md,
-      }}>
-        {label}
-      </div>
-      <div style={{
-        display: 'flex',
-        gap: theme.space.sm,
-        flexWrap: 'wrap',
-      }}>
-        {options.map((option) => (
-          <button
-            key={option}
-            onClick={() => onChange(option)}
-            style={{
-              flex: '1 1 auto',
-              minWidth: '70px',
-              padding: theme.space.lg,
-              background: currentValue === option ? theme.colors.primaryMedium : theme.colors.bgCardActive,
-              border: currentValue === option ? `2px solid ${theme.colors.primary}` : '2px solid transparent',
-              borderRadius: theme.radius.md,
-              color: theme.colors.textPrimary,
-              cursor: 'pointer',
-              fontSize: theme.fontSize.base,
-              fontWeight: currentValue === option ? theme.fontWeight.bold : theme.fontWeight.normal,
-              transition: `all ${theme.transition.normal}`,
-            }}
-          >
-            {labels[option]}
-          </button>
-        ))}
-      </div>
+      <SLabel>{label}</SLabel>
+      <SOptionGroup options={options} labels={labels} value={currentValue} onChange={onChange} />
     </div>
   );
 
@@ -357,32 +363,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
       label: t('settings.vessel'),
       icon: (
         <svg width="18" height="18" viewBox="-12 -18 24 28" fill="none">
-          {/* Hull - flat stern (left), pointy bow (right) */}
-          <path
-            d="M -10 4 L -10 8 L 10 8 L 12 4 Z"
-            fill="currentColor"
-            fillOpacity="0.3"
-            stroke="currentColor"
-            strokeWidth="1"
-          />
-          {/* Mast */}
+          <path d="M -10 4 L -10 8 L 10 8 L 12 4 Z" fill="currentColor" fillOpacity="0.3" stroke="currentColor" strokeWidth="1" />
           <line x1="0" y1="4" x2="0" y2="-16" stroke="currentColor" strokeWidth="1.5" />
-          {/* Mainsail */}
-          <path
-            d="M -1 -14 L -8 2 L -1 2 Z"
-            fill="currentColor"
-            fillOpacity="0.5"
-            stroke="currentColor"
-            strokeWidth="0.5"
-          />
-          {/* Foresail (jib) */}
-          <path
-            d="M 1 -14 L 10 2 L 1 2 Z"
-            fill="currentColor"
-            fillOpacity="0.4"
-            stroke="currentColor"
-            strokeWidth="0.5"
-          />
+          <path d="M -1 -14 L -8 2 L -1 2 Z" fill="currentColor" fillOpacity="0.5" stroke="currentColor" strokeWidth="0.5" />
+          <path d="M 1 -14 L 10 2 L 1 2 Z" fill="currentColor" fillOpacity="0.4" stroke="currentColor" strokeWidth="0.5" />
         </svg>
       ),
     },
@@ -391,7 +375,6 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
       label: t('settings.units'),
       icon: (
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-          {/* Sliders/adjustment icon - represents configurable units */}
           <line x1="4" y1="21" x2="4" y2="14" />
           <line x1="4" y1="10" x2="4" y2="3" />
           <line x1="12" y1="21" x2="12" y2="12" />
@@ -450,29 +433,15 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     },
   ];
 
-  // Render General Tab
-  const formatLastChecked = (iso: string): string => {
-    if (!iso) return t('update.never_checked');
-    const diff = Date.now() - new Date(iso).getTime();
-    if (diff < 60_000) return t('update.just_now');
-    if (diff < 3600_000) return t('update.ago', { time: `${Math.floor(diff / 60_000)}m` });
-    if (diff < 86400_000) return t('update.ago', { time: `${Math.floor(diff / 3600_000)}h` });
-    return t('update.ago', { time: `${Math.floor(diff / 86400_000)}d` });
-  };
+  // ================================================================
+  // General Tab
+  // ================================================================
 
   const renderGeneralTab = () => (
     <div>
       {/* Language Selector */}
       <div style={{ marginBottom: theme.space.xl }}>
-        <div style={{
-          fontSize: theme.fontSize.sm,
-          color: theme.colors.textMuted,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          marginBottom: theme.space.md,
-        }}>
-          {t('language.label')}
-        </div>
+        <SLabel>{t('language.label')}</SLabel>
         <CustomSelect
           value={settings.language}
           options={Object.entries(LANGUAGES).map(([code, info]) => ({
@@ -484,163 +453,128 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
       </div>
 
       {/* Software Update Section */}
-      <div style={{
-        padding: theme.space.lg,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        border: `1px solid ${updateInfo?.available ? theme.colors.primary : theme.colors.border}`,
-        marginBottom: theme.space.xl,
-      }}>
+      <SLabel>{t('update.title')}</SLabel>
+      <div style={{ display: 'flex', alignItems: 'center', gap: theme.space.sm, marginBottom: theme.space.xl }}>
+        {/* Version info box */}
         <div style={{
-          fontSize: theme.fontSize.sm,
-          fontWeight: theme.fontWeight.bold,
-          color: theme.colors.textSecondary,
-          textTransform: 'uppercase',
-          letterSpacing: '0.05em',
-          marginBottom: theme.space.md,
-        }}>
-          {t('update.title')}
-        </div>
-
-        <div style={{
+          flex: 1,
           display: 'flex',
-          justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: theme.space.md,
+          gap: theme.space.sm,
+          flexWrap: 'wrap',
+          padding: '0.5rem 0.75rem',
+          lineHeight: 1,
+          background: 'rgba(255, 255, 255, 0.08)',
+          border: '1px solid rgba(255, 255, 255, 0.1)',
+          borderRadius: theme.radius.md,
+          minHeight: '42px',
+          boxSizing: 'border-box' as const,
         }}>
-          <div>
-            <div style={{ fontSize: theme.fontSize.base, color: theme.colors.textPrimary }}>
-              {t('update.current_version')}: <strong>v{updateInfo?.currentVersion || '...'}</strong>
-            </div>
-            {updateInfo?.lastChecked && (
-              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginTop: theme.space.xs }}>
-                {t('update.last_checked')}: {formatLastChecked(updateInfo.lastChecked)}
-              </div>
-            )}
-          </div>
-          <button
-            onClick={() => checkForUpdate(true)}
-            disabled={updateChecking}
-            style={{
-              padding: `${theme.space.sm} ${theme.space.md}`,
-              background: theme.colors.bgCardActive,
-              border: `1px solid ${theme.colors.border}`,
-              borderRadius: theme.radius.md,
-              color: theme.colors.textPrimary,
-              cursor: updateChecking ? 'wait' : 'pointer',
-              fontSize: theme.fontSize.sm,
-              opacity: updateChecking ? 0.7 : 1,
-            }}
-          >
-            {updateChecking ? t('update.checking') : t('update.check')}
-          </button>
-        </div>
-
-        {updateInfo && !updateInfo.available && !updateChecking && !updateInfo.error && (
-          <div style={{
-            padding: theme.space.md,
-            background: `${theme.colors.success}15`,
-            borderRadius: theme.radius.sm,
-            color: theme.colors.success,
-            fontSize: theme.fontSize.sm,
-            display: 'flex',
-            alignItems: 'center',
-            gap: theme.space.sm,
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <polyline points="20 6 9 17 4 12" />
-            </svg>
-            {t('update.up_to_date')}
-          </div>
-        )}
-
-        {updateInfo?.error && !updateChecking && (
-          <div style={{
-            padding: theme.space.md,
-            background: `${theme.colors.warning}15`,
-            borderRadius: theme.radius.sm,
-            color: theme.colors.warning,
-            fontSize: theme.fontSize.sm,
-            display: 'flex',
-            alignItems: 'center',
-            gap: theme.space.sm,
-          }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
-            </svg>
-            {t('update.check_failed')}
-          </div>
-        )}
-
-        {updateInfo?.available && (
-          <>
-            <div style={{
-              padding: theme.space.md,
-              background: `${theme.colors.primary}15`,
-              borderRadius: theme.radius.sm,
-              marginBottom: theme.space.md,
-            }}>
-              <div style={{
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.bold,
-                color: theme.colors.primary,
-                marginBottom: theme.space.xs,
-              }}>
-                {t('update.available')}: v{updateInfo.latestVersion}
-              </div>
+          <span style={{ fontSize: theme.fontSize.md, color: theme.colors.textPrimary }}>
+            v{updateInfo?.currentVersion || '...'}
+          </span>
+          {updateInfo?.available && (
+            <>
+              <span style={{ color: theme.colors.textMuted }}>→</span>
+              <span style={{ fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold, color: theme.colors.primary }}>
+                v{updateInfo.latestVersion}
+              </span>
               <a
                 href={`https://github.com/BigaOSTeam/BigaOS/releases/tag/v${updateInfo.latestVersion}`}
                 target="_blank"
                 rel="noopener noreferrer"
                 style={{
-                  fontSize: theme.fontSize.sm,
-                  color: theme.colors.primary,
+                  fontSize: theme.fontSize.md,
+                  color: theme.colors.textSecondary,
                   textDecoration: 'underline',
+                  cursor: 'pointer',
                 }}
               >
-                {t('update.view_changelog')}
+                Release Notes
               </a>
-            </div>
-            <button
-              onClick={handleInstallUpdate}
-              disabled={updateInstalling}
-              style={{
-                width: '100%',
-                padding: theme.space.md,
-                background: theme.colors.primary,
-                border: 'none',
-                borderRadius: theme.radius.md,
-                color: '#fff',
-                cursor: updateInstalling ? 'wait' : 'pointer',
-                fontSize: theme.fontSize.base,
-                fontWeight: theme.fontWeight.bold,
-                opacity: updateInstalling ? 0.7 : 1,
-                display: 'flex',
+            </>
+          )}
+          {!isCheckingVisible && updateInfo && !updateInfo.available && !updateInfo.error && (
+            <>
+              <span style={{ color: theme.colors.textMuted }}>→</span>
+              <span style={{ fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold, color: theme.colors.success }}>
+                {t('update.up_to_date')}
+              </span>
+            </>
+          )}
+          {isCheckingVisible && (
+            <>
+              <span style={{ color: theme.colors.textMuted }}>→</span>
+              <span style={{
+                fontSize: theme.fontSize.md,
+                color: theme.colors.textMuted,
+                display: 'inline-flex',
                 alignItems: 'center',
-                justifyContent: 'center',
-                gap: theme.space.sm,
-              }}
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
-              {updateInstalling ? t('update.installing') : t('update.install')}
-            </button>
-          </>
+                gap: theme.space.xs,
+              }}>
+                <svg
+                  width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ animation: 'spin 0.6s linear infinite', flexShrink: 0 }}
+                >
+                  <polyline points="23 4 23 10 17 10" />
+                  <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
+                </svg>
+                {t('update.checking').replace(/\.+$/, '') + '.'.repeat(dotCount)}
+              </span>
+            </>
+          )}
+        </div>
+
+        {/* Button: check / install */}
+        {updateInfo?.available ? (
+          <SButton
+            variant="primary"
+            onClick={handleInstallUpdate}
+            disabled={updateInstalling}
+            style={{ flexShrink: 0 }}
+          >
+            {updateInstalling ? t('update.installing') : t('update.install')}
+          </SButton>
+        ) : (
+          <SButton
+            variant="secondary"
+            onClick={() => checkForUpdate(true)}
+            disabled={isCheckingVisible}
+            style={{ flexShrink: 0 }}
+          >
+            {t('update.check')}
+          </SButton>
         )}
       </div>
 
+      {updateInfo?.error && !isCheckingVisible && (
+        <div style={{
+          marginTop: `-${theme.space.md}`,
+          marginBottom: theme.space.xl,
+          color: theme.colors.warning,
+          fontSize: theme.fontSize.sm,
+          display: 'flex',
+          alignItems: 'center',
+          gap: theme.space.sm,
+        }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <circle cx="12" cy="17" r="1" fill="currentColor" stroke="none" />
+          </svg>
+          {t('update.check_failed')}
+        </div>
+      )}
     </div>
   );
 
-  // Local state for vessel number inputs to allow clearing
+  // ================================================================
+  // Vessel Tab
+  // ================================================================
+
   const [vesselInputValues, setVesselInputValues] = useState<Record<string, string>>({});
 
-  // Helper for vessel setting number inputs
   const renderVesselNumberInput = (
     label: string,
     value: number | undefined,
@@ -654,9 +588,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     const localValue = vesselInputValues[inputKey];
     const displayValue = localValue !== undefined ? localValue : safeValue.toString();
 
-    // Check if the current input is valid
     const isValidNumber = (val: string) => {
-      if (val === '' || val === '-') return true; // Allow empty or typing minus
+      if (val === '' || val === '-') return true;
       const num = parseFloat(val);
       return !isNaN(num) && isFinite(num);
     };
@@ -665,82 +598,52 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     const isBelowMin = localValue !== undefined && localValue !== '' && isValidNumber(localValue) && parseFloat(localValue) < min;
 
     return (
-    <div style={{ marginBottom: noMargin ? 0 : theme.space.lg }}>
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: theme.space.xs,
-        minHeight: '20px',
-      }}>
+      <div style={{ marginBottom: noMargin ? 0 : theme.space.lg }}>
         <div style={{
-          fontSize: theme.fontSize.sm,
-          color: theme.colors.textMuted,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: theme.space.xs,
+          minHeight: '20px',
         }}>
-          {label}
+          <SLabel style={{ marginBottom: 0 }}>{label}</SLabel>
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>{unit}</div>
         </div>
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.textMuted,
-        }}>
-          {unit}
-        </div>
+        <SInput
+          type="text"
+          inputMode="decimal"
+          value={displayValue}
+          error={hasError || isBelowMin}
+          onChange={(e) => {
+            const newValue = e.target.value;
+            setVesselInputValues(prev => ({ ...prev, [inputKey]: newValue }));
+            const parsed = parseFloat(newValue);
+            if (!isNaN(parsed) && parsed >= min) {
+              onChange(parsed);
+            }
+          }}
+          onBlur={() => {
+            setVesselInputValues(prev => {
+              const newState = { ...prev };
+              delete newState[inputKey];
+              return newState;
+            });
+          }}
+        />
+        {hasError && (
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.error, marginTop: theme.space.xs }}>
+            {t('validation.invalid_number')}
+          </div>
+        )}
+        {isBelowMin && (
+          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.error, marginTop: theme.space.xs }}>
+            {t('validation.min_value', { min })}
+          </div>
+        )}
       </div>
-      <input
-        type="text"
-        inputMode="decimal"
-        value={displayValue}
-        onChange={(e) => {
-          const newValue = e.target.value;
-          setVesselInputValues(prev => ({ ...prev, [inputKey]: newValue }));
-          const parsed = parseFloat(newValue);
-          if (!isNaN(parsed) && parsed >= min) {
-            onChange(parsed);
-          }
-        }}
-        onBlur={() => {
-          // Clear local state on blur to sync with actual value
-          setVesselInputValues(prev => {
-            const newState = { ...prev };
-            delete newState[inputKey];
-            return newState;
-          });
-        }}
-        style={{
-          width: '100%',
-          padding: theme.space.md,
-          background: theme.colors.bgCardActive,
-          border: `1px solid ${hasError || isBelowMin ? theme.colors.error : theme.colors.border}`,
-          borderRadius: theme.radius.md,
-          color: hasError || isBelowMin ? theme.colors.error : theme.colors.textPrimary,
-          fontSize: theme.fontSize.base,
-        }}
-      />
-      {hasError && (
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.error,
-          marginTop: theme.space.xs,
-        }}>
-          {t('validation.invalid_number')}
-        </div>
-      )}
-      {isBelowMin && (
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.error,
-          marginTop: theme.space.xs,
-        }}>
-          {t('validation.min_value', { min })}
-        </div>
-      )}
-    </div>
     );
   };
 
-  // Helper for vessel text inputs
   const renderVesselTextInput = (
     label: string,
     value: string,
@@ -749,657 +652,190 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     noMargin: boolean = false
   ) => (
     <div style={{ marginBottom: noMargin ? 0 : theme.space.lg }}>
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        color: theme.colors.textMuted,
-        textTransform: 'uppercase',
-        letterSpacing: '0.1em',
-        marginBottom: theme.space.xs,
-        minHeight: '20px',
-      }}>
-        {label}
-      </div>
-      <input
+      <SLabel>{label}</SLabel>
+      <SInput
         type="text"
         value={value}
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
-        style={{
-          width: '100%',
-          padding: theme.space.md,
-          background: theme.colors.bgCardActive,
-          border: `1px solid ${theme.colors.border}`,
-          borderRadius: theme.radius.md,
-          color: theme.colors.textPrimary,
-          fontSize: theme.fontSize.base,
-        }}
       />
     </div>
   );
 
-  // Render Vessel Tab (My Vessel)
   const renderVesselTab = () => (
     <div>
       {/* Vessel Name */}
       <div style={{ marginBottom: theme.space.xl }}>
-        <div style={{
-          fontSize: theme.fontSize.sm,
-          color: theme.colors.textMuted,
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
-          marginBottom: theme.space.sm,
-        }}>
-          {t('vessel.name')}
-        </div>
-        <input
+        <SLabel>{t('vessel.name')}</SLabel>
+        <SInput
           type="text"
           value={vesselSettings.name}
           onChange={(e) => setVesselSettings({ ...vesselSettings, name: e.target.value })}
           placeholder={t('vessel.name_placeholder')}
-          style={{
-            width: '100%',
-            padding: theme.space.md,
-            background: theme.colors.bgCardActive,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.md,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.lg,
-            fontWeight: theme.fontWeight.bold,
-          }}
+          inputStyle={{ fontWeight: theme.fontWeight.bold }}
         />
       </div>
 
       {/* Identification Section */}
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        fontWeight: theme.fontWeight.bold,
-        marginBottom: theme.space.md,
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        {t('vessel.identification')}
+      <SSection>{t('vessel.identification')}</SSection>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+        {renderVesselTextInput(t('vessel.registration_no'), vesselSettings.registrationNumber, (v) => setVesselSettings({ ...vesselSettings, registrationNumber: v }), t('vessel.registration_placeholder'), true)}
+        {renderVesselTextInput(t('vessel.call_sign'), vesselSettings.callSign, (v) => setVesselSettings({ ...vesselSettings, callSign: v }), t('vessel.call_sign_placeholder'), true)}
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.md,
-      }}>
-        {renderVesselTextInput(
-          t('vessel.registration_no'),
-          vesselSettings.registrationNumber,
-          (v) => setVesselSettings({ ...vesselSettings, registrationNumber: v }),
-          t('vessel.registration_placeholder'),
-          true
-        )}
-        {renderVesselTextInput(
-          t('vessel.call_sign'),
-          vesselSettings.callSign,
-          (v) => setVesselSettings({ ...vesselSettings, callSign: v }),
-          t('vessel.call_sign_placeholder'),
-          true
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+        {renderVesselTextInput(t('vessel.mmsi'), vesselSettings.mmsi, (v) => setVesselSettings({ ...vesselSettings, mmsi: v }), t('vessel.mmsi_placeholder'), true)}
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.md,
-      }}>
-        {renderVesselTextInput(
-          t('vessel.mmsi'),
-          vesselSettings.mmsi,
-          (v) => setVesselSettings({ ...vesselSettings, mmsi: v }),
-          t('vessel.mmsi_placeholder'),
-          true
-        )}
-      </div>
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.xl,
-      }}>
-        {renderVesselTextInput(
-          t('vessel.home_port'),
-          vesselSettings.homePort,
-          (v) => setVesselSettings({ ...vesselSettings, homePort: v }),
-          t('vessel.home_port_placeholder'),
-          true
-        )}
-        {renderVesselTextInput(
-          t('vessel.flag'),
-          vesselSettings.flag,
-          (v) => setVesselSettings({ ...vesselSettings, flag: v }),
-          t('vessel.flag_placeholder'),
-          true
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.xl }}>
+        {renderVesselTextInput(t('vessel.home_port'), vesselSettings.homePort, (v) => setVesselSettings({ ...vesselSettings, homePort: v }), t('vessel.home_port_placeholder'), true)}
+        {renderVesselTextInput(t('vessel.flag'), vesselSettings.flag, (v) => setVesselSettings({ ...vesselSettings, flag: v }), t('vessel.flag_placeholder'), true)}
       </div>
 
       {/* Vessel Dimensions Section */}
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        fontWeight: theme.fontWeight.bold,
-        marginBottom: theme.space.md,
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        {t('vessel.dimensions')}
+      <SSection>{t('vessel.dimensions')}</SSection>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+        {renderVesselNumberInput(t('vessel.length_loa'), vesselSettings.length, (v) => setVesselSettings({ ...vesselSettings, length: v }), t('units.meters'), 1, true)}
+        {renderVesselNumberInput(t('vessel.waterline_length'), vesselSettings.waterlineLength, (v) => setVesselSettings({ ...vesselSettings, waterlineLength: v }), t('units.meters'), 1, true)}
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.md,
-      }}>
-        {renderVesselNumberInput(
-          t('vessel.length_loa'),
-          vesselSettings.length,
-          (v) => setVesselSettings({ ...vesselSettings, length: v }),
-          'meters',
-          1,
-          true
-        )}
-        {renderVesselNumberInput(
-          t('vessel.waterline_length'),
-          vesselSettings.waterlineLength,
-          (v) => setVesselSettings({ ...vesselSettings, waterlineLength: v }),
-          'meters',
-          1,
-          true
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+        {renderVesselNumberInput(t('vessel.beam'), vesselSettings.beam, (v) => setVesselSettings({ ...vesselSettings, beam: v }), t('units.meters'), 0.5, true)}
+        {renderVesselNumberInput(t('vessel.draft'), vesselSettings.draft, (v) => setVesselSettings({ ...vesselSettings, draft: v }), t('units.meters'), 0.3, true)}
       </div>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.md,
-      }}>
-        {renderVesselNumberInput(
-          t('vessel.beam'),
-          vesselSettings.beam,
-          (v) => setVesselSettings({ ...vesselSettings, beam: v }),
-          'meters',
-          0.5,
-          true
-        )}
-        {renderVesselNumberInput(
-          t('vessel.draft'),
-          vesselSettings.draft,
-          (v) => setVesselSettings({ ...vesselSettings, draft: v }),
-          'meters',
-          0.3,
-          true
-        )}
-      </div>
-
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.md,
-      }}>
-        {renderVesselNumberInput(
-          t('vessel.freeboard'),
-          vesselSettings.freeboardHeight,
-          (v) => setVesselSettings({ ...vesselSettings, freeboardHeight: v }),
-          'meters',
-          0.3,
-          true
-        )}
-        {renderVesselNumberInput(
-          t('vessel.displacement'),
-          vesselSettings.displacement,
-          (v) => setVesselSettings({ ...vesselSettings, displacement: v }),
-          'tons',
-          0.5,
-          true
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+        {renderVesselNumberInput(t('vessel.freeboard'), vesselSettings.freeboardHeight, (v) => setVesselSettings({ ...vesselSettings, freeboardHeight: v }), t('units.meters'), 0.3, true)}
+        {renderVesselNumberInput(t('vessel.displacement'), vesselSettings.displacement, (v) => setVesselSettings({ ...vesselSettings, displacement: v }), t('units.tons'), 0.5, true)}
       </div>
 
       {/* Chain Section */}
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        fontWeight: theme.fontWeight.bold,
-        marginBottom: theme.space.md,
-        marginTop: theme.space.lg,
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        {t('vessel.chain')}
-      </div>
+      <SSection style={{ marginTop: theme.space.lg }}>{t('vessel.chain')}</SSection>
 
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: theme.space.md,
-        marginBottom: theme.space.md,
-      }}>
-        {renderVesselNumberInput(
-          t('vessel.total_chain'),
-          vesselSettings.totalChainLength,
-          (v) => setVesselSettings({ ...vesselSettings, totalChainLength: v }),
-          'meters',
-          10,
-          true
-        )}
-        {renderVesselNumberInput(
-          t('vessel.chain_diameter'),
-          vesselSettings.chainDiameter,
-          (v) => setVesselSettings({ ...vesselSettings, chainDiameter: v }),
-          'mm',
-          4,
-          true
-        )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+        {renderVesselNumberInput(t('vessel.total_chain'), vesselSettings.totalChainLength, (v) => setVesselSettings({ ...vesselSettings, totalChainLength: v }), t('units.meters'), 10, true)}
+        {renderVesselNumberInput(t('vessel.chain_diameter'), vesselSettings.chainDiameter, (v) => setVesselSettings({ ...vesselSettings, chainDiameter: v }), t('units.mm'), 4, true)}
       </div>
 
       {/* Chain Type Selector */}
       <div style={{ marginBottom: theme.space.md }}>
-        <div style={{
-          fontSize: theme.fontSize.sm,
-          color: theme.colors.textMuted,
-          marginBottom: theme.space.xs,
-        }}>
-          {t('vessel.chain_type')}
-        </div>
-        <div style={{
-          display: 'flex',
-          gap: theme.space.sm,
-        }}>
-          {([
-            { value: 'galvanized' as ChainType, label: t('vessel.galvanized') },
-            { value: 'stainless-steel' as ChainType, label: t('vessel.stainless_steel') },
-          ]).map((option) => (
-            <button
-              key={option.value}
-              onClick={() => setVesselSettings({ ...vesselSettings, chainType: option.value })}
-              style={{
-                flex: 1,
-                padding: theme.space.sm,
-                background: vesselSettings.chainType === option.value ? theme.colors.primaryMedium : theme.colors.bgCardActive,
-                border: vesselSettings.chainType === option.value ? `2px solid ${theme.colors.primary}` : '2px solid transparent',
-                borderRadius: theme.radius.md,
-                color: theme.colors.textPrimary,
-                cursor: 'pointer',
-                fontSize: theme.fontSize.sm,
-                fontWeight: vesselSettings.chainType === option.value ? theme.fontWeight.bold : theme.fontWeight.normal,
-                transition: `all ${theme.transition.normal}`,
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
+        <SLabel>{t('vessel.chain_type')}</SLabel>
+        <SOptionGroup
+          options={['galvanized' as ChainType, 'stainless-steel' as ChainType]}
+          labels={{ 'galvanized': t('vessel.galvanized'), 'stainless-steel': t('vessel.stainless_steel') } as Record<ChainType, string>}
+          value={vesselSettings.chainType}
+          onChange={(v) => setVesselSettings({ ...vesselSettings, chainType: v })}
+        />
       </div>
 
-      {/* Info box */}
-      <div style={{
-        padding: theme.space.md,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        fontSize: theme.fontSize.sm,
-        color: theme.colors.textMuted,
-        marginTop: theme.space.lg,
-        lineHeight: 1.5,
-      }}>
-        {t('vessel.why_matters')}
-      </div>
+      <SInfoBox>{t('vessel.why_matters')}</SInfoBox>
     </div>
   );
 
-  // Render Units Tab
+  // ================================================================
+  // Units Tab
+  // ================================================================
+
   const renderUnitsTab = () => (
     <div>
       {renderUnitSelector<SpeedUnit>(
-        t('units.speed'),
-        speedUnit,
+        t('units.speed'), speedUnit,
         ['kt', 'km/h', 'mph', 'm/s'],
-        {
-          'kt': speedConversions['kt'].label,
-          'km/h': speedConversions['km/h'].label,
-          'mph': speedConversions['mph'].label,
-          'm/s': speedConversions['m/s'].label,
-        },
+        { 'kt': speedConversions['kt'].label, 'km/h': speedConversions['km/h'].label, 'mph': speedConversions['mph'].label, 'm/s': speedConversions['m/s'].label },
         setSpeedUnit
       )}
-
       {renderUnitSelector<WindUnit>(
-        t('units.wind'),
-        windUnit,
+        t('units.wind'), windUnit,
         ['kt', 'km/h', 'mph', 'm/s', 'bft'],
-        {
-          'kt': windConversions['kt'].label,
-          'km/h': windConversions['km/h'].label,
-          'mph': windConversions['mph'].label,
-          'm/s': windConversions['m/s'].label,
-          'bft': 'Beaufort',
-        },
+        { 'kt': windConversions['kt'].label, 'km/h': windConversions['km/h'].label, 'mph': windConversions['mph'].label, 'm/s': windConversions['m/s'].label, 'bft': t('units.beaufort') },
         setWindUnit
       )}
-
       {renderUnitSelector<DepthUnit>(
-        t('units.depth'),
-        depthUnit,
+        t('units.depth'), depthUnit,
         ['m', 'ft'],
-        {
-          'm': depthConversions['m'].label,
-          'ft': depthConversions['ft'].label,
-        },
+        { 'm': depthConversions['m'].label, 'ft': depthConversions['ft'].label },
         setDepthUnit
       )}
-
       {renderUnitSelector<DistanceUnit>(
-        t('units.distance'),
-        distanceUnit,
+        t('units.distance'), distanceUnit,
         ['nm', 'km', 'mi'],
-        {
-          'nm': distanceConversions['nm'].label,
-          'km': distanceConversions['km'].label,
-          'mi': distanceConversions['mi'].label,
-        },
+        { 'nm': distanceConversions['nm'].label, 'km': distanceConversions['km'].label, 'mi': distanceConversions['mi'].label },
         setDistanceUnit
       )}
-
       {renderUnitSelector<WeightUnit>(
-        t('units.weight'),
-        weightUnit,
+        t('units.weight'), weightUnit,
         ['kg', 'lbs'],
-        {
-          'kg': weightConversions['kg'].label,
-          'lbs': weightConversions['lbs'].label,
-        },
+        { 'kg': weightConversions['kg'].label, 'lbs': weightConversions['lbs'].label },
         setWeightUnit
       )}
-
       {renderUnitSelector<TemperatureUnit>(
-        t('units.temperature'),
-        temperatureUnit,
+        t('units.temperature'), temperatureUnit,
         ['°C', '°F'],
-        {
-          '°C': temperatureConversions['°C'].label,
-          '°F': temperatureConversions['°F'].label,
-        },
+        { '°C': temperatureConversions['°C'].label, '°F': temperatureConversions['°F'].label },
         setTemperatureUnit
       )}
-
       {renderUnitSelector<TimeFormat>(
-        t('units.time_format'),
-        timeFormat,
+        t('units.time_format'), timeFormat,
         ['24h', '12h'],
-        {
-          '24h': '24h',
-          '12h': 'AM/PM',
-        },
+        { '24h': '24h', '12h': 'AM/PM' },
         setTimeFormat
       )}
-
       {renderUnitSelector<DateFormat>(
-        t('units.date_format'),
-        dateFormat,
-        ['DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
-        {
-          'DD/MM/YYYY': 'DD/MM/YYYY',
-          'MM/DD/YYYY': 'MM/DD/YYYY',
-          'YYYY-MM-DD': 'YYYY-MM-DD',
-        },
+        t('units.date_format'), dateFormat,
+        ['DD.MM.YYYY', 'DD/MM/YYYY', 'MM/DD/YYYY', 'YYYY-MM-DD'],
+        { 'DD.MM.YYYY': 'DD.MM.YYYY', 'DD/MM/YYYY': 'DD/MM/YYYY', 'MM/DD/YYYY': 'MM/DD/YYYY', 'YYYY-MM-DD': 'YYYY-MM-DD' },
         setDateFormat
       )}
-
-      <div style={{
-        padding: theme.space.md,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        fontSize: theme.fontSize.sm,
-        color: theme.colors.textMuted,
-        marginTop: theme.space.lg,
-      }}>
-        {t('units.change_note')}
-      </div>
+      <SInfoBox>{t('units.change_note')}</SInfoBox>
     </div>
   );
 
-  // Render Downloads Tab (Navigation Data)
+  // ================================================================
+  // Downloads Tab
+  // ================================================================
+
   const renderDownloadsTab = () => (
     <div>
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        color: theme.colors.textMuted,
-        marginBottom: theme.space.md,
-      }}>
-        {t('downloads.description')}
-      </div>
-
-      {/* Device Storage Info - compact */}
-      {storageStats?.deviceStorage && (
-        <div style={{
-          marginBottom: theme.space.lg,
-          display: 'flex',
-          alignItems: 'center',
-          gap: theme.space.sm,
-        }}>
-          <span style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, whiteSpace: 'nowrap' }}>
-            {t('downloads.storage')} {storageStats.deviceStorage.availableFormatted} {t('downloads.free')}
-          </span>
-          <div style={{
-            flex: 1,
-            height: '4px',
-            background: theme.colors.bgCardActive,
-            borderRadius: '2px',
-            overflow: 'hidden',
-          }}>
-            <div style={{
-              height: '100%',
-              width: `${storageStats.deviceStorage.usedPercent}%`,
-              background: storageStats.deviceStorage.usedPercent > 90
-                ? theme.colors.error
-                : storageStats.deviceStorage.usedPercent > 75
-                  ? theme.colors.warning
-                  : theme.colors.primary,
-              borderRadius: '2px',
-            }} />
-          </div>
-        </div>
-      )}
-
       {loadingFiles ? (
-        <div style={{ color: theme.colors.textMuted, padding: theme.space.lg }}>
-          {t('downloads.loading_data')}
-        </div>
+        <div style={{ color: theme.colors.textMuted, padding: theme.space.lg }}>{t('downloads.loading_data')}</div>
       ) : (
         navigationFiles.map((file) => (
-          <div key={file.id} style={{
-            marginBottom: theme.space.md,
-            padding: theme.space.lg,
-            background: theme.colors.bgCard,
-            borderRadius: theme.radius.md,
-            border: `1px solid ${file.exists ? theme.colors.success + '40' : theme.colors.border}`,
-          }}>
-            {/* Header with name */}
-            <div style={{
-              fontSize: theme.fontSize.base,
-              fontWeight: theme.fontWeight.bold,
-              color: theme.colors.textPrimary,
-              marginBottom: theme.space.sm,
-            }}>
-              {file.name}
-            </div>
-
-            {/* File info */}
-            <div style={{
-              fontSize: theme.fontSize.xs,
-              color: theme.colors.textMuted,
-              marginBottom: theme.space.md,
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr',
-              gap: `${theme.space.xs} ${theme.space.md}`,
-            }}>
-              {file.exists && (
-                <>
-                  <span>{t('downloads.installed')}</span>
-                  <span>{formatDate(getInstalledDate(file))}</span>
-                </>
-              )}
-              {hasUpdate(file) && file.remoteDate && (
-                <>
-                  <span style={{ color: theme.colors.warning }}>{t('downloads.update')}</span>
-                  <span style={{ color: theme.colors.warning }}>{formatDate(file.remoteDate)} {t('downloads.available')}</span>
-                </>
-              )}
-            </div>
-
-            {/* Collapsible URL section */}
-            <div style={{ marginBottom: theme.space.md }}>
-              <button
-                onClick={() => setExpandedUrls(prev => {
-                  const next = new Set(prev);
-                  if (next.has(file.id)) {
-                    next.delete(file.id);
-                  } else {
-                    next.add(file.id);
-                  }
-                  return next;
-                })}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: theme.space.xs,
-                  padding: `${theme.space.xs} 0`,
-                  background: 'transparent',
-                  border: 'none',
-                  color: theme.colors.textMuted,
-                  fontSize: theme.fontSize.xs,
-                  cursor: 'pointer',
-                }}
-              >
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  style={{
-                    transform: expandedUrls.has(file.id) ? 'rotate(90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s',
-                  }}
-                >
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-                {t('downloads.custom_url')}
-                {editingUrls[file.id] !== file.defaultUrl && (
-                  <span style={{ color: theme.colors.primary, marginLeft: theme.space.xs }}>
-                    {t('downloads.modified')}
-                  </span>
+          <div
+            key={file.id}
+            style={{ marginBottom: theme.space.sm, paddingBottom: theme.space.sm, borderBottom: `1px solid ${theme.colors.border}` }}
+          >
+            {/* Header: name + status */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: theme.space.sm }}>
+              <div style={{ fontSize: theme.fontSize.base, fontWeight: theme.fontWeight.bold, color: theme.colors.textPrimary }}>
+                {file.name}
+              </div>
+              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, textAlign: 'right' }}>
+                {file.exists && !hasUpdate(file) && (
+                  <span>{t('downloads.installed')} {formatDate(getInstalledDate(file))}</span>
                 )}
-              </button>
-
-              {expandedUrls.has(file.id) && (
-                <div style={{ marginTop: theme.space.sm }}>
-                  <div style={{ display: 'flex', gap: theme.space.sm }}>
-                    <input
-                      type="text"
-                      value={editingUrls[file.id] || ''}
-                      onChange={(e) => handleUrlChange(file.id, e.target.value)}
-                      style={{
-                        flex: 1,
-                        padding: theme.space.sm,
-                        background: theme.colors.bgCardActive,
-                        border: `1px solid ${editingUrls[file.id] !== file.url ? theme.colors.primary : theme.colors.border}`,
-                        borderRadius: theme.radius.sm,
-                        color: theme.colors.textPrimary,
-                        fontSize: '11px',
-                        fontFamily: 'monospace',
-                      }}
-                      placeholder={t('downloads.enter_url')}
-                    />
-                    {editingUrls[file.id] !== file.url && (
-                      <button
-                        onClick={() => handleUrlSave(file)}
-                        disabled={savingUrl === file.id}
-                        style={{
-                          padding: `${theme.space.xs} ${theme.space.sm}`,
-                          background: theme.colors.primary,
-                          border: 'none',
-                          borderRadius: theme.radius.sm,
-                          color: '#fff',
-                          cursor: savingUrl === file.id ? 'wait' : 'pointer',
-                          fontSize: theme.fontSize.xs,
-                          opacity: savingUrl === file.id ? 0.7 : 1,
-                        }}
-                      >
-                        {savingUrl === file.id ? t('downloads.saving') : t('common.save')}
-                      </button>
-                    )}
-                    {editingUrls[file.id] !== file.defaultUrl && (
-                      <button
-                        onClick={() => handleResetUrl(file)}
-                        title="Reset to default URL"
-                        style={{
-                          padding: theme.space.xs,
-                          background: theme.colors.bgCardActive,
-                          border: `1px solid ${theme.colors.border}`,
-                          borderRadius: theme.radius.sm,
-                          color: theme.colors.textMuted,
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
-                          <path d="M3 3v5h5" />
-                        </svg>
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
+                {hasUpdate(file) && file.remoteDate && (
+                  <span style={{ color: theme.colors.warning }}>{t('downloads.update')} {formatDate(file.remoteDate)}</span>
+                )}
+              </div>
             </div>
 
             {/* Download Progress or Actions */}
             {file.downloadStatus && (file.downloadStatus.status === 'downloading' || file.downloadStatus.status === 'extracting' || file.downloadStatus.status === 'converting' || file.downloadStatus.status === 'indexing') ? (
               <div style={{ marginTop: theme.space.sm }}>
-                <div style={{
-                  marginBottom: theme.space.sm,
-                  background: theme.colors.bgCardActive,
-                  borderRadius: theme.radius.sm,
-                  overflow: 'hidden',
-                  height: '8px',
-                  position: 'relative',
-                }}>
+                <div style={{ marginBottom: theme.space.sm, background: theme.colors.bgCardActive, borderRadius: theme.radius.sm, overflow: 'hidden', height: '8px', position: 'relative' }}>
                   {file.downloadStatus.status === 'extracting' || file.downloadStatus.status === 'converting' || file.downloadStatus.status === 'indexing' ? (
                     <div style={{
-                      position: 'absolute',
-                      top: 0,
-                      left: 0,
-                      right: 0,
-                      bottom: 0,
+                      position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
                       background: `linear-gradient(90deg, transparent 0%, ${file.downloadStatus.status === 'converting' ? theme.colors.info : file.downloadStatus.status === 'indexing' ? theme.colors.success : theme.colors.warning} 50%, transparent 100%)`,
                       animation: 'extracting 1.5s ease-in-out infinite',
                     }} />
                   ) : (
-                    <div style={{
-                      width: `${file.downloadStatus.progress}%`,
-                      height: '100%',
-                      background: theme.colors.primary,
-                      transition: 'width 0.3s ease',
-                    }} />
+                    <div style={{ width: `${file.downloadStatus.progress}%`, height: '100%', background: theme.colors.primary, transition: 'width 0.3s ease' }} />
                   )}
                 </div>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  fontSize: theme.fontSize.xs,
-                  color: theme.colors.textMuted,
-                  marginBottom: theme.space.sm,
-                }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginBottom: theme.space.sm }}>
                   <span>
                     {file.downloadStatus.status === 'extracting' ? t('downloads.extracting') :
                      file.downloadStatus.status === 'converting' ? t('downloads.converting') :
@@ -1409,22 +845,9 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
                   </span>
                   <span>{file.downloadStatus.status === 'extracting' || file.downloadStatus.status === 'converting' || file.downloadStatus.status === 'indexing' ? '' : `${file.downloadStatus.progress}%`}</span>
                 </div>
-                <button
-                  onClick={() => handleCancelDownload(file)}
-                  style={{
-                    width: '100%',
-                    padding: theme.space.md,
-                    background: theme.colors.bgCardActive,
-                    border: `1px solid ${theme.colors.error}40`,
-                    borderRadius: theme.radius.sm,
-                    color: theme.colors.error,
-                    cursor: 'pointer',
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: theme.fontWeight.bold,
-                  }}
-                >
+                <SButton variant="danger" fullWidth onClick={() => handleCancelDownload(file)}>
                   {t('downloads.cancel_download')}
-                </button>
+                </SButton>
               </div>
             ) : file.downloadStatus && file.downloadStatus.status === 'error' ? (
               <div style={{ marginTop: theme.space.sm }}>
@@ -1433,7 +856,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
                     padding: theme.space.md,
                     background: `${theme.colors.error}10`,
                     border: `1px solid ${theme.colors.error}40`,
-                    borderRadius: theme.radius.sm,
+                    borderRadius: theme.radius.md,
                     color: theme.colors.error,
                     fontSize: theme.fontSize.xs,
                     marginBottom: theme.space.sm,
@@ -1441,96 +864,63 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
                     {t('downloads.error_download_failed')}{file.downloadStatus.error ? `: ${file.downloadStatus.error}` : ''}
                   </div>
                 )}
-                <button
+                <SButton
+                  variant="primary"
+                  fullWidth
                   onClick={() => handleDownload(file)}
                   disabled={downloadingFiles.has(file.id)}
-                  style={{
-                    width: '100%',
-                    padding: theme.space.md,
-                    background: downloadingFiles.has(file.id) ? theme.colors.bgCardActive : theme.colors.primary,
-                    border: 'none',
-                    borderRadius: theme.radius.sm,
-                    color: '#fff',
-                    cursor: downloadingFiles.has(file.id) ? 'wait' : 'pointer',
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: theme.fontWeight.bold,
-                    opacity: downloadingFiles.has(file.id) ? 0.7 : 1,
-                  }}
                 >
                   {downloadingFiles.has(file.id) ? t('downloads.starting') : t('downloads.retry_download')}
-                </button>
+                </SButton>
               </div>
             ) : (
               <div style={{ display: 'flex', gap: theme.space.sm }}>
                 {!file.exists ? (
-                  <button
+                  <SButton
+                    variant="primary"
+                    fullWidth
                     onClick={() => handleDownload(file)}
                     disabled={downloadingFiles.has(file.id)}
-                    style={{
-                      flex: 1,
-                      padding: theme.space.md,
-                      background: theme.colors.primary,
-                      border: 'none',
-                      borderRadius: theme.radius.sm,
-                      color: '#fff',
-                      cursor: downloadingFiles.has(file.id) ? 'wait' : 'pointer',
-                      fontSize: theme.fontSize.sm,
-                      fontWeight: theme.fontWeight.bold,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: theme.space.sm,
-                      opacity: downloadingFiles.has(file.id) ? 0.7 : 1,
-                    }}
+                    icon={
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    }
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
                     {downloadingFiles.has(file.id) ? t('downloads.starting') : `${t('downloads.download')}${file.remoteSize ? ` (${formatFileSize(file.remoteSize)})` : ''}`}
-                  </button>
+                  </SButton>
                 ) : hasUpdate(file) ? (
-                  <button
+                  <SButton
+                    variant="warning"
+                    fullWidth
                     onClick={() => handleDownload(file)}
                     disabled={downloadingFiles.has(file.id)}
-                    style={{
-                      flex: 1,
-                      padding: theme.space.md,
-                      background: theme.colors.warning,
-                      border: 'none',
-                      borderRadius: theme.radius.sm,
-                      color: '#fff',
-                      cursor: downloadingFiles.has(file.id) ? 'wait' : 'pointer',
-                      fontSize: theme.fontSize.sm,
-                      fontWeight: theme.fontWeight.bold,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: theme.space.sm,
-                      opacity: downloadingFiles.has(file.id) ? 0.7 : 1,
-                    }}
+                    icon={
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                      </svg>
+                    }
                   >
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
                     {downloadingFiles.has(file.id) ? t('downloads.starting') : `${t('downloads.update')}${file.remoteSize ? ` (${formatFileSize(file.remoteSize)})` : ''}`}
-                  </button>
+                  </SButton>
                 ) : (
                   <div style={{
                     flex: 1,
-                    padding: theme.space.md,
+                    padding: '0.75rem',
                     background: `${theme.colors.success}30`,
                     border: 'none',
-                    borderRadius: theme.radius.sm,
-                    color: `${theme.colors.success}90`,
+                    borderRadius: theme.radius.md,
+                    color: theme.colors.success,
                     fontSize: theme.fontSize.sm,
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
                     gap: theme.space.sm,
+                    minHeight: '44px',
                   }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="20 6 9 17 4 12" />
@@ -1539,313 +929,202 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
                   </div>
                 )}
                 {file.exists && (
-                  <button
+                  <SButton
+                    variant="danger"
                     onClick={() => handleDelete(file)}
-                    style={{
-                      padding: theme.space.md,
-                      background: theme.colors.bgCardActive,
-                      border: `1px solid ${theme.colors.error}40`,
-                      borderRadius: theme.radius.sm,
-                      color: theme.colors.error,
-                      cursor: 'pointer',
-                      fontSize: theme.fontSize.sm,
-                    }}
+                    style={{ flexShrink: 0, width: '42px', padding: 0 }}
                   >
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                       <polyline points="3 6 5 6 21 6" />
                       <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
                     </svg>
-                  </button>
+                  </SButton>
                 )}
               </div>
             )}
+
           </div>
         ))
       )}
 
-      {/* Attribution */}
+      {/* Storage + attribution */}
       {!loadingFiles && (
         <div style={{
-          marginTop: theme.space.lg,
-          padding: `${theme.space.sm} ${theme.space.md}`,
+          marginTop: theme.space.sm,
           fontSize: theme.fontSize.xs,
           color: theme.colors.textMuted,
-          borderTop: `1px solid ${theme.colors.border}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
         }}>
-          <a
-            href="https://global-hydrodynamics.github.io/OSM_WaterLayer/"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: theme.colors.textMuted, textDecoration: 'underline' }}
-          >
-            {t('downloads.attribution')}
-          </a>
-          {' · '}
-          <a
-            href="https://creativecommons.org/licenses/by/4.0/"
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{ color: theme.colors.textMuted, textDecoration: 'underline' }}
-          >
-            {t('downloads.license_link')}
-          </a>
+          <div>
+            <a href="https://global-hydrodynamics.github.io/OSM_WaterLayer/" target="_blank" rel="noopener noreferrer"
+              style={{ color: theme.colors.textMuted, textDecoration: 'underline' }}>
+              {t('downloads.attribution')}
+            </a>
+            {' · '}
+            <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener noreferrer"
+              style={{ color: theme.colors.textMuted, textDecoration: 'underline' }}>
+              {t('downloads.license_link')}
+            </a>
+          </div>
+          {storageStats?.deviceStorage && (
+            <div style={{ whiteSpace: 'nowrap' }}>
+              {t('downloads.storage')} {storageStats.deviceStorage.availableFormatted} {t('downloads.free')}
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 
-  // Render Advanced Tab
+  // ================================================================
+  // Advanced Tab
+  // ================================================================
+
   const renderAdvancedTab = () => (
     <div>
-      {/* Terminal / Server Logs */}
       <TerminalPanel />
 
-      <div style={{
-        borderTop: `1px solid ${theme.colors.border}`,
-        margin: `${theme.space.lg} 0`,
-      }} />
+      <div style={{ borderTop: `1px solid ${theme.colors.border}`, margin: `${theme.space.lg} 0` }} />
 
-      {/* Maps & Tiles subsection */}
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        fontWeight: theme.fontWeight.bold,
-        marginBottom: theme.space.md,
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        {t('advanced.map_tiles')}
-      </div>
+      {/* Maps & Tiles */}
+      <SSection>{t('advanced.map_tiles')}</SSection>
 
       <div style={{ marginBottom: theme.space.lg }}>
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.textMuted,
-          marginBottom: theme.space.sm,
-        }}>
-          {t('advanced.street_map')}
-        </div>
-        <input
+        <SLabel style={{ fontSize: theme.fontSize.xs }}>{t('advanced.street_map')}</SLabel>
+        <SInput
           type="text"
           value={mapTileUrls.streetMap}
           onChange={(e) => setMapTileUrls({ ...mapTileUrls, streetMap: e.target.value })}
-          style={{
-            width: '100%',
-            padding: theme.space.md,
-            background: theme.colors.bgCardActive,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.sm,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.xs,
-            fontFamily: 'monospace',
-          }}
+          monospace
         />
       </div>
 
       <div style={{ marginBottom: theme.space.lg }}>
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.textMuted,
-          marginBottom: theme.space.sm,
-        }}>
-          {t('advanced.satellite_map')}
-        </div>
-        <input
+        <SLabel style={{ fontSize: theme.fontSize.xs }}>{t('advanced.satellite_map')}</SLabel>
+        <SInput
           type="text"
           value={mapTileUrls.satelliteMap}
           onChange={(e) => setMapTileUrls({ ...mapTileUrls, satelliteMap: e.target.value })}
-          style={{
-            width: '100%',
-            padding: theme.space.md,
-            background: theme.colors.bgCardActive,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.sm,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.xs,
-            fontFamily: 'monospace',
-          }}
+          monospace
         />
       </div>
 
       <div style={{ marginBottom: theme.space.lg }}>
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.textMuted,
-          marginBottom: theme.space.sm,
-        }}>
-          {t('advanced.nautical_overlay')}
-        </div>
-        <input
+        <SLabel style={{ fontSize: theme.fontSize.xs }}>{t('advanced.nautical_overlay')}</SLabel>
+        <SInput
           type="text"
           value={mapTileUrls.nauticalOverlay}
           onChange={(e) => setMapTileUrls({ ...mapTileUrls, nauticalOverlay: e.target.value })}
-          style={{
-            width: '100%',
-            padding: theme.space.md,
-            background: theme.colors.bgCardActive,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.sm,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.xs,
-            fontFamily: 'monospace',
-          }}
+          monospace
         />
       </div>
 
-      <button
+      <SButton
+        variant="outline"
         onClick={() => setMapTileUrls({
           streetMap: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
           satelliteMap: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
           nauticalOverlay: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
         })}
-        style={{
-          padding: `${theme.space.sm} ${theme.space.md}`,
-          background: theme.colors.bgCardActive,
-          border: `1px solid ${theme.colors.border}`,
-          borderRadius: theme.radius.sm,
-          color: theme.colors.textMuted,
-          cursor: 'pointer',
-          fontSize: theme.fontSize.xs,
-          marginBottom: theme.space.xl,
-        }}
+        style={{ marginBottom: theme.space.xl }}
       >
         {t('advanced.reset_map_tiles')}
-      </button>
+      </SButton>
 
-      {/* API Endpoints subsection */}
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        fontWeight: theme.fontWeight.bold,
-        marginBottom: theme.space.md,
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        {t('advanced.api_endpoints')}
-      </div>
+      {/* API Endpoints */}
+      <SSection>{t('advanced.api_endpoints')}</SSection>
 
       <div style={{ marginBottom: theme.space.lg }}>
-        <div style={{
-          fontSize: theme.fontSize.xs,
-          color: theme.colors.textMuted,
-          marginBottom: theme.space.sm,
-        }}>
-          {t('advanced.geocoding_api')}
-        </div>
-        <input
+        <SLabel style={{ fontSize: theme.fontSize.xs }}>{t('advanced.geocoding_api')}</SLabel>
+        <SInput
           type="text"
           value={apiUrls.nominatimUrl}
           onChange={(e) => setApiUrls({ ...apiUrls, nominatimUrl: e.target.value })}
-          style={{
-            width: '100%',
-            padding: theme.space.md,
-            background: theme.colors.bgCardActive,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.sm,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.xs,
-            fontFamily: 'monospace',
-          }}
+          monospace
         />
       </div>
 
-      <button
-        onClick={() => setApiUrls({
-          nominatimUrl: 'https://photon.komoot.io',
-        })}
-        style={{
-          padding: `${theme.space.sm} ${theme.space.md}`,
-          background: theme.colors.bgCardActive,
-          border: `1px solid ${theme.colors.border}`,
-          borderRadius: theme.radius.sm,
-          color: theme.colors.textMuted,
-          cursor: 'pointer',
-          fontSize: theme.fontSize.xs,
-        }}
+      <SButton
+        variant="outline"
+        onClick={() => setApiUrls({ nominatimUrl: 'https://photon.komoot.io' })}
       >
         {t('advanced.reset_api')}
-      </button>
+      </SButton>
 
-      {/* Weather subsection */}
-      <div style={{
-        fontSize: theme.fontSize.sm,
-        fontWeight: theme.fontWeight.bold,
-        marginBottom: theme.space.md,
-        marginTop: theme.space.xl,
-        color: theme.colors.textSecondary,
-        textTransform: 'uppercase',
-        letterSpacing: '0.05em',
-      }}>
-        {t('advanced.weather_data')}
-      </div>
+      {/* Navigation Data URLs */}
+      <SSection style={{ marginTop: theme.space.xl }}>{t('downloads.custom_url')}</SSection>
 
-      {/* Weather enabled toggle */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        padding: theme.space.md,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        border: `1px solid ${theme.colors.border}`,
-        marginBottom: theme.space.md,
-      }}>
-        <div>
-          <div style={{ fontWeight: theme.fontWeight.medium, marginBottom: theme.space.xs, fontSize: theme.fontSize.sm }}>
-            {t('advanced.weather_service')}
-          </div>
-          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>
-            {t('advanced.weather_service_desc')}
+      {navigationFiles.map((file) => (
+        <div key={file.id} style={{ marginBottom: theme.space.lg }}>
+          <SLabel style={{ fontSize: theme.fontSize.xs }}>
+            {file.name}
+            {editingUrls[file.id] !== file.defaultUrl && (
+              <span style={{ color: theme.colors.primary, marginLeft: theme.space.xs }}>{t('downloads.modified')}</span>
+            )}
+          </SLabel>
+          <div style={{ display: 'flex', gap: theme.space.sm }}>
+            <SInput
+              type="text"
+              value={editingUrls[file.id] || ''}
+              onChange={(e) => handleUrlChange(file.id, e.target.value)}
+              monospace
+              placeholder={t('downloads.enter_url')}
+              inputStyle={{
+                border: `1px solid ${editingUrls[file.id] !== file.url ? theme.colors.primary : 'rgba(255,255,255,0.1)'}`,
+              }}
+            />
+            {editingUrls[file.id] !== file.url && (
+              <SButton
+                variant="primary"
+                onClick={() => handleUrlSave(file)}
+                disabled={savingUrl === file.id}
+                style={{ flexShrink: 0 }}
+              >
+                {savingUrl === file.id ? t('downloads.saving') : t('common.save')}
+              </SButton>
+            )}
+            {editingUrls[file.id] !== file.defaultUrl && (
+              <SButton
+                variant="outline"
+                onClick={() => handleResetUrl(file)}
+                title="Reset to default URL"
+                style={{ padding: theme.space.sm, flexShrink: 0 }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                  <path d="M3 3v5h5" />
+                </svg>
+              </SButton>
+            )}
           </div>
         </div>
-        <button
-          onClick={() => setWeatherSettings({ ...weatherSettings, enabled: !weatherSettings.enabled })}
-          style={{
-            width: '56px',
-            height: '32px',
-            borderRadius: '16px',
-            background: weatherSettings.enabled ? theme.colors.primary : theme.colors.bgCardActive,
-            border: 'none',
-            cursor: 'pointer',
-            position: 'relative',
-            transition: 'background 0.2s',
-          }}
-        >
-          <div style={{
-            width: '24px',
-            height: '24px',
-            borderRadius: '50%',
-            background: '#fff',
-            position: 'absolute',
-            top: '4px',
-            left: weatherSettings.enabled ? '28px' : '4px',
-            transition: 'left 0.2s',
-          }} />
-        </button>
-      </div>
+      ))}
+
+      {/* Weather */}
+      <SSection style={{ marginTop: theme.space.xl }}>{t('advanced.weather_data')}</SSection>
+
+      <SCard style={{ marginBottom: theme.space.md }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: theme.fontWeight.medium, marginBottom: theme.space.xs, fontSize: theme.fontSize.sm }}>
+              {t('advanced.weather_service')}
+            </div>
+            <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>
+              {t('advanced.weather_service_desc')}
+            </div>
+          </div>
+          <SToggle checked={weatherSettings.enabled} onChange={(v) => setWeatherSettings({ ...weatherSettings, enabled: v })} />
+        </div>
+      </SCard>
 
       {weatherSettings.enabled && (
         <>
-          {/* Refresh interval */}
           <div style={{ marginBottom: theme.space.md }}>
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              marginBottom: theme.space.xs,
-            }}>
-              <div style={{
-                fontSize: theme.fontSize.xs,
-                color: theme.colors.textMuted,
-              }}>
-                {t('advanced.refresh_interval')}
-              </div>
-              <div style={{
-                fontSize: theme.fontSize.xs,
-                color: theme.colors.textPrimary,
-              }}>
-                {weatherSettings.refreshIntervalMinutes} min
-              </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.space.xs }}>
+              <SLabel style={{ marginBottom: 0, fontSize: theme.fontSize.xs }}>{t('advanced.refresh_interval')}</SLabel>
+              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textPrimary }}>{weatherSettings.refreshIntervalMinutes} min</div>
             </div>
             <input
               type="range"
@@ -1854,104 +1133,57 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
               step="5"
               value={weatherSettings.refreshIntervalMinutes}
               onChange={(e) => setWeatherSettings({ ...weatherSettings, refreshIntervalMinutes: parseInt(e.target.value) })}
-              style={{
-                width: '100%',
-                accentColor: theme.colors.primary,
-              }}
+              style={{ width: '100%', accentColor: theme.colors.primary }}
             />
           </div>
 
-          {/* Weather API URL */}
           <div style={{ marginBottom: theme.space.md }}>
-            <div style={{
-              fontSize: theme.fontSize.xs,
-              color: theme.colors.textMuted,
-              marginBottom: theme.space.sm,
-            }}>
-              {t('advanced.weather_api')}
-            </div>
-            <input
+            <SLabel style={{ fontSize: theme.fontSize.xs }}>{t('advanced.weather_api')}</SLabel>
+            <SInput
               type="text"
               value={weatherSettings.weatherApiUrl}
               onChange={(e) => setWeatherSettings({ ...weatherSettings, weatherApiUrl: e.target.value })}
-              style={{
-                width: '100%',
-                padding: theme.space.md,
-                background: theme.colors.bgCardActive,
-                border: `1px solid ${theme.colors.border}`,
-                borderRadius: theme.radius.sm,
-                color: theme.colors.textPrimary,
-                fontSize: theme.fontSize.xs,
-                fontFamily: 'monospace',
-              }}
+              monospace
             />
           </div>
 
-          {/* Marine API URL */}
           <div style={{ marginBottom: theme.space.md }}>
-            <div style={{
-              fontSize: theme.fontSize.xs,
-              color: theme.colors.textMuted,
-              marginBottom: theme.space.sm,
-            }}>
-              {t('advanced.marine_api')}
-            </div>
-            <input
+            <SLabel style={{ fontSize: theme.fontSize.xs }}>{t('advanced.marine_api')}</SLabel>
+            <SInput
               type="text"
               value={weatherSettings.marineApiUrl}
               onChange={(e) => setWeatherSettings({ ...weatherSettings, marineApiUrl: e.target.value })}
-              style={{
-                width: '100%',
-                padding: theme.space.md,
-                background: theme.colors.bgCardActive,
-                border: `1px solid ${theme.colors.border}`,
-                borderRadius: theme.radius.sm,
-                color: theme.colors.textPrimary,
-                fontSize: theme.fontSize.xs,
-                fontFamily: 'monospace',
-              }}
+              monospace
             />
           </div>
 
-          <button
+          <SButton
+            variant="outline"
             onClick={() => setWeatherSettings({
               ...weatherSettings,
               weatherApiUrl: 'https://api.open-meteo.com/v1/forecast',
               marineApiUrl: 'https://marine-api.open-meteo.com/v1/marine',
               refreshIntervalMinutes: 15,
             })}
-            style={{
-              padding: `${theme.space.sm} ${theme.space.md}`,
-              background: theme.colors.bgCardActive,
-              border: `1px solid ${theme.colors.border}`,
-              borderRadius: theme.radius.sm,
-              color: theme.colors.textMuted,
-              cursor: 'pointer',
-              fontSize: theme.fontSize.xs,
-            }}
           >
             {t('advanced.reset_weather')}
-          </button>
+          </SButton>
         </>
       )}
 
-      <div style={{
-        padding: theme.space.md,
-        background: theme.colors.bgCard,
-        borderRadius: theme.radius.md,
-        fontSize: theme.fontSize.xs,
-        color: theme.colors.textMuted,
-        marginTop: theme.space.xl,
-        lineHeight: 1.5,
-      }}>
+      <SInfoBox>
         {t('advanced.map_tiles_info')}
         <br /><br />
         {t('advanced.geocoding_info')}
         <br /><br />
         {t('advanced.weather_info')}
-      </div>
+      </SInfoBox>
     </div>
   );
+
+  // ================================================================
+  // Tab Router
+  // ================================================================
 
   const renderActiveTab = () => {
     switch (activeTab) {
@@ -1972,13 +1204,43 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
     }
   };
 
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  const sidebarTab = (tab: typeof tabs[0]) => (
+    <button
+      key={tab.id}
+      onClick={() => { setActiveTab(tab.id); setMenuOpen(false); }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: theme.space.sm,
+        padding: `${theme.space.sm} ${theme.space.md}`,
+        background: activeTab === tab.id ? theme.colors.primaryLight : 'transparent',
+        border: 'none',
+        borderLeft: activeTab === tab.id ? `3px solid ${theme.colors.primary}` : '3px solid transparent',
+        color: activeTab === tab.id ? theme.colors.textPrimary : theme.colors.textMuted,
+        cursor: 'pointer',
+        transition: `all ${theme.transition.fast}`,
+        width: '100%',
+        minHeight: '40px',
+        fontSize: theme.fontSize.md,
+        textAlign: 'left',
+      }}
+    >
+      {tab.icon}
+      <span style={{ fontWeight: activeTab === tab.id ? theme.fontWeight.bold : theme.fontWeight.normal }}>
+        {tab.label}
+      </span>
+    </button>
+  );
+
   return (
     <div style={{
       width: '100%',
       height: '100%',
       background: theme.colors.bgPrimary,
       display: 'flex',
-      flexDirection: 'column',
+      flexDirection: 'row',
     }}>
       {/* CSS for extraction animation */}
       <style>{`
@@ -1988,82 +1250,151 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab 
         }
       `}</style>
 
-      {/* Unified Tab Bar with Home Button */}
-      <div style={{
-        display: 'flex',
-        borderBottom: `1px solid ${theme.colors.border}`,
-        background: theme.colors.bgCard,
-      }}>
-        {tabs.map((tab) => (
+      {/* Sidebar — wide screens */}
+      <div
+        className="settings-sidebar"
+        style={{
+          width: '200px',
+          flexShrink: 0,
+          display: 'flex',
+          flexDirection: 'column',
+          borderRight: `1px solid ${theme.colors.border}`,
+          background: theme.colors.bgSecondary,
+          overflowY: 'auto',
+        }}
+      >
+        <div style={{ flex: 1, paddingTop: theme.space.sm }}>
+          {tabs.map(sidebarTab)}
+        </div>
+        {/* Home + version at bottom */}
+        <div style={{ borderTop: `1px solid ${theme.colors.border}`, padding: theme.space.sm }}>
           <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={onClose}
             style={{
-              flex: 1,
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: theme.space.xs,
-              padding: `${theme.space.md} ${theme.space.sm}`,
+              gap: theme.space.sm,
+              padding: `${theme.space.sm} ${theme.space.md}`,
               background: 'transparent',
               border: 'none',
-              borderBottom: activeTab === tab.id ? `2px solid ${theme.colors.primary}` : '2px solid transparent',
-              color: activeTab === tab.id ? theme.colors.primary : theme.colors.textMuted,
+              color: theme.colors.textMuted,
               cursor: 'pointer',
-              transition: 'all 0.2s',
-              minWidth: '60px',
+              width: '100%',
+              minHeight: '40px',
+              fontSize: theme.fontSize.md,
+              textAlign: 'left',
             }}
           >
-            {tab.icon}
-            <span style={{ fontSize: theme.fontSize.xs, fontWeight: activeTab === tab.id ? theme.fontWeight.bold : theme.fontWeight.normal }}>
-              {tab.label}
-            </span>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+            {t('settings.home')}
           </button>
-        ))}
-        {/* Home button */}
-        <button
-          onClick={onClose}
+        </div>
+      </div>
+
+      {/* Main content area */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minWidth: 0 }}>
+        {/* Mobile header with hamburger — small screens only */}
+        <div
+          className="settings-mobile-header"
           style={{
-            display: 'flex',
-            flexDirection: 'column',
+            display: 'none',
             alignItems: 'center',
-            gap: theme.space.xs,
-            padding: `${theme.space.md} ${theme.space.lg}`,
-            background: 'transparent',
-            border: 'none',
-            borderBottom: '2px solid transparent',
-            color: theme.colors.textMuted,
-            cursor: 'pointer',
-            transition: 'all 0.2s',
+            gap: theme.space.sm,
+            padding: `${theme.space.sm} ${theme.space.md}`,
+            borderBottom: `1px solid ${theme.colors.border}`,
+            background: theme.colors.bgSecondary,
           }}
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-          <span style={{ fontSize: theme.fontSize.xs }}>{t('settings.home')}</span>
-        </button>
+          <button
+            onClick={() => setMenuOpen(!menuOpen)}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.colors.textPrimary,
+              cursor: 'pointer',
+              padding: theme.space.xs,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="3" y1="6" x2="21" y2="6" />
+              <line x1="3" y1="12" x2="21" y2="12" />
+              <line x1="3" y1="18" x2="21" y2="18" />
+            </svg>
+          </button>
+          <span style={{ fontSize: theme.fontSize.md, fontWeight: theme.fontWeight.bold, color: theme.colors.textPrimary }}>
+            {tabs.find(t => t.id === activeTab)?.label}
+          </span>
+          <div style={{ flex: 1 }} />
+          <button
+            onClick={onClose}
+            style={{
+              background: 'transparent',
+              border: 'none',
+              color: theme.colors.textMuted,
+              cursor: 'pointer',
+              padding: theme.space.xs,
+              display: 'flex',
+              alignItems: 'center',
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Mobile dropdown menu */}
+        {menuOpen && (
+          <div
+            className="settings-mobile-menu"
+            style={{
+              display: 'none',
+              position: 'absolute',
+              top: '48px',
+              left: 0,
+              right: 0,
+              background: theme.colors.bgSecondary,
+              borderBottom: `1px solid ${theme.colors.border}`,
+              boxShadow: theme.shadow.lg,
+              zIndex: theme.zIndex.dropdown,
+              flexDirection: 'column',
+            }}
+          >
+            {tabs.map(sidebarTab)}
+          </div>
+        )}
+
+        {/* Tab Content */}
+        <div
+          className="settings-scroll"
+          style={{
+            flex: 1,
+            overflowY: 'auto',
+            padding: theme.space.xl,
+          }}
+        >
+          {renderActiveTab()}
+        </div>
       </div>
 
-      {/* Tab Content */}
-      <div style={{
-        flex: 1,
-        padding: theme.space.lg,
-        overflowY: 'auto',
-      }}>
-        {renderActiveTab()}
-      </div>
+      {/* CSS for responsive layout */}
+      <style>{`
+        .settings-sidebar { display: flex !important; }
+        .settings-mobile-header { display: none !important; }
+        .settings-mobile-menu { display: none !important; }
 
-      {/* Footer */}
-      <div style={{
-        padding: theme.space.md,
-        borderTop: `1px solid ${theme.colors.border}`,
-        textAlign: 'center',
-        fontSize: theme.fontSize.xs,
-        color: theme.colors.textMuted,
-      }}>
-        BigaOS v{updateInfo?.currentVersion || '...'}
-      </div>
+        @media (max-width: 700px), (orientation: portrait) {
+          .settings-sidebar { display: none !important; }
+          .settings-mobile-header { display: flex !important; }
+          .settings-mobile-menu { display: flex !important; }
+        }
+      `}</style>
     </div>
   );
 };

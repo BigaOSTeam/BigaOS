@@ -61,11 +61,11 @@ export const theme = {
 
   // Border Radius
   radius: {
-    xs: '1px',
-    sm: '2px',
-    md: '3px',
-    lg: '4px',
-    xl: '6px',
+    xs: '2px',
+    sm: '4px',
+    md: '6px',
+    lg: '8px',
+    xl: '12px',
   },
 
   // Spacing

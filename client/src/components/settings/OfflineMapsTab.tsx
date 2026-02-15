@@ -604,7 +604,7 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
                 : theme.colors.textMuted,
               fontSize: theme.fontSize.sm,
               fontWeight: theme.fontWeight.bold,
-              cursor: selectedBounds && regionName.trim() ? 'pointer' : 'not-allowed',
+              cursor: selectedBounds && regionName.trim() ? 'pointer' : 'default',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',

@@ -16,12 +16,15 @@ interface LanguageContextType {
   language: LanguageCode;
   setLanguage: (lang: LanguageCode) => void;
   t: (key: string, params?: Record<string, string | number>) => string;
+  /** Register extra translations (e.g. from plugins). Merged into t() lookups. */
+  registerExtraTranslations: (translations: Record<string, string>) => void;
 }
 
 const LanguageContext = createContext<LanguageContextType | null>(null);
 
 export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [language, setLanguageState] = useState<LanguageCode>(DEFAULT_LANGUAGE);
+  const [extraTranslations, setExtraTranslations] = useState<Record<string, string>>({});
 
   // Parse all translations at startup
   const allTranslations = useMemo(() => {
@@ -43,15 +46,16 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   }, [allTranslations]);
 
   // Translation function: t("key") or t("key", { param: value })
+  // Checks: current language -> english fallback -> plugin translations -> raw key
   const t = useCallback((key: string, params?: Record<string, string | number>): string => {
-    let value = translations[key] ?? fallback[key] ?? key;
+    let value = translations[key] ?? fallback[key] ?? extraTranslations[key] ?? key;
     if (params) {
       for (const [paramKey, paramValue] of Object.entries(params)) {
         value = value.replace(new RegExp(`\\{${paramKey}\\}`, 'g'), String(paramValue));
       }
     }
     return value;
-  }, [translations, fallback]);
+  }, [translations, fallback, extraTranslations]);
 
   const setLanguage = useCallback((lang: LanguageCode) => {
     if (LANGUAGES[lang]) {
@@ -59,11 +63,17 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     }
   }, []);
 
+  // Register extra translations (from plugins) — replaces entire set
+  const registerExtraTranslations = useCallback((translations: Record<string, string>) => {
+    setExtraTranslations(translations);
+  }, []);
+
   const contextValue = useMemo(() => ({
     language,
     setLanguage,
     t,
-  }), [language, setLanguage, t]);
+    registerExtraTranslations,
+  }), [language, setLanguage, t, registerExtraTranslations]);
 
   return (
     <LanguageContext.Provider value={contextValue}>

@@ -24,6 +24,7 @@ common.tomorrow=Tomorrow
 common.loading_history=Loading history...
 common.no_data=No data
 common.starting=Starting...
+common.other=Other
 
 # ==================== App ====================
 app.demo=DEMO
@@ -89,6 +90,14 @@ units.weight=Weight
 units.temperature=Temperature
 units.time_format=Time Format
 units.date_format=Date Format
+units.meters=meters
+units.tons=tons
+units.mm=mm
+units.knots=knots
+units.beaufort=Beaufort
+units.hpa=hPa
+units.speed_label=Speed
+units.depth_label=Depth
 units.change_note=Changing units will update all displays across the application. The depth alarm will be reset when changing depth units.
 
 # ==================== Dashboard ====================
@@ -345,6 +354,16 @@ terminal.placeholder=Enter command...
 terminal.run=Run
 terminal.quick_commands=Quick Commands
 terminal.terminal=Terminal
+terminal.cmd_sysinfo=System Info
+terminal.cmd_uptime=Uptime
+terminal.cmd_disk=Disk Usage
+terminal.cmd_memory=Memory
+terminal.cmd_temp=Temperature
+terminal.cmd_ip=IP Addresses
+terminal.cmd_can=CAN Status
+terminal.cmd_i2c=I2C Devices
+terminal.cmd_status=BigaOS Status
+terminal.cmd_node=Node Version
 
 # ==================== Offline Maps ====================
 offline_maps.download_new_region=Download New Region
@@ -646,6 +665,46 @@ plugins.no_data=No data
 plugins.data_sources=Data Sources
 plugins.advanced_settings=Advanced Settings
 plugins.not_yet_supported=Not yet supported:
+
+# ==================== Slot Type Labels ====================
+slot.position=GPS Position
+slot.course_over_ground=Course Over Ground
+slot.speed_over_ground=Speed Over Ground
+slot.heading=Heading
+slot.speed_through_water=Speed Through Water
+slot.depth=Depth
+slot.roll=Roll
+slot.pitch=Pitch
+slot.yaw=Yaw
+slot.rudder_angle=Rudder Angle
+slot.wind_speed_apparent=Wind Speed (Apparent)
+slot.wind_angle_apparent=Wind Angle (Apparent)
+slot.wind_speed_true=Wind Speed (True)
+slot.wind_angle_true=Wind Angle (True)
+slot.voltage=Battery Voltage
+slot.current=Battery Current
+slot.temperature=Temperature
+slot.soc=State of Charge
+slot.rpm=Engine RPM
+slot.water_temperature=Water Temperature
+slot.barometric_pressure=Atmospheric Pressure
+slot.humidity=Humidity
+slot.fuel_level=Fuel Level
+
+# ==================== Slot Categories ====================
+slot_cat.navigation=Navigation
+slot_cat.environment=Environment
+slot_cat.electrical=Electrical
+slot_cat.propulsion=Propulsion
+
+# ==================== Interface Labels ====================
+iface.nmea2000=NMEA 2000
+iface.nmea0183=NMEA 0183
+iface.imu=IMU
+iface.i2c=I\u00B2C
+iface.demo=Demo
+iface.gps=GPS
+iface.serial=Serial
 
 # ==================== Validation ====================
 validation.invalid_number=Please enter a valid number

@@ -22,6 +22,61 @@ import { wsService } from './services/websocket';
 import { sensorAPI } from './services/api';
 import './styles/globals.css';
 
+// Extracted as a top-level component so React doesn't recreate the DOM on
+// every parent re-render, which would reset the CSS spin animation.
+function SystemUpdatingOverlay({ updating, rebooting, shuttingDown }: {
+  updating: boolean; rebooting: boolean; shuttingDown: boolean;
+}) {
+  const { t } = useLanguage();
+  if (!updating && !rebooting && !shuttingDown) return null;
+  const title = shuttingDown
+    ? t('shutdown.overlay_title')
+    : rebooting ? t('reboot.overlay_title') : t('update.overlay_title');
+  const message = shuttingDown
+    ? t('shutdown.overlay_message')
+    : rebooting ? t('reboot.overlay_message') : t('update.overlay_message');
+  return (
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      background: 'rgba(10, 25, 41, 0.97)',
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 20000,
+      gap: '24px',
+    }}>
+      <div style={{
+        width: '48px',
+        height: '48px',
+        border: '3px solid rgba(255,255,255,0.1)',
+        borderTopColor: '#4fc3f7',
+        borderRadius: '50%',
+        animation: 'spin 1s linear infinite',
+      }} />
+      <div style={{
+        fontSize: '1.5rem',
+        fontWeight: 600,
+        color: '#e0e0e0',
+      }}>
+        {title}
+      </div>
+      <div style={{
+        fontSize: '0.9rem',
+        color: '#888',
+        textAlign: 'center',
+        maxWidth: '300px',
+      }}>
+        {message}
+      </div>
+    </div>
+  );
+}
+
 // Inner app component that uses settings context
 function AppContent() {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
@@ -36,7 +91,7 @@ function AppContent() {
   const systemUpdatingRef = useRef(false);
   const wasOfflineRef = useRef<boolean | null>(null);
   const { setCurrentDepth } = useSettings();
-  const { isChartOnly: chartOnly } = usePlugins();
+  const { isChartOnly: chartOnly, installingPlugins } = usePlugins();
   const { activeView, navigationParams, navigate, goBack } = useNavigation();
   const repaintIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -286,60 +341,12 @@ function AppContent() {
     return null;
   };
 
-  // System updating/rebooting/shutting down overlay (full screen)
-  const SystemUpdatingOverlay = () => {
-    if (!systemUpdating && !systemRebooting && !systemShuttingDown) return null;
-    const title = systemShuttingDown
-      ? t('shutdown.overlay_title')
-      : systemRebooting ? t('reboot.overlay_title') : t('update.overlay_title');
-    const message = systemShuttingDown
-      ? t('shutdown.overlay_message')
-      : systemRebooting ? t('reboot.overlay_message') : t('update.overlay_message');
-    return (
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: 0,
-        right: 0,
-        bottom: 0,
-        background: 'rgba(10, 25, 41, 0.97)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        zIndex: 20000,
-        gap: '24px',
-      }}>
-        <div style={{
-          width: '48px',
-          height: '48px',
-          border: '3px solid rgba(255,255,255,0.1)',
-          borderTopColor: '#4fc3f7',
-          borderRadius: '50%',
-          animation: 'spin 1s linear infinite',
-        }} />
-        <div style={{
-          fontSize: '1.5rem',
-          fontWeight: 600,
-          color: '#e0e0e0',
-        }}>
-          {title}
-        </div>
-        <div style={{
-          fontSize: '0.9rem',
-          color: '#888',
-          textAlign: 'center',
-          maxWidth: '300px',
-        }}>
-          {message}
-        </div>
-      </div>
-    );
-  };
+  const overlayProps = { updating: systemUpdating, rebooting: systemRebooting, shuttingDown: systemShuttingDown };
 
   // Server unreachable banner (shown at top of screen)
+  // Suppress during plugin installs — server blocks on execSync (npm install / setup.sh)
   const ServerUnreachableBanner = () => {
-    if (serverReachable) return null;
+    if (serverReachable || installingPlugins.size > 0) return null;
 
     return (
       <div style={{
@@ -390,7 +397,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -402,7 +409,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -414,7 +421,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -426,7 +433,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -438,7 +445,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -450,7 +457,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -462,7 +469,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -474,7 +481,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -492,7 +499,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
-        <SystemUpdatingOverlay />
+        <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
   }
@@ -510,7 +517,7 @@ function AppContent() {
       <DemoModeBanner />
       <ConnectivityBanner />
       <ServerUnreachableBanner />
-      <SystemUpdatingOverlay />
+      <SystemUpdatingOverlay {...overlayProps} />
     </div>
   );
 }
@@ -527,6 +534,19 @@ function LanguageSyncBridge() {
   return null;
 }
 
+// Bridge component to sync plugin translations into LanguageContext
+function PluginI18nBridge() {
+  const { getPluginTranslations } = usePlugins();
+  const { language, registerExtraTranslations } = useLanguage();
+
+  useEffect(() => {
+    const translations = getPluginTranslations(language);
+    registerExtraTranslations(translations);
+  }, [language, getPluginTranslations, registerExtraTranslations]);
+
+  return null;
+}
+
 // Main App component with providers
 function App() {
   return (
@@ -535,6 +555,7 @@ function App() {
         <SettingsProvider>
           <LanguageSyncBridge />
           <PluginProvider>
+            <PluginI18nBridge />
             <AlertProvider>
               <ConfirmDialogProvider>
                 <AppContent />

@@ -227,6 +227,8 @@ export interface PluginInfo {
   enabledByUser: boolean;
   installedVersion: string;
   setupMessage?: string;
+  /** Parsed i18n translations keyed by language code, e.g. { en: { key: value }, de: { key: value } } */
+  i18n?: Record<string, Record<string, string>>;
 }
 
 /**

@@ -35,6 +35,8 @@ interface PluginInstance {
   installedVersion: string;
   enabledByUser: boolean;
   setupMessage?: string;
+  /** Parsed i18n translations keyed by language code */
+  i18n?: Record<string, Record<string, string>>;
 }
 
 export class PluginManager extends EventEmitter {
@@ -109,7 +111,7 @@ export class PluginManager extends EventEmitter {
         const manifestJson = fs.readFileSync(manifestPath, 'utf-8');
         const manifest: PluginManifest = JSON.parse(manifestJson);
 
-        const defaultEnabled = false;
+        const defaultEnabled = manifest.builtin === true;
 
         // Restore persisted setup message (e.g. "Reboot required")
         // Clear it if the system has been rebooted since the message was written
@@ -126,6 +128,9 @@ export class PluginManager extends EventEmitter {
           }
         }
 
+        // Load plugin i18n files if declared
+        const i18n = this.loadPluginI18n(dir.name, manifest);
+
         this.plugins.set(manifest.id, {
           manifest,
           status: 'installed',
@@ -134,6 +139,7 @@ export class PluginManager extends EventEmitter {
           installedVersion: manifest.version,
           enabledByUser: states.get(manifest.id) ?? defaultEnabled,
           setupMessage,
+          i18n,
         });
 
         console.log(`[PluginManager] Discovered plugin: ${manifest.id} v${manifest.version}`);
@@ -141,6 +147,45 @@ export class PluginManager extends EventEmitter {
         console.error(`[PluginManager] Failed to read manifest for ${dir.name}:`, err);
       }
     }
+  }
+
+  /**
+   * Load and parse a plugin's i18n .txt files.
+   * Returns { en: { key: value }, de: { key: value } } or undefined.
+   */
+  private loadPluginI18n(dirName: string, manifest: PluginManifest): Record<string, Record<string, string>> | undefined {
+    if (!manifest.i18n?.directory || !manifest.i18n?.languages?.length) return undefined;
+
+    const i18nDir = path.join(this.pluginsDir, dirName, manifest.i18n.directory);
+    if (!fs.existsSync(i18nDir)) return undefined;
+
+    const result: Record<string, Record<string, string>> = {};
+
+    for (const lang of manifest.i18n.languages) {
+      const filePath = path.join(i18nDir, `${lang}.txt`);
+      if (!fs.existsSync(filePath)) continue;
+
+      try {
+        const content = fs.readFileSync(filePath, 'utf-8');
+        const translations: Record<string, string> = {};
+        for (const line of content.split('\n')) {
+          const trimmed = line.trim();
+          if (!trimmed || trimmed.startsWith('#')) continue;
+          const eqIndex = trimmed.indexOf('=');
+          if (eqIndex === -1) continue;
+          const key = trimmed.substring(0, eqIndex).trim();
+          const value = trimmed.substring(eqIndex + 1).trim();
+          if (key) translations[key] = value;
+        }
+        if (Object.keys(translations).length > 0) {
+          result[lang] = translations;
+        }
+      } catch (err) {
+        console.warn(`[PluginManager] Failed to read i18n file for ${manifest.id}/${lang}:`, err);
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
   }
 
   // ================================================================
@@ -373,6 +418,9 @@ export class PluginManager extends EventEmitter {
       // Read manifest
       const manifest: PluginManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
 
+      // Load plugin i18n files if declared
+      const i18n = this.loadPluginI18n(manifest.id, manifest);
+
       // Add to plugins map
       this.plugins.set(manifest.id, {
         manifest,
@@ -382,6 +430,7 @@ export class PluginManager extends EventEmitter {
         installedVersion: manifest.version,
         enabledByUser: false,
         setupMessage,
+        i18n,
       });
 
       console.log(`[PluginManager] Installed: ${manifest.id} v${manifest.version}`);
@@ -500,6 +549,7 @@ export class PluginManager extends EventEmitter {
       enabledByUser: p.enabledByUser,
       installedVersion: p.installedVersion,
       setupMessage: p.setupMessage,
+      i18n: p.i18n,
     }));
   }
 
@@ -517,6 +567,7 @@ export class PluginManager extends EventEmitter {
       enabledByUser: plugin.enabledByUser,
       installedVersion: plugin.installedVersion,
       setupMessage: plugin.setupMessage,
+      i18n: plugin.i18n,
     };
   }
 

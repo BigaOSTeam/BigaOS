@@ -155,7 +155,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
             {Math.round(current.wind.speed)}
           </div>
           <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>
-            kt {formatWindDirection(current.wind.direction)}
+            {t('units.knots')} {formatWindDirection(current.wind.direction)}
           </div>
           {current.wind.gusts > current.wind.speed + 5 && (
             <div style={{ fontSize: theme.fontSize.xs, color: '#FF9800' }}>
@@ -178,7 +178,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
             </div>
           )}
           {current.pressure && (
-            <div>{current.pressure} hPa</div>
+            <div>{current.pressure} {t('units.hpa')}</div>
           )}
         </div>
       </div>

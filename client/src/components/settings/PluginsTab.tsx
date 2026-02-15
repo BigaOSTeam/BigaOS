@@ -6,13 +6,14 @@
  * - Marketplace: Browse and install plugins from the GitHub registry
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { theme } from '../../styles/theme';
 import { usePlugins, PluginInfo } from '../../context/PluginContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { DriverSettingsDialog } from './DriverStreamsPanel';
 import { CustomSelect } from '../ui/CustomSelect';
+import { SInput, SButton } from '../ui/SettingsUI';
 
 type SubTab = 'installed' | 'marketplace';
 
@@ -40,8 +41,6 @@ export const PluginsTab: React.FC = () => {
     installingPlugins,
     installPlugin,
     uninstallPlugin,
-    enablePlugin,
-    disablePlugin,
     sensorMappings,
     debugData,
     sourceAvailability,
@@ -60,6 +59,21 @@ export const PluginsTab: React.FC = () => {
   const [filter, setFilter] = useState<string>('all');
   const [marketplaceSearch, setMarketplaceSearch] = useState('');
   const [marketplaceFilter, setMarketplaceFilter] = useState<string>('all');
+
+  // Minimum-duration spin so the user always sees feedback on manual refresh
+  const [minSpin, setMinSpin] = useState(false);
+  const spinTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleRefresh = useCallback(() => {
+    setMinSpin(true);
+    refreshRegistry();
+    if (spinTimerRef.current) clearTimeout(spinTimerRef.current);
+    spinTimerRef.current = setTimeout(() => setMinSpin(false), 600);
+  }, [refreshRegistry]);
+
+  useEffect(() => () => { if (spinTimerRef.current) clearTimeout(spinTimerRef.current); }, []);
+
+  const isSpinning = minSpin || registryLoading;
 
   // Fetch registry on mount (for update badges) and when marketplace tab is opened
   useEffect(() => {
@@ -89,14 +103,6 @@ export const PluginsTab: React.FC = () => {
     });
     if (confirmed) {
       uninstallPlugin(plugin.id);
-    }
-  };
-
-  const handleToggle = (plugin: PluginInfo) => {
-    if (plugin.enabledByUser) {
-      disablePlugin(plugin.id);
-    } else {
-      enablePlugin(plugin.id);
     }
   };
 
@@ -201,25 +207,13 @@ export const PluginsTab: React.FC = () => {
         marginBottom: theme.space.md,
         alignItems: 'stretch',
       }}>
-        <input
+        <SInput
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder={t('plugins.search')}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: `${theme.space.sm} ${theme.space.md}`,
-            background: theme.colors.bgCard,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.md,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.base,
-            outline: 'none',
-            boxSizing: 'border-box',
-            minHeight: '48px',
-          }}
+          inputStyle={{ flex: 1, minWidth: 0 }}
         />
-        <div style={{ width: '140px', flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           <CustomSelect
             value={filter}
             options={filterOptions}
@@ -279,36 +273,6 @@ export const PluginsTab: React.FC = () => {
               </div>
             </div>
 
-            {/* Toggle */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: theme.space.sm, flexShrink: 0 }}>
-              {/* Enable/Disable Toggle */}
-              <button
-                onClick={() => handleToggle(plugin)}
-                className="touch-btn"
-                style={{
-                  width: '56px',
-                  height: '32px',
-                  borderRadius: '16px',
-                  border: 'none',
-                  background: plugin.enabledByUser ? theme.colors.primary : theme.colors.bgCardActive,
-                  cursor: 'pointer',
-                  position: 'relative',
-                  transition: `background ${theme.transition.fast}`,
-                  flexShrink: 0,
-                }}
-              >
-                <div style={{
-                  width: '26px',
-                  height: '26px',
-                  borderRadius: '50%',
-                  background: '#fff',
-                  position: 'absolute',
-                  top: '3px',
-                  left: plugin.enabledByUser ? '27px' : '3px',
-                  transition: `left ${theme.transition.fast}`,
-                }} />
-              </button>
-            </div>
           </div>
 
           {/* Description */}
@@ -372,122 +336,69 @@ export const PluginsTab: React.FC = () => {
 
                 if (needsReboot && !hasUpdate) {
                   return (
-                    <button
+                    <SButton
+                      variant="warning"
                       onClick={() => rebootSystem()}
-                      className="touch-btn"
-                      style={{
-                        padding: `${theme.space.sm} ${theme.space.md}`,
-                        background: theme.colors.warning,
-                        border: 'none',
-                        borderRadius: theme.radius.sm,
-                        color: '#000',
-                        fontSize: theme.fontSize.sm,
-                        fontWeight: theme.fontWeight.medium,
-                        cursor: 'pointer',
-                        minHeight: '44px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: theme.space.xs,
-                      }}
+                      icon={
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M23 4v6h-6" />
+                          <path d="M1 20v-6h6" />
+                          <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
+                        </svg>
+                      }
                     >
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                        <path d="M23 4v6h-6" />
-                        <path d="M1 20v-6h6" />
-                        <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
-                      </svg>
                       {t('plugins.reboot')}
-                    </button>
+                    </SButton>
                   );
                 }
 
                 if (!hasUpdate) return null;
                 return (
-                  <button
+                  <SButton
+                    variant="warning"
                     onClick={() => !isUpdating && installPlugin(plugin.id, rp.latestVersion)}
                     disabled={isUpdating}
-                    className="touch-btn"
-                    style={{
-                      padding: `${theme.space.sm} ${theme.space.md}`,
-                      background: isUpdating ? theme.colors.bgCardActive : theme.colors.warning,
-                      border: 'none',
-                      borderRadius: theme.radius.sm,
-                      color: isUpdating ? theme.colors.textMuted : '#000',
-                      fontSize: theme.fontSize.sm,
-                      fontWeight: theme.fontWeight.medium,
-                      cursor: isUpdating ? 'default' : 'pointer',
-                      minHeight: '44px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: theme.space.xs,
-                    }}
-                  >
-                    {isUpdating ? (
-                      <>
+                    icon={
+                      isUpdating ? (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                          style={{ animation: 'spin 1s linear infinite' }}>
+                          style={{ animation: 'spin 0.6s linear infinite' }}>
                           <path d="M21 12a9 9 0 1 1-6.219-8.56" />
                         </svg>
-                        {t('plugins.updating')}
-                      </>
-                    ) : (
-                      <>
+                      ) : (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                           <polyline points="7 10 12 15 17 10" />
                           <line x1="12" y1="15" x2="12" y2="3" />
                         </svg>
-                        {t('plugins.update')} v{rp.latestVersion}
-                      </>
-                    )}
-                  </button>
+                      )
+                    }
+                  >
+                    {isUpdating ? t('plugins.updating') : `${t('plugins.update')} v${rp.latestVersion}`}
+                  </SButton>
                 );
               })()}
 
               {/* Settings button for drivers with configSchema */}
               {plugin.manifest.type === 'driver' && plugin.manifest.driver?.configSchema && plugin.manifest.driver.configSchema.length > 0 && (
-                <button
+                <SButton
+                  variant="outline"
                   onClick={() => setSettingsPlugin(plugin)}
-                  className="touch-btn"
-                  style={{
-                    padding: `${theme.space.sm} ${theme.space.md}`,
-                    background: 'transparent',
-                    border: `1px solid ${theme.colors.border}`,
-                    borderRadius: theme.radius.sm,
-                    color: theme.colors.textMuted,
-                    fontSize: theme.fontSize.sm,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: theme.space.xs,
-                  }}
+                  icon={
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="3" />
+                      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                    </svg>
+                  }
                 >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="12" cy="12" r="3" />
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
-                  </svg>
                   {t('plugins.settings')}
-                </button>
+                </SButton>
               )}
 
               {/* Uninstall button (not for built-in) */}
               {!plugin.manifest.builtin && (
-                <button
-                  onClick={() => handleUninstall(plugin)}
-                  className="touch-btn"
-                  style={{
-                    padding: `${theme.space.sm} ${theme.space.md}`,
-                    background: 'transparent',
-                    border: `1px solid ${theme.colors.error}`,
-                    borderRadius: theme.radius.sm,
-                    color: theme.colors.error,
-                    fontSize: theme.fontSize.sm,
-                    cursor: 'pointer',
-                    minHeight: '44px',
-                  }}
-                >
+                <SButton variant="danger" onClick={() => handleUninstall(plugin)}>
                   {t('plugins.uninstall')}
-                </button>
+                </SButton>
               )}
             </div>
           </div>
@@ -509,60 +420,36 @@ export const PluginsTab: React.FC = () => {
         marginBottom: theme.space.md,
         alignItems: 'stretch',
       }}>
-        <input
+        <SInput
           value={marketplaceSearch}
           onChange={(e) => setMarketplaceSearch(e.target.value)}
           placeholder={t('plugins.search')}
-          style={{
-            flex: 1,
-            minWidth: 0,
-            padding: `${theme.space.sm} ${theme.space.md}`,
-            background: theme.colors.bgCard,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.md,
-            color: theme.colors.textPrimary,
-            fontSize: theme.fontSize.base,
-            outline: 'none',
-            boxSizing: 'border-box',
-            minHeight: '48px',
-          }}
+          inputStyle={{ flex: 1, minWidth: 0 }}
         />
-        <div style={{ width: '140px', flexShrink: 0 }}>
+        <div style={{ flexShrink: 0 }}>
           <CustomSelect
             value={marketplaceFilter}
             options={marketplaceFilterOptions}
             onChange={setMarketplaceFilter}
           />
         </div>
-        <button
-          onClick={() => refreshRegistry()}
-          disabled={registryLoading}
-          className="touch-btn"
-          style={{
-            padding: theme.space.md,
-            background: theme.colors.bgCardActive,
-            border: `1px solid ${theme.colors.border}`,
-            borderRadius: theme.radius.md,
-            color: theme.colors.textPrimary,
-            cursor: registryLoading ? 'default' : 'pointer',
-            opacity: registryLoading ? 0.5 : 1,
-            flexShrink: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
+        <SButton
+          variant="secondary"
+          onClick={handleRefresh}
+          disabled={isSpinning}
+          style={{ flexShrink: 0 }}
         >
           <svg
             width="20" height="20" viewBox="0 0 24 24" fill="none"
             stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
             style={{
-              animation: registryLoading ? 'spin 1s linear infinite' : 'none',
+              animation: isSpinning ? 'spin 0.6s linear infinite' : 'none',
             }}
           >
             <polyline points="23 4 23 10 17 10" />
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10" />
           </svg>
-        </button>
+        </SButton>
       </div>
 
       {/* Loading state */}
@@ -630,63 +517,26 @@ export const PluginsTab: React.FC = () => {
 
             {/* Install/Update button */}
             {installingPlugins.has(rp.id) ? (
-              <button
+              <SButton
+                variant="secondary"
                 disabled
-                className="touch-btn"
-                style={{
-                  padding: `${theme.space.sm} ${theme.space.lg}`,
-                  background: theme.colors.bgCardActive,
-                  border: `1px solid ${theme.colors.border}`,
-                  borderRadius: theme.radius.sm,
-                  color: theme.colors.textMuted,
-                  fontSize: theme.fontSize.sm,
-                  fontWeight: theme.fontWeight.medium,
-                  cursor: 'default',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: theme.space.xs,
-                }}
+                icon={
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                    style={{ animation: 'spin 0.6s linear infinite' }}>
+                    <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                  </svg>
+                }
               >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  style={{ animation: 'spin 1s linear infinite' }}>
-                  <path d="M21 12a9 9 0 1 1-6.219-8.56" />
-                </svg>
                 {t('plugins.installing')}
-              </button>
+              </SButton>
             ) : !rp.isInstalled ? (
-              <button
-                onClick={() => installPlugin(rp.id)}
-                className="touch-btn"
-                style={{
-                  padding: `${theme.space.sm} ${theme.space.lg}`,
-                  background: theme.colors.primary,
-                  border: 'none',
-                  borderRadius: theme.radius.sm,
-                  color: '#fff',
-                  fontSize: theme.fontSize.sm,
-                  fontWeight: theme.fontWeight.medium,
-                  cursor: 'pointer',
-                }}
-              >
+              <SButton variant="primary" onClick={() => installPlugin(rp.id)}>
                 {t('plugins.install')}
-              </button>
+              </SButton>
             ) : rp.hasUpdate ? (
-              <button
-                onClick={() => installPlugin(rp.id, rp.latestVersion)}
-                className="touch-btn"
-                style={{
-                  padding: `${theme.space.sm} ${theme.space.lg}`,
-                  background: theme.colors.warning,
-                  border: 'none',
-                  borderRadius: theme.radius.sm,
-                  color: '#000',
-                  fontSize: theme.fontSize.sm,
-                  fontWeight: theme.fontWeight.medium,
-                  cursor: 'pointer',
-                }}
-              >
+              <SButton variant="warning" onClick={() => installPlugin(rp.id, rp.latestVersion)}>
                 {t('plugins.update')}
-              </button>
+              </SButton>
             ) : (
               <span style={{
                 padding: `${theme.space.sm} ${theme.space.lg}`,
@@ -730,26 +580,14 @@ export const PluginsTab: React.FC = () => {
         marginBottom: theme.space.lg,
       }}>
         {(['installed', 'marketplace'] as SubTab[]).map((tab) => (
-          <button
+          <SButton
             key={tab}
+            variant={subTab === tab ? 'primary' : 'outline'}
             onClick={() => setSubTab(tab)}
-            className="touch-btn"
-            style={{
-              flex: 1,
-              padding: `${theme.space.sm} ${theme.space.md}`,
-              background: subTab === tab ? theme.colors.primary : theme.colors.bgCardActive,
-              border: `1px solid ${subTab === tab ? theme.colors.primary : theme.colors.border}`,
-              borderRadius: theme.radius.md,
-              color: subTab === tab ? '#fff' : theme.colors.textMuted,
-              fontSize: theme.fontSize.base,
-              fontWeight: subTab === tab ? theme.fontWeight.semibold : theme.fontWeight.normal,
-              cursor: 'pointer',
-              transition: `all ${theme.transition.fast}`,
-              minHeight: '48px',
-            }}
+            fullWidth
           >
             {t(`plugins.${tab}`)}
-          </button>
+          </SButton>
         ))}
       </div>
 

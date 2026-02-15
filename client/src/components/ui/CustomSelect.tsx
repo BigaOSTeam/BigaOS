@@ -50,13 +50,14 @@ export function CustomSelect<T extends string | number>({
         style={{
           width: '100%',
           height: '100%',
-          padding: compact ? `${theme.space.xs} ${theme.space.sm}` : theme.space.md,
+          padding: compact ? `${theme.space.xs} ${theme.space.sm}` : '0.5rem 0.75rem',
+          minHeight: compact ? '36px' : '42px',
           boxSizing: 'border-box',
-          background: theme.colors.bgCardActive,
-          border: `1px solid ${isOpen ? theme.colors.primary : theme.colors.border}`,
+          background: 'rgba(255, 255, 255, 0.08)',
+          border: `1px solid ${isOpen ? theme.colors.primary : 'rgba(255, 255, 255, 0.1)'}`,
           borderRadius: compact ? theme.radius.sm : theme.radius.md,
           color: selectedOption ? theme.colors.textPrimary : theme.colors.textMuted,
-          fontSize: compact ? theme.fontSize.xs : theme.fontSize.md,
+          fontSize: compact ? theme.fontSize.sm : theme.fontSize.md,
           cursor: 'pointer',
           display: 'flex',
           justifyContent: 'space-between',
@@ -85,6 +86,7 @@ export function CustomSelect<T extends string | number>({
 
       {isOpen && (
         <div
+          className="settings-scroll"
           style={{
             position: 'absolute',
             top: '100%',
@@ -110,13 +112,18 @@ export function CustomSelect<T extends string | number>({
               }}
               style={{
                 width: '100%',
-                padding: compact ? `${theme.space.xs} ${theme.space.sm}` : `${theme.space.sm} ${theme.space.md}`,
+                padding: compact
+                  ? `${theme.space.xs} ${theme.space.sm}`
+                  : `${theme.space.sm} 0.75rem`,
+                minHeight: compact ? '36px' : '38px',
                 background: option.value === value ? theme.colors.primaryLight : 'transparent',
                 border: 'none',
                 color: option.value === value ? theme.colors.primary : theme.colors.textPrimary,
-                fontSize: compact ? theme.fontSize.xs : theme.fontSize.md,
+                fontSize: compact ? theme.fontSize.sm : theme.fontSize.md,
                 cursor: 'pointer',
                 textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
                 transition: `background ${theme.transition.fast}`,
               }}
               onMouseEnter={(e) => {

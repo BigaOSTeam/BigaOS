@@ -476,6 +476,9 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
         case 'YYYY-MM-DD':
           dateStr = `${weekday} ${month}-${day}`;
           break;
+        case 'DD.MM.YYYY':
+          dateStr = `${weekday} ${day}.${month}`;
+          break;
         case 'DD/MM/YYYY':
         default:
           dateStr = `${weekday} ${day}/${month}`;
@@ -1040,7 +1043,23 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 const weekday = forecastDate.toLocaleDateString(language, { weekday: 'short' });
                 const day = forecastDate.getDate().toString().padStart(2, '0');
                 const month = (forecastDate.getMonth() + 1).toString().padStart(2, '0');
-                return `${weekday} ${day}/${month} ${timeStr}`;
+                let dateStr: string;
+                switch (dateFormat) {
+                  case 'MM/DD/YYYY':
+                    dateStr = `${weekday} ${month}/${day}`;
+                    break;
+                  case 'YYYY-MM-DD':
+                    dateStr = `${weekday} ${month}-${day}`;
+                    break;
+                  case 'DD.MM.YYYY':
+                    dateStr = `${weekday} ${day}.${month}`;
+                    break;
+                  case 'DD/MM/YYYY':
+                  default:
+                    dateStr = `${weekday} ${day}/${month}`;
+                    break;
+                }
+                return `${dateStr} ${timeStr}`;
               }
             })()}
           </div>

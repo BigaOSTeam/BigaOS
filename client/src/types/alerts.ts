@@ -419,10 +419,10 @@ export const resolveAlertMessage = (
 export const getSeverityColor = (severity: AlertSeverity): string => {
   switch (severity) {
     case 'info':
-      return '#3498db'; // Blue
+      return '#4fc3f7';
     case 'warning':
-      return '#f39c12'; // Orange
+      return '#ffa726';
     case 'critical':
-      return '#e74c3c'; // Red
+      return '#ef5350';
   }
 };

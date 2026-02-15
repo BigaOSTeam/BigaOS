@@ -64,6 +64,8 @@ export interface PluginInfo {
   enabledByUser: boolean;
   installedVersion: string;
   setupMessage?: string;
+  /** Parsed i18n translations keyed by language code */
+  i18n?: Record<string, Record<string, string>>;
 }
 
 export interface RegistryPlugin {
@@ -121,6 +123,9 @@ export interface SlotAvailability {
 interface PluginContextType {
   // Installed plugins
   plugins: PluginInfo[];
+
+  // Merged plugin translations for a given language (all plugins combined)
+  getPluginTranslations: (lang: string) => Record<string, string>;
 
   // Demo mode: true when the demo driver plugin is enabled
   isDemoActive: boolean;
@@ -316,6 +321,20 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     wsService.emit('system_reboot', {});
   }, []);
 
+  // Merge all plugin translations for a given language
+  const getPluginTranslations = useCallback((lang: string): Record<string, string> => {
+    const merged: Record<string, string> = {};
+    for (const plugin of plugins) {
+      if (!plugin.i18n) continue;
+      // Try requested language, fall back to English
+      const translations = plugin.i18n[lang] || plugin.i18n['en'];
+      if (translations) {
+        Object.assign(merged, translations);
+      }
+    }
+    return merged;
+  }, [plugins]);
+
   const isDemoActive = plugins.some(p => p.id === 'bigaos-demo-driver' && p.status === 'enabled');
   const isChartOnlyLive = plugins.some(p => p.id === 'bigaos-chart-only' && p.status === 'enabled');
 
@@ -330,6 +349,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   const value: PluginContextType = {
     plugins,
+    getPluginTranslations,
     isDemoActive,
     isChartOnly,
     registryPlugins,

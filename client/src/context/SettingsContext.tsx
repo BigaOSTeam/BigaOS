@@ -12,7 +12,7 @@ export type DistanceUnit = 'nm' | 'km' | 'mi';
 export type WeightUnit = 'kg' | 'lbs';
 export type TemperatureUnit = '°C' | '°F';
 export type TimeFormat = '12h' | '24h';
-export type DateFormat = 'DD/MM/YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
+export type DateFormat = 'DD/MM/YYYY' | 'DD.MM.YYYY' | 'MM/DD/YYYY' | 'YYYY-MM-DD';
 
 export interface MapTileUrls {
   streetMap: string;
@@ -420,7 +420,7 @@ const defaultSettings = {
   weightUnit: 'kg' as WeightUnit,
   temperatureUnit: '°C' as TemperatureUnit,
   timeFormat: '24h' as TimeFormat,
-  dateFormat: 'DD/MM/YYYY' as DateFormat,
+  dateFormat: 'DD.MM.YYYY' as DateFormat,
   depthAlarm: null as number | null,
   soundAlarmEnabled: false,
   language: DEFAULT_LANGUAGE as LanguageCode,
