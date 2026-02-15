@@ -92,7 +92,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
-        overflowY: 'auto',
+        overflow: 'hidden auto',
       }}
     >
       {/* Settings button (chart-only mode) or Home button */}
