@@ -39,7 +39,6 @@ export interface PluginManifest {
   homepage?: string;                  // URL to documentation
   repository?: string;                // URL to source code
   flag?: PluginFlag;                  // Official or community
-  builtin?: boolean;                  // Cannot be uninstalled if true
   minBigaOSVersion?: string;          // Minimum compatible BigaOS version
 
   // Driver-specific

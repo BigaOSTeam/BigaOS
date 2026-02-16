@@ -5,7 +5,7 @@
     {
       "id": "bigaos-demo-driver",
       "name": "Demo Driver",
-      "description": "Built-in demo data source for testing and development. Generates realistic sensor data without hardware.",
+      "description": "Demo data source for testing and development. Generates realistic sensor data without hardware.",
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",

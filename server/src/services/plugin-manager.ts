@@ -111,7 +111,7 @@ export class PluginManager extends EventEmitter {
         const manifestJson = fs.readFileSync(manifestPath, 'utf-8');
         const manifest: PluginManifest = JSON.parse(manifestJson);
 
-        const defaultEnabled = manifest.builtin === true;
+        const defaultEnabled = false;
 
         // Restore persisted setup message (e.g. "Reboot required")
         // Clear it if the system has been rebooted since the message was written
@@ -468,12 +468,6 @@ export class PluginManager extends EventEmitter {
     const plugin = this.plugins.get(pluginId);
     if (!plugin) return false;
 
-    // Cannot uninstall built-in plugins
-    if (plugin.manifest.builtin) {
-      console.warn(`[PluginManager] Cannot uninstall built-in plugin: ${pluginId}`);
-      return false;
-    }
-
     // Deactivate if running
     if (plugin.module) {
       await this.deactivatePlugin(pluginId);
@@ -582,6 +576,13 @@ export class PluginManager extends EventEmitter {
       setupMessage: plugin.setupMessage,
       i18n: plugin.i18n,
     };
+  }
+
+  /**
+   * Get the loaded module for a plugin (if activated).
+   */
+  getPluginModule(pluginId: string): BigaOSPlugin | null {
+    return this.plugins.get(pluginId)?.module ?? null;
   }
 
   /**

@@ -83,10 +83,9 @@ data/
 *.sqlite
 *.sqlite3
 
-# Runtime plugins (installed from marketplace, not source-controlled)
+# Runtime plugins (extracted at install, not source-controlled)
 # Plugin sources live in plugin-sources/ (git-tracked)
-# Only builtin plugins (bigaos-demo-driver) stay in plugins/
-plugins/bigaos-macarthur-hat/
+plugins/*/
 
 # Optional: If you want to ignore package-lock files (uncomment if needed)
 # package-lock.json

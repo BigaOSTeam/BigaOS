@@ -24,7 +24,6 @@ export interface PluginManifestInfo {
   type: 'driver' | 'ui-extension' | 'service' | 'integration';
   main: string;
   flag?: 'official' | 'community';
-  builtin?: boolean;
   capabilities: string[];
   driver?: {
     protocol: string;
@@ -173,6 +172,7 @@ const PluginContext = createContext<PluginContextType | null>(null);
 
 export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
+  const [pluginsSynced, setPluginsSynced] = useState(false);
   const [registryPlugins, setRegistryPlugins] = useState<RegistryPlugin[]>([]);
   const [registryLoading, setRegistryLoading] = useState(false);
   const [installingPlugins, setInstallingPlugins] = useState<Set<string>>(new Set());
@@ -196,6 +196,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
     const handlePluginSync = (data: { plugins: PluginInfo[] }) => {
       setPlugins(data.plugins);
+      setPluginsSynced(true);
       clearInstallingPlugins(data.plugins);
     };
 
@@ -354,12 +355,13 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
   // Persist chart-only state to localStorage so it's available before server connects
   useEffect(() => {
-    if (plugins.length > 0) {
+    if (pluginsSynced) {
       localStorage.setItem('bigaos-chart-only', isChartOnlyLive ? '1' : '0');
     }
-  }, [isChartOnlyLive, plugins.length]);
+  }, [isChartOnlyLive, pluginsSynced]);
 
-  const isChartOnly = isChartOnlyLive || (plugins.length === 0 && localStorage.getItem('bigaos-chart-only') === '1');
+  // Use localStorage only before first server sync; after sync, trust the server
+  const isChartOnly = pluginsSynced ? isChartOnlyLive : localStorage.getItem('bigaos-chart-only') === '1';
 
   const value: PluginContextType = {
     plugins,

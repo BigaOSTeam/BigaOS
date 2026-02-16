@@ -7,6 +7,5 @@
   "type": "service",
   "main": "index.js",
   "flag": "official",
-  "builtin": true,
   "capabilities": []
 }

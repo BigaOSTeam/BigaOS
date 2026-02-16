@@ -7,7 +7,6 @@
   "type": "driver",
   "main": "index.js",
   "flag": "official",
-  "builtin": false,
   "capabilities": ["sensor-data", "settings", "alerts", "network"],
   "driver": {
     "protocol": "nmea2000",
