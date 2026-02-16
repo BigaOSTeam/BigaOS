@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../../context/ThemeContext';
 
 interface BatteryStatusProps {
   voltage: number;
@@ -7,6 +8,7 @@ interface BatteryStatusProps {
 }
 
 export const BatteryStatus: React.FC<BatteryStatusProps> = ({ voltage, current, stateOfCharge }) => {
+  const { theme } = useTheme();
   const getVoltageColor = (v: number) => {
     if (v >= 12.4) return '#66bb6a';
     if (v >= 11.8) return '#ffa726';
@@ -35,7 +37,7 @@ export const BatteryStatus: React.FC<BatteryStatusProps> = ({ voltage, current, 
           <span>State of Charge</span>
           <span>{stateOfCharge.toFixed(0)}%</span>
         </div>
-        <div style={{ height: '8px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px', overflow: 'hidden' }}>
+        <div style={{ height: '8px', background: theme.colors.bgCardActive, borderRadius: '4px', overflow: 'hidden' }}>
           <div style={{
             height: '100%',
             width: `${stateOfCharge}%`,

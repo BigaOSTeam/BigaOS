@@ -20,7 +20,7 @@ import {
   ChartMiniItem,
   WeatherForecastItem,
 } from './items';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 const LAYOUT_STORAGE_KEY = 'bigaos-dashboard-layout';
@@ -58,6 +58,7 @@ const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
 
   const getItemTypeLabel = (type: DashboardItemType): string => {
@@ -643,7 +644,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                   height="28"
                   viewBox="0 0 24 24"
                   fill="none"
-                  stroke="rgba(255, 255, 255, 0.9)"
+                  stroke={theme.colors.textPrimary}
                   strokeWidth="2"
                   strokeLinecap="round"
                   strokeLinejoin="round"
@@ -691,7 +692,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 height="28"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="rgba(255, 255, 255, 0.9)"
+                stroke={theme.colors.textPrimary}
                 strokeWidth="2"
                 strokeLinecap="round"
                 strokeLinejoin="round"
@@ -1084,7 +1085,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 justifyContent: 'center',
               }}
             >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.9)" strokeWidth="2.5">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textPrimary} strokeWidth="2.5">
                 <line x1="12" y1="5" x2="12" y2="19" />
                 <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
@@ -1115,7 +1116,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 justifyContent: 'center',
               }}
             >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="rgba(255, 255, 255, 0.9)" strokeWidth="2.5">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textPrimary} strokeWidth="2.5">
                 <polyline points="20 6 9 17 4 12" />
               </svg>
             </div>

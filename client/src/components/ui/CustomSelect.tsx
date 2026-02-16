@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface SelectOption<T> {
   value: T;
@@ -22,6 +22,7 @@ export function CustomSelect<T extends string | number>({
   placeholder = 'Select...',
   compact = false,
 }: CustomSelectProps<T>) {
+  const { theme } = useTheme();
   const [isOpen, setIsOpen] = useState(false);
   const [dropdownPos, setDropdownPos] = useState<{ top: number; left: number; width: number } | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -70,6 +71,7 @@ export function CustomSelect<T extends string | number>({
     <div ref={containerRef} style={{ position: 'relative', height: '100%' }}>
       <button
         type="button"
+        className="s-input"
         onClick={() => setIsOpen(!isOpen)}
         style={{
           width: '100%',
@@ -77,8 +79,8 @@ export function CustomSelect<T extends string | number>({
           padding: compact ? `${theme.space.xs} ${theme.space.sm}` : '0.5rem 0.75rem',
           minHeight: compact ? '36px' : '42px',
           boxSizing: 'border-box',
-          background: 'rgba(255, 255, 255, 0.08)',
-          border: `1px solid ${isOpen ? theme.colors.primary : 'rgba(255, 255, 255, 0.1)'}`,
+          background: theme.colors.bgCard,
+          border: `1px solid ${isOpen ? theme.colors.primary : theme.colors.border}`,
           borderRadius: compact ? theme.radius.sm : theme.radius.md,
           color: selectedOption ? theme.colors.textPrimary : theme.colors.textMuted,
           fontSize: compact ? theme.fontSize.sm : theme.fontSize.md,

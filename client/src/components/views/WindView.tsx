@@ -1,6 +1,7 @@
 import React from 'react';
 import { SensorData } from '../../types';
 import { useSettings, windConversions } from '../../context/SettingsContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg } from '../../utils/angle';
 
@@ -12,6 +13,7 @@ interface WindViewProps {
 export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
   const { wind } = sensorData.environment;
   const { windUnit, convertWind } = useSettings();
+  const { theme } = useTheme();
   const { t } = useLanguage();
 
   const getWindSector = (angle: number): string => {
@@ -60,8 +62,8 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
     <div style={{
       width: '100vw',
       height: '100dvh',
-      background: '#0a1929',
-      color: '#e0e0e0',
+      background: theme.colors.bgPrimary,
+      color: theme.colors.textPrimary,
       display: 'flex',
       flexDirection: 'column',
     }}>
@@ -70,14 +72,14 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         padding: '1rem',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}>
         <button
           onClick={onClose}
           style={{
-            background: 'rgba(255, 255, 255, 0.1)',
+            background: theme.colors.bgCardActive,
             border: 'none',
-            color: '#e0e0e0',
+            color: theme.colors.textPrimary,
             padding: '0.5rem 1rem',
             borderRadius: '8px',
             cursor: 'pointer',
@@ -117,7 +119,7 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
             style={{ position: 'absolute', top: 0, left: 0 }}
           >
             {/* Background circle */}
-            <circle cx="175" cy="175" r="170" fill="rgba(255, 255, 255, 0.03)" stroke="rgba(255, 255, 255, 0.1)" strokeWidth="2" />
+            <circle cx="175" cy="175" r="170" fill={theme.colors.bgCard} stroke={theme.colors.border} strokeWidth="2" />
 
             {/* Degree marks */}
             {Array.from({ length: 72 }).map((_, i) => {
@@ -132,7 +134,7 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
                   y1={175 + innerR * Math.sin(angle)}
                   x2={175 + outerR * Math.cos(angle)}
                   y2={175 + outerR * Math.sin(angle)}
-                  stroke={isMajor ? 'rgba(255, 255, 255, 0.6)' : 'rgba(255, 255, 255, 0.2)'}
+                  stroke={isMajor ? theme.colors.textSecondary : theme.colors.borderHover}
                   strokeWidth={isMajor ? 2 : 1}
                 />
               );
@@ -163,7 +165,7 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
                   y={y}
                   textAnchor="middle"
                   dominantBaseline="middle"
-                  fill="rgba(255, 255, 255, 0.6)"
+                  fill={theme.colors.textSecondary}
                   fontSize="14"
                 >
                   {label}
@@ -174,8 +176,8 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
             {/* Boat shape in center */}
             <path
               d="M175 140 L165 180 L175 175 L185 180 Z"
-              fill="rgba(255, 255, 255, 0.3)"
-              stroke="rgba(255, 255, 255, 0.6)"
+              fill={theme.colors.textDisabled}
+              stroke={theme.colors.textSecondary}
               strokeWidth="1"
             />
 
@@ -275,7 +277,7 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
         {/* Beaufort Scale */}
         <div style={{
           marginTop: '2rem',
-          background: 'rgba(255, 255, 255, 0.05)',
+          background: theme.colors.bgCard,
           borderRadius: '12px',
           padding: '1rem 2rem',
           textAlign: 'center',

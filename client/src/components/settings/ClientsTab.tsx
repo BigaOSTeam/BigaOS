@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useClient } from '../../context/ClientContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
@@ -18,6 +18,7 @@ interface RawClient {
 }
 
 export const ClientsTab: React.FC = () => {
+  const { theme } = useTheme();
   const { clientId } = useClient();
   const { t } = useLanguage();
   const { confirm } = useConfirmDialog();

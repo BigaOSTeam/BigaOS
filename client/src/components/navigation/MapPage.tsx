@@ -4,6 +4,7 @@ import { SensorData, GeoPosition } from '../../types';
 import { wsService } from '../../services/websocket';
 import { sensorAPI, navigationAPI } from '../../services/api';
 import { usePlugins } from '../../context/PluginContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { degToRad, TWO_PI } from '../../utils/angle';
 
@@ -13,6 +14,7 @@ interface MapPageProps {
 }
 
 export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const { isDemoActive: demoMode } = usePlugins();
@@ -216,7 +218,7 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        background: '#0a1929'
+        background: theme.colors.bgPrimary
       }}>
         <div style={{ fontSize: '1.5rem' }}>{t('chart.loading_map')}</div>
       </div>
@@ -236,7 +238,7 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
   const speed = demoMode ? dummySpeed : sensorData.navigation.speedOverGround;
 
   return (
-    <div style={{ width: '100%', height: '100dvh', position: 'relative', background: '#0a1929' }}>
+    <div style={{ width: '100%', height: '100dvh', position: 'relative', background: theme.colors.bgPrimary }}>
       {/* Full screen map */}
       <ChartView
         position={position}

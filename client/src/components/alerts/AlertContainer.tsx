@@ -1,11 +1,12 @@
 import React, { useEffect, useRef } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useAlerts, Notification } from '../../context/AlertContext';
 import { AlertBanner } from './AlertBanner';
 import { startRepeatingAlarm, ALERT_SOUNDS } from '../../utils/audio';
 import { useSettings } from '../../context/SettingsContext';
 
 export const AlertContainer: React.FC = () => {
+  const { theme } = useTheme();
   const { alertSettings } = useSettings();
   const { notifications, dismissAlert, snoozeAlert, clearNotification } = useAlerts();
   // Track repeating alarms for critical alerts

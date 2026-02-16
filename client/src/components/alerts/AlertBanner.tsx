@@ -1,5 +1,5 @@
 import React from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { TriggeredAlert, AlertSeverity } from '../../types/alerts';
 
 interface AlertBannerProps {
@@ -13,6 +13,7 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
   severity,
   onDismiss,
 }) => {
+  const { theme } = useTheme();
   const isCritical = severity === 'critical';
 
   // Background colors with transparency
@@ -70,7 +71,7 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
       {/* Dismiss hint */}
       <div
         style={{
-          color: 'rgba(255, 255, 255, 0.7)',
+          color: theme.colors.textSecondary,
           fontSize: '0.8rem',
           flexShrink: 0,
           display: 'flex',

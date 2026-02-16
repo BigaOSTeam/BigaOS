@@ -18,6 +18,7 @@ import { AlertProvider, useAlerts } from './context/AlertContext';
 import { PluginProvider, usePlugins } from './context/PluginContext';
 import { AlertContainer } from './components/alerts';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { useClient } from './context/ClientContext';
 import { wsService } from './services/websocket';
 import { sensorAPI } from './services/api';
@@ -29,6 +30,7 @@ function SystemUpdatingOverlay({ updating, rebooting, shuttingDown }: {
   updating: boolean; rebooting: boolean; shuttingDown: boolean;
 }) {
   const { t } = useLanguage();
+  const { theme } = useTheme();
   if (!updating && !rebooting && !shuttingDown) return null;
   const title = shuttingDown
     ? t('shutdown.overlay_title')
@@ -43,7 +45,7 @@ function SystemUpdatingOverlay({ updating, rebooting, shuttingDown }: {
       left: 0,
       right: 0,
       bottom: 0,
-      background: 'rgba(10, 25, 41, 0.97)',
+      background: theme.colors.bgOverlayHeavy,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -54,21 +56,21 @@ function SystemUpdatingOverlay({ updating, rebooting, shuttingDown }: {
       <div style={{
         width: '48px',
         height: '48px',
-        border: '3px solid rgba(255,255,255,0.1)',
-        borderTopColor: '#4fc3f7',
+        border: `3px solid ${theme.colors.border}`,
+        borderTopColor: theme.colors.info,
         borderRadius: '50%',
         animation: 'spin 1s linear infinite',
       }} />
       <div style={{
         fontSize: '1.5rem',
         fontWeight: 600,
-        color: '#e0e0e0',
+        color: theme.colors.textPrimary,
       }}>
         {title}
       </div>
       <div style={{
         fontSize: '0.9rem',
-        color: '#888',
+        color: theme.colors.textMuted,
         textAlign: 'center',
         maxWidth: '300px',
       }}>
@@ -80,6 +82,7 @@ function SystemUpdatingOverlay({ updating, rebooting, shuttingDown }: {
 
 // Inner app component that uses settings context
 function AppContent() {
+  const { theme } = useTheme();
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [serverReachable, setServerReachable] = useState(true);
@@ -257,8 +260,8 @@ function AppContent() {
         justifyContent: 'center',
         alignItems: 'center',
         height: '100dvh',
-        background: '#0a1929',
-        color: '#e0e0e0',
+        background: theme.colors.bgPrimary,
+        color: theme.colors.textPrimary,
       }}>
         <div style={{ fontSize: '1.5rem' }}>{t('common.loading')}</div>
       </div>
@@ -512,8 +515,8 @@ function AppContent() {
     <div style={{
       width: '100vw',
       height: '100dvh',
-      background: '#0a1929',
-      color: '#e0e0e0',
+      background: theme.colors.bgPrimary,
+      color: theme.colors.textPrimary,
       overflow: 'hidden',
     }}>
       <Dashboard sensorData={sensorData} onNavigate={handleNavigate} />
@@ -556,6 +559,7 @@ function App() {
     <NavigationProvider>
       <LanguageProvider>
         <SettingsProvider>
+          <ThemeProvider>
           <LanguageSyncBridge />
           <PluginProvider>
             <PluginI18nBridge />
@@ -566,6 +570,7 @@ function App() {
               </ConfirmDialogProvider>
             </AlertProvider>
           </PluginProvider>
+          </ThemeProvider>
         </SettingsProvider>
       </LanguageProvider>
     </NavigationProvider>

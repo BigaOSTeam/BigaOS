@@ -7,6 +7,7 @@ import {
   DepthUnit,
   SidebarPosition,
 } from '../../../context/SettingsContext';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp';
@@ -75,8 +76,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   sidebarPosition = 'left',
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
   const sidebarWidth = sidebarWidthProp ?? 100;
-  const separator = '1px solid rgba(255, 255, 255, 0.1)';
+  const separator = `1px solid ${theme.colors.border}`;
   const isCompact = window.innerHeight <= 500;
 
   return (
@@ -88,7 +90,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         width: `${sidebarWidth}px`,
         height: '100%',
         [`border${sidebarPosition === 'left' ? 'Right' : 'Left'}`]: separator,
-        background: 'rgb(10, 25, 41)',
+        background: theme.colors.bgPrimary,
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',
@@ -151,7 +153,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           padding: '0.5rem 0.5rem',
           borderBottom: separator,
           cursor: 'pointer',
-          background: autopilotOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+          background: autopilotOpen ? theme.colors.bgCardActive : 'transparent',
           transition: 'background 0.2s',
         }}
       >
@@ -188,7 +190,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               padding: '0.3rem 0.25rem',
               textAlign: 'center',
               cursor: 'pointer',
-              background: depthSettingsOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+              background: depthSettingsOpen ? theme.colors.bgCardActive : 'transparent',
             }}
           >
             <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: depthColor }}>
@@ -228,7 +230,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               textAlign: 'center',
               borderBottom: separator,
               cursor: 'pointer',
-              background: depthSettingsOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+              background: depthSettingsOpen ? theme.colors.bgCardActive : 'transparent',
               transition: 'background 0.2s',
             }}
           >
@@ -280,7 +282,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               style={{
                 flex: 1,
                 borderTop: separator,
-                background: weatherPanelOpen ? 'rgba(255, 255, 255, 0.1)' : 'transparent',
+                background: weatherPanelOpen ? theme.colors.bgCardActive : 'transparent',
               }}
               title={t('weather.marine_forecast')}
             >

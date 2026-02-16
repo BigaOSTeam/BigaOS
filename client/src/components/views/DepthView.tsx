@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSettings, depthConversions } from '../../context/SettingsContext';
+import { useTheme } from '../../context/ThemeContext';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -28,6 +29,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
     isDepthAlarmTriggered,
     convertDepth,
   } = useSettings();
+  const { theme } = useTheme();
   const { t } = useLanguage();
 
   const [timeframe, setTimeframe] = useState<TimeframeOption>('15m');
@@ -95,7 +97,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#0a1929',
+      background: theme.colors.bgPrimary,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -105,14 +107,14 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
         display: 'flex',
         alignItems: 'center',
         padding: '1rem',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}>
         <button
           onClick={onClose}
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             padding: '0.5rem',
             marginRight: '1rem',
@@ -183,10 +185,10 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
                 onClick={() => setTimeframe(tf)}
                 style={{
                   padding: '0.25rem 0.5rem',
-                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
                   border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
                   borderRadius: '4px',
-                  color: '#fff',
+                  color: theme.colors.textPrimary,
                   cursor: 'pointer',
                   fontSize: '0.7rem',
                   fontWeight: timeframe === tf ? 'bold' : 'normal',
@@ -199,7 +201,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
         </div>
         <div style={{
           flex: 1,
-          background: 'rgba(255,255,255,0.03)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           overflow: 'hidden',
           position: 'relative',
@@ -232,7 +234,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
       <div style={{
         flex: '0 0 auto',
         padding: '1rem',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderTop: `1px solid ${theme.colors.border}`,
       }}>
         <div style={{
           display: 'flex',
@@ -279,10 +281,10 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
                 flex: '1 1 auto',
                 minWidth: '60px',
                 padding: '1rem 0.5rem',
-                background: depthAlarm === alarmDepth ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                background: depthAlarm === alarmDepth ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
                 border: depthAlarm === alarmDepth ? '2px solid rgba(25, 118, 210, 0.8)' : '2px solid transparent',
                 borderRadius: '8px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 fontSize: '1rem',
                 fontWeight: depthAlarm === alarmDepth ? 'bold' : 'normal',
@@ -300,7 +302,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
           justifyContent: 'space-between',
           marginTop: '1rem',
           padding: '1rem',
-          background: 'rgba(255,255,255,0.05)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -321,7 +323,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
               width: '50px',
               height: '28px',
               borderRadius: '14px',
-              background: soundAlarmEnabled ? 'rgba(25, 118, 210, 0.8)' : 'rgba(255,255,255,0.2)',
+              background: soundAlarmEnabled ? 'rgba(25, 118, 210, 0.8)' : theme.colors.borderHover,
               border: 'none',
               cursor: 'pointer',
               position: 'relative',

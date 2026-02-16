@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface BatteryViewProps {
@@ -29,6 +30,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
   batteryId = 'house',
   onClose,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [voltageHistory, setVoltageHistory] = useState<TimeSeriesDataPoint[]>([]);
   const [chargeHistory, setChargeHistory] = useState<TimeSeriesDataPoint[]>([]);
@@ -97,9 +99,9 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     return (
       <svg width="120" height="60" viewBox="0 0 120 60">
         {/* Battery outline */}
-        <rect x="5" y="10" width="100" height="40" rx="4" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="3" />
+        <rect x="5" y="10" width="100" height="40" rx="4" fill="none" stroke={theme.colors.textDisabled} strokeWidth="3" />
         {/* Battery terminal */}
-        <rect x="105" y="20" width="10" height="20" rx="2" fill="rgba(255,255,255,0.3)" />
+        <rect x="105" y="20" width="10" height="20" rx="2" fill={theme.colors.textDisabled} />
         {/* Battery fill */}
         <rect x="9" y="14" width={fillWidth * 0.92} height="32" rx="2" fill={color} />
         {/* Percentage text */}
@@ -114,7 +116,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#0a1929',
+      background: theme.colors.bgPrimary,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -124,14 +126,14 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         display: 'flex',
         alignItems: 'center',
         padding: '1rem',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}>
         <button
           onClick={onClose}
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             padding: '0.5rem',
             marginRight: '1rem',
@@ -173,7 +175,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         padding: '0 1rem 1rem',
       }}>
         <div style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           padding: '0.75rem',
           textAlign: 'center',
@@ -187,7 +189,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         </div>
 
         <div style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           padding: '0.75rem',
           textAlign: 'center',
@@ -201,7 +203,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         </div>
 
         <div style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           padding: '0.75rem',
           textAlign: 'center',
@@ -215,7 +217,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         </div>
 
         <div style={{
-          background: 'rgba(255,255,255,0.05)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           padding: '0.75rem',
           textAlign: 'center',
@@ -242,10 +244,10 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
             onClick={() => setTimeframe(tf)}
             style={{
               padding: '0.25rem 0.5rem',
-              background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+              background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
               border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
               borderRadius: '4px',
-              color: '#fff',
+              color: theme.colors.textPrimary,
               cursor: 'pointer',
               fontSize: '0.7rem',
               fontWeight: timeframe === tf ? 'bold' : 'normal',
@@ -277,7 +279,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           </div>
           <div style={{
             flex: 1,
-            background: 'rgba(255,255,255,0.03)',
+            background: theme.colors.bgCard,
             borderRadius: '8px',
             overflow: 'hidden',
             position: 'relative',
@@ -318,7 +320,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           </div>
           <div style={{
             flex: 1,
-            background: 'rgba(255,255,255,0.03)',
+            background: theme.colors.bgCard,
             borderRadius: '8px',
             overflow: 'hidden',
             position: 'relative',

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { SButton, SInput, SCard } from '../ui/SettingsUI';
 import { API_BASE_URL } from '../../utils/urls';
 
@@ -29,6 +29,7 @@ const SUGGESTED_NAMES_REMOTE = [
 ];
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
+  const { theme } = useTheme();
   const isRemote = new URLSearchParams(window.location.search).has('remote');
   const [step, setStep] = useState<WizardStep>('welcome');
   const [clientName, setClientName] = useState('');
@@ -157,6 +158,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 
         <button
           onClick={handleShowExisting}
+          className="s-btn"
           style={{
             display: 'block',
             width: '100%',
@@ -215,6 +217,7 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
             <button
               key={name}
               onClick={() => setClientName(name)}
+              className="s-option-btn"
               style={{
                 background: clientName === name ? theme.colors.primaryLight : theme.colors.bgCard,
                 border: `1px solid ${clientName === name ? theme.colors.primary : theme.colors.border}`,
@@ -384,42 +387,48 @@ export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
 };
 
 // Wrapper container
-const WizardContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => (
-  <div style={{
-    width: '100vw',
-    height: '100dvh',
-    background: theme.colors.bgPrimary,
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: theme.space.xl,
-  }}>
+const WizardContainer: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { theme } = useTheme();
+  return (
     <div style={{
-      width: '100%',
-      maxWidth: '420px',
+      width: '100vw',
+      height: '100dvh',
+      background: theme.colors.bgPrimary,
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: theme.space.xl,
     }}>
-      {children}
+      <div style={{
+        width: '100%',
+        maxWidth: '420px',
+      }}>
+        {children}
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // Small info item for welcome screen
-const InfoItem: React.FC<{ icon: string; text: string }> = ({ text }) => (
-  <div style={{
-    display: 'flex',
-    alignItems: 'center',
-    gap: theme.space.md,
-    padding: `${theme.space.sm} 0`,
-    color: theme.colors.textSecondary,
-    fontSize: theme.fontSize.md,
-  }}>
+const InfoItem: React.FC<{ icon: string; text: string }> = ({ text }) => {
+  const { theme } = useTheme();
+  return (
     <div style={{
-      width: '6px',
-      height: '6px',
-      borderRadius: '50%',
-      background: theme.colors.primary,
-      flexShrink: 0,
-    }} />
-    {text}
-  </div>
-);
+      display: 'flex',
+      alignItems: 'center',
+      gap: theme.space.md,
+      padding: `${theme.space.sm} 0`,
+      color: theme.colors.textSecondary,
+      fontSize: theme.fontSize.md,
+    }}>
+      <div style={{
+        width: '6px',
+        height: '6px',
+        borderRadius: '50%',
+        background: theme.colors.primary,
+        flexShrink: 0,
+      }} />
+      {text}
+    </div>
+  );
+};

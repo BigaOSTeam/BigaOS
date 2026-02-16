@@ -4,6 +4,7 @@ import type { WeatherSettings, AlertSettings } from '../types';
 import { DEFAULT_ALERT_SETTINGS } from '../types/alerts';
 import type { LanguageCode } from '../i18n/languages';
 import { DEFAULT_LANGUAGE } from '../i18n/languages';
+import type { ThemeMode } from '../styles/themes';
 
 export type SpeedUnit = 'kt' | 'km/h' | 'mph' | 'm/s';
 export type WindUnit = 'kt' | 'km/h' | 'mph' | 'm/s' | 'bft';
@@ -375,6 +376,10 @@ interface SettingsContextType {
   sidebarPosition: SidebarPosition;
   setSidebarPosition: (position: SidebarPosition) => void;
 
+  // Theme
+  themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+
   // Sync status
   isSynced: boolean;
 }
@@ -430,6 +435,7 @@ const defaultSettings = {
   soundAlarmEnabled: false,
   language: DEFAULT_LANGUAGE as LanguageCode,
   sidebarPosition: 'left' as SidebarPosition,
+  themeMode: 'dark' as ThemeMode,
   vesselSettings: defaultVesselSettings,
   weatherSettings: defaultWeatherSettings,
   alertSettings: DEFAULT_ALERT_SETTINGS,
@@ -459,6 +465,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [soundAlarmEnabled, setSoundAlarmEnabledState] = useState<boolean>(defaultSettings.soundAlarmEnabled);
   const [language, setLanguageState] = useState<LanguageCode>(defaultSettings.language);
   const [sidebarPosition, setSidebarPositionState] = useState<SidebarPosition>(defaultSettings.sidebarPosition);
+  const [themeMode, setThemeModeState] = useState<ThemeMode>(defaultSettings.themeMode);
   const [mapTileUrls, setMapTileUrlsState] = useState<MapTileUrls>(defaultSettings.mapTileUrls);
   const [apiUrls, setApiUrlsState] = useState<ApiUrls>(defaultSettings.apiUrls);
   const [vesselSettings, setVesselSettingsState] = useState<VesselSettings>(defaultSettings.vesselSettings);
@@ -506,6 +513,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
       }
       if (data.settings.sidebarPosition) {
         setSidebarPositionState(data.settings.sidebarPosition);
+      }
+      if (data.settings.themeMode) {
+        setThemeModeState(data.settings.themeMode);
       }
       if (data.settings.mapTileUrls) {
         setMapTileUrlsState(data.settings.mapTileUrls);
@@ -567,6 +577,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           break;
         case 'sidebarPosition':
           setSidebarPositionState(data.value);
+          break;
+        case 'themeMode':
+          setThemeModeState(data.value);
           break;
         case 'mapTileUrls':
           setMapTileUrlsState(data.value);
@@ -729,6 +742,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     updateServerSetting('sidebarPosition', position);
   }, [updateServerSetting]);
 
+  const setThemeMode = useCallback((mode: ThemeMode) => {
+    setThemeModeState(mode);
+    updateServerSetting('themeMode', mode);
+  }, [updateServerSetting]);
+
   const setMapTileUrls = useCallback((urls: MapTileUrls) => {
     setMapTileUrlsState(urls);
     updateServerSetting('mapTileUrls', urls);
@@ -845,6 +863,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     setLanguage,
     sidebarPosition,
     setSidebarPosition,
+    themeMode,
+    setThemeMode,
     convertSpeed,
     convertWind,
     convertDepth,

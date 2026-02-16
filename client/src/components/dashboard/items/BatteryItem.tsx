@@ -1,5 +1,5 @@
 import React from 'react';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface BatteryItemProps {
@@ -8,6 +8,7 @@ interface BatteryItemProps {
 }
 
 export const BatteryItem: React.FC<BatteryItemProps> = ({ voltage, stateOfCharge }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const getBatteryColor = (soc: number): string => {
     if (soc < 20) return theme.colors.error;

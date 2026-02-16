@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { weatherAPI, WeatherForecastResponse } from '../../../services/api';
 import { useSettings } from '../../../context/SettingsContext';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { wsService } from '../../../services/websocket';
 import { getWindColor, formatWindDirection } from '../../../utils/weather.utils';
 import { radToDeg } from '../../../utils/angle';
@@ -16,6 +16,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
   latitude,
   longitude,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [forecast, setForecast] = useState<WeatherForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);

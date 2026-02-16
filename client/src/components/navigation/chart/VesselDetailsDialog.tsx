@@ -1,5 +1,6 @@
 import React from 'react';
 import { VesselSettings } from '../../../context/SettingsContext';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface VesselDetailsDialogProps {
@@ -13,6 +14,7 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
   onClose,
   onOpenSettings,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const hasIdentification = vesselSettings.registrationNumber || vesselSettings.callSign ||
     vesselSettings.mmsi || vesselSettings.homePort || vesselSettings.flag;
@@ -24,9 +26,9 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
         display: 'flex',
         justifyContent: 'space-between',
         padding: '0.5rem 0',
-        borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}>
-        <span style={{ color: 'rgba(255, 255, 255, 0.6)', fontSize: '0.85rem' }}>{label}</span>
+        <span style={{ color: theme.colors.textSecondary, fontSize: '0.85rem' }}>{label}</span>
         <span style={{ fontWeight: 'bold', fontSize: '0.9rem' }}>
           {value}{unit ? ` ${unit}` : ''}
         </span>
@@ -59,8 +61,8 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          background: 'rgba(10, 25, 41, 0.98)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          background: theme.colors.bgSecondary,
+          border: `1px solid ${theme.colors.borderDashed}`,
           borderRadius: '8px',
           padding: '1.25rem',
           zIndex: 1101,
@@ -86,7 +88,7 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: '6px',
-            color: 'rgba(255, 255, 255, 0.6)',
+            color: theme.colors.textSecondary,
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -116,12 +118,12 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
           <div style={{
             fontSize: '1.25rem',
             fontWeight: 'bold',
-            color: '#fff',
+            color: theme.colors.textPrimary,
           }}>
             {vesselSettings.name || t('chart.my_vessel')}
           </div>
           {vesselSettings.homePort && (
-            <div style={{ fontSize: '0.85rem', color: 'rgba(255, 255, 255, 0.5)', marginTop: '0.25rem' }}>
+            <div style={{ fontSize: '0.85rem', color: theme.colors.textMuted, marginTop: '0.25rem' }}>
               {vesselSettings.homePort}{vesselSettings.flag ? `, ${vesselSettings.flag}` : ''}
             </div>
           )}
@@ -132,7 +134,7 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
           <div style={{ marginBottom: '1rem' }}>
             <div style={{
               fontSize: '0.8rem',
-              color: 'rgba(255, 255, 255, 0.4)',
+              color: theme.colors.textMuted,
               textTransform: 'uppercase',
               letterSpacing: '0.1em',
               marginBottom: '0.5rem',
@@ -149,7 +151,7 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
         <div style={{ marginBottom: '1rem' }}>
           <div style={{
             fontSize: '0.8rem',
-            color: 'rgba(255, 255, 255, 0.4)',
+            color: theme.colors.textMuted,
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
             marginBottom: '0.5rem',
@@ -162,57 +164,57 @@ export const VesselDetailsDialog: React.FC<VesselDetailsDialogProps> = ({
             gap: '0.5rem',
           }}>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '6px',
               padding: '0.6rem',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>{t('chart.length')}</div>
+              <div style={{ fontSize: '0.75rem', color: theme.colors.textMuted }}>{t('chart.length')}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{vesselSettings.length}m</div>
             </div>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '6px',
               padding: '0.6rem',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>{t('chart.beam')}</div>
+              <div style={{ fontSize: '0.75rem', color: theme.colors.textMuted }}>{t('chart.beam')}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{vesselSettings.beam}m</div>
             </div>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '6px',
               padding: '0.6rem',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>{t('chart.draft')}</div>
+              <div style={{ fontSize: '0.75rem', color: theme.colors.textMuted }}>{t('chart.draft')}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{vesselSettings.draft}m</div>
             </div>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '6px',
               padding: '0.6rem',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>{t('chart.displacement')}</div>
+              <div style={{ fontSize: '0.75rem', color: theme.colors.textMuted }}>{t('chart.displacement')}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{vesselSettings.displacement}t</div>
             </div>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '6px',
               padding: '0.6rem',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>{t('chart.freeboard')}</div>
+              <div style={{ fontSize: '0.75rem', color: theme.colors.textMuted }}>{t('chart.freeboard')}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{vesselSettings.freeboardHeight}m</div>
             </div>
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '6px',
               padding: '0.6rem',
               textAlign: 'center',
             }}>
-              <div style={{ fontSize: '0.75rem', color: 'rgba(255, 255, 255, 0.5)' }}>{t('chart.wl_length')}</div>
+              <div style={{ fontSize: '0.75rem', color: theme.colors.textMuted }}>{t('chart.wl_length')}</div>
               <div style={{ fontSize: '1.1rem', fontWeight: 'bold' }}>{vesselSettings.waterlineLength}m</div>
             </div>
           </div>

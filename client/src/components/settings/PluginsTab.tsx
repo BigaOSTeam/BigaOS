@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { usePlugins, PluginInfo } from '../../context/PluginContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
@@ -17,20 +17,22 @@ import { SInput, SButton } from '../ui/SettingsUI';
 
 type SubTab = 'installed' | 'marketplace';
 
-// Type badge colors
-const TYPE_COLORS: Record<string, string> = {
-  driver: theme.colors.primary,
-  'ui-extension': '#8b5cf6',
-  service: '#06b6d4',
-  integration: '#f59e0b',
-};
-
-const FLAG_COLORS: Record<string, string> = {
-  official: '#22c55e',
-  community: '#6366f1',
-};
-
 export const PluginsTab: React.FC = () => {
+  const { theme } = useTheme();
+
+  // Type badge colors
+  const TYPE_COLORS: Record<string, string> = {
+    driver: theme.colors.primary,
+    'ui-extension': '#8b5cf6',
+    service: '#06b6d4',
+    integration: '#f59e0b',
+  };
+
+  const FLAG_COLORS: Record<string, string> = {
+    official: '#22c55e',
+    community: '#6366f1',
+  };
+
   const { t } = useLanguage();
   const { confirm } = useConfirmDialog();
   const {

@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { GeoPosition } from '../../../types';
+import { useTheme } from '../../../context/ThemeContext';
 import { radToDeg } from '../../../utils/angle';
 
 interface MapControllerProps {
@@ -298,6 +299,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
   onClose,
   sidebarWidth = 0,
 }) => {
+  const { theme } = useTheme();
   const menuWidth = 220;
   const itemHeight = 48;
   const headerHeight = header ? 36 : 0;
@@ -349,7 +351,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
           left: menuX,
           top: adjustedMenuY,
           width: menuWidth,
-          filter: 'drop-shadow(0 0 1px rgba(255, 255, 255, 0.15)) drop-shadow(0 4px 20px rgba(0,0,0,0.5))',
+          filter: `drop-shadow(0 0 1px ${theme.colors.borderDashed}) drop-shadow(0 4px 20px rgba(0,0,0,0.5))`,
           zIndex: 1101,
           pointerEvents: 'none',
         }}
@@ -365,8 +367,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             borderLeft: `${arrowSize}px solid transparent`,
             borderRight: `${arrowSize}px solid transparent`,
             ...(showAbove
-              ? { borderTop: `${arrowSize}px solid rgba(10, 25, 41, 0.98)` }
-              : { borderBottom: `${arrowSize}px solid rgba(10, 25, 41, 0.98)` }),
+              ? { borderTop: `${arrowSize}px solid ${theme.colors.bgSecondary}` }
+              : { borderBottom: `${arrowSize}px solid ${theme.colors.bgSecondary}` }),
           }}
         />
         {/* Menu body */}
@@ -376,7 +378,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             left: 0,
             top: showAbove ? 0 : arrowSize,
             width: menuWidth,
-            background: 'rgba(10, 25, 41, 0.98)',
+            background: theme.colors.bgSecondary,
             borderRadius: '8px',
             overflow: 'hidden',
             pointerEvents: 'auto',
@@ -387,7 +389,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
             <div
               style={{
                 padding: '10px 16px',
-                borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+                borderBottom: `1px solid ${theme.colors.border}`,
                 fontSize: '0.8rem',
                 opacity: 0.6,
                 overflow: 'hidden',
@@ -409,8 +411,8 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
                 padding: '14px 16px',
                 background: 'transparent',
                 border: 'none',
-                borderBottom: index < options.length - 1 ? '1px solid rgba(255, 255, 255, 0.1)' : 'none',
-                color: '#fff',
+                borderBottom: index < options.length - 1 ? `1px solid ${theme.colors.border}` : 'none',
+                color: theme.colors.textPrimary,
                 fontSize: '0.95rem',
                 cursor: 'pointer',
                 display: 'flex',
@@ -440,6 +442,7 @@ interface CompassProps {
  * heading and bearingToTarget arrive in radians; convert to degrees for display
  */
 export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingToTarget: bearingToTargetRad }) => {
+  const { theme } = useTheme();
   // Convert radians to degrees for compass display logic
   const heading = radToDeg(headingRad);
   const bearingToTarget = bearingToTargetRad != null ? radToDeg(bearingToTargetRad) : bearingToTargetRad;
@@ -527,8 +530,8 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
                   width: isCardinal ? '2px' : '1px',
                   height: isCardinal ? '8px' : isIntercardinal ? '6px' : '4px',
                   background: isCardinal
-                    ? 'rgba(255,255,255,0.8)'
-                    : 'rgba(255,255,255,0.4)',
+                    ? theme.colors.textPrimary
+                    : theme.colors.textMuted,
                   transition: 'left 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)',
                 }}
               />
@@ -553,7 +556,7 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
                   transform: 'translateX(-50%)',
                   fontSize: '0.6rem',
                   fontWeight: isNorth ? 'bold' : 'normal',
-                  color: isNorth ? '#ef5350' : 'rgba(255,255,255,0.7)',
+                  color: isNorth ? '#ef5350' : theme.colors.textSecondary,
                   transition: 'left 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)',
                   whiteSpace: 'nowrap',
                 }}

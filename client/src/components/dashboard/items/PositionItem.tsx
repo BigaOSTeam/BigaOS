@@ -1,6 +1,6 @@
 import React from 'react';
 import { GeoPosition } from '../../../types';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface PositionItemProps {
@@ -8,6 +8,7 @@ interface PositionItemProps {
 }
 
 export const PositionItem: React.FC<PositionItemProps> = ({ position }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const formatCoord = (value: number, isLat: boolean): string => {
     const dir = isLat ? (value >= 0 ? 'N' : 'S') : (value >= 0 ? 'E' : 'W');

@@ -1,10 +1,11 @@
 import React from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useSettings, SidebarPosition } from '../../context/SettingsContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { SLabel, SOptionGroup } from '../ui/SettingsUI';
 
-export const DisplayTab: React.FC = () => {
+export const ChartTab: React.FC = () => {
+  const { theme } = useTheme();
   const { sidebarPosition, setSidebarPosition } = useSettings();
   const { t } = useLanguage();
 

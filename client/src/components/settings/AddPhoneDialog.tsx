@@ -1,6 +1,6 @@
 import React from 'react';
 import { QRCodeSVG } from 'qrcode.react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { SButton } from '../ui/SettingsUI';
 
@@ -9,6 +9,7 @@ interface AddPhoneDialogProps {
 }
 
 export const AddPhoneDialog: React.FC<AddPhoneDialogProps> = ({ onClose }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const url = `${window.location.origin}?remote=1`;
 

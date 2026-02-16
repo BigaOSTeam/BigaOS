@@ -116,6 +116,7 @@ html, body {
   -moz-osx-font-smoothing: grayscale;
   background: var(--color-bg-primary);
   color: var(--color-text-primary);
+  transition: background 0.25s ease, color 0.25s ease;
   overflow: hidden;
   width: 100%;
   height: 100vh;
@@ -264,7 +265,7 @@ html, body {
 }
 
 .leaflet-control-zoom a:active {
-  background-color: rgba(25, 118, 210, 0.7) !important;
+  background-color: var(--color-primary-medium) !important;
 }
 
 .leaflet-control-zoom a:focus {
@@ -276,7 +277,7 @@ html, body {
 .leaflet-control-zoom a.leaflet-disabled,
 .leaflet-control-zoom a.leaflet-disabled:hover,
 .leaflet-control-zoom a.leaflet-disabled:active {
-  background-color: rgba(10, 25, 41, 0.5) !important;
+  background-color: var(--color-bg-tertiary) !important;
   color: var(--color-text-disabled) !important;
   cursor: default !important;
 }
@@ -476,18 +477,18 @@ html, body {
 }
 
 .chart-search-results::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--color-border-hover);
   border-radius: 2px;
 }
 
 .chart-search-results::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--color-border-focus);
 }
 
 /* Firefox scrollbar */
 .chart-search-results {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--color-border-hover) transparent;
 }
 
 /* ========================================
@@ -503,7 +504,7 @@ html, body {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--color-text-primary);
   transition: background 0.2s;
 }
 
@@ -513,17 +514,17 @@ html, body {
 }
 
 .chart-sidebar-btn.active {
-  background: rgba(25, 118, 210, 0.3);
+  background: var(--color-primary-light);
 }
 
 .chart-sidebar-btn:active {
-  background: rgba(255, 255, 255, 0.15);
+  background: var(--color-bg-card-active);
 }
 
 /* Only apply hover on devices that support it */
 @media (hover: hover) and (pointer: fine) {
   .chart-sidebar-btn:hover:not(.active) {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--color-bg-card-hover);
   }
 }
 
@@ -547,16 +548,16 @@ html, body {
 }
 
 .touch-btn.active {
-  background: rgba(25, 118, 210, 0.3) !important;
+  background: var(--color-primary-light) !important;
 }
 
 .touch-btn:active {
-  background: rgba(255, 255, 255, 0.15) !important;
+  background: var(--color-bg-card-active) !important;
 }
 
 @media (hover: hover) and (pointer: fine) {
   .touch-btn:hover:not(.active) {
-    background: rgba(255, 255, 255, 0.1) !important;
+    background: var(--color-bg-card-hover) !important;
   }
 }
 
@@ -573,26 +574,56 @@ html, body {
 }
 
 .settings-scroll::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
+  background: var(--color-border-hover);
   border-radius: 2px;
 }
 
 .settings-scroll::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
+  background: var(--color-border-focus);
 }
 
 .settings-scroll {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
+  scrollbar-color: var(--color-border-hover) transparent;
 }
 
 /* ========================================
-   SButton press feedback
+   Interactive element hover & press feedback
    ======================================== */
+
+@media (hover: hover) and (pointer: fine) {
+  .s-btn:hover:not(:disabled) {
+    filter: brightness(1.15);
+  }
+
+  .s-option-btn:hover {
+    filter: brightness(1.15);
+  }
+
+  .s-input:hover {
+    border-color: var(--color-border-hover) !important;
+  }
+
+  .s-toggle:hover {
+    filter: brightness(1.1);
+  }
+
+  .s-tab-btn:hover {
+    background: var(--color-bg-card-hover) !important;
+  }
+}
 
 .s-btn:active:not(:disabled) {
   transform: scale(0.96);
   filter: brightness(0.85);
+}
+
+.s-option-btn:active {
+  transform: scale(0.96);
+}
+
+.s-input:focus {
+  border-color: var(--color-primary) !important;
 }
 
 /* ========================================

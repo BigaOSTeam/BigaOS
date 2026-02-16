@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface ViewLayoutProps {
@@ -15,12 +16,13 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
   onClose,
   children,
 }) => {
+  const { theme } = useTheme();
   return (
     <div
       style={{
         width: '100%',
         height: '100%',
-        background: '#0a1929',
+        background: theme.colors.bgPrimary,
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -32,20 +34,22 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
           display: 'flex',
           alignItems: 'center',
           padding: '1rem',
-          borderBottom: '1px solid rgba(255,255,255,0.1)',
+          borderBottom: `1px solid ${theme.colors.border}`,
         }}
       >
         <button
           onClick={onClose}
+          className="touch-btn"
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             padding: '0.5rem',
             marginRight: '1rem',
             display: 'flex',
             alignItems: 'center',
+            borderRadius: theme.radius.md,
           }}
         >
           <svg
@@ -83,8 +87,9 @@ interface MainValueDisplayProps {
 export const MainValueDisplay: React.FC<MainValueDisplayProps> = ({
   value,
   unit,
-  color = '#fff',
+  color,
 }) => {
+  const { theme } = useTheme();
   return (
     <div
       style={{
@@ -97,7 +102,7 @@ export const MainValueDisplay: React.FC<MainValueDisplayProps> = ({
         style={{
           fontSize: '6rem',
           fontWeight: 'bold',
-          color,
+          color: color || theme.colors.textPrimary,
           lineHeight: 1,
         }}
       >
@@ -130,14 +135,15 @@ interface StatsRowProps {
  * Row of statistics (avg, max, min, etc.)
  */
 export const StatsRow: React.FC<StatsRowProps> = ({ stats }) => {
+  const { theme } = useTheme();
   return (
     <div
       style={{
         display: 'flex',
         justifyContent: 'space-around',
         padding: '1rem',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderTop: `1px solid ${theme.colors.border}`,
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}
     >
       {stats.map((stat, index) => (
@@ -188,6 +194,7 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
   onSelect,
   title = 'History',
 }) => {
+  const { theme } = useTheme();
   return (
     <div
       style={{
@@ -212,18 +219,19 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
           <button
             key={option.key}
             onClick={() => onSelect(option.key)}
+            className="s-option-btn"
             style={{
               padding: '0.25rem 0.5rem',
               background:
                 selected === option.key
-                  ? 'rgba(25, 118, 210, 0.5)'
-                  : 'rgba(255, 255, 255, 0.1)',
+                  ? theme.colors.primaryMedium
+                  : theme.colors.bgCardActive,
               border:
                 selected === option.key
-                  ? '1px solid rgba(25, 118, 210, 0.8)'
+                  ? `1px solid ${theme.colors.primarySolid}`
                   : '1px solid transparent',
               borderRadius: '4px',
-              color: '#fff',
+              color: theme.colors.textPrimary,
               cursor: 'pointer',
               fontSize: '0.7rem',
               fontWeight: selected === option.key ? 'bold' : 'normal',
@@ -251,6 +259,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   hasData,
   children,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   return (
     <div
@@ -265,7 +274,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       <div
         style={{
           flex: 1,
-          background: 'rgba(255,255,255,0.03)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           overflow: 'hidden',
           position: 'relative',

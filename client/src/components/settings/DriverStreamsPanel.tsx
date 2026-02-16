@@ -10,7 +10,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import {
   PluginInfo,
   SensorMappingInfo,
@@ -65,6 +65,7 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
   onSetConfig,
   onClose,
 }) => {
+  const { theme } = useTheme();
   const { t, language } = useLanguage();
   const { timeFormat } = useSettings();
   const [debugExpanded, setDebugExpanded] = useState(false);

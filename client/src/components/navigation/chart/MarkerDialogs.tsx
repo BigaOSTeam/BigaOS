@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react';
 import { CustomMarker, markerIcons, markerColors } from './map-icons';
 import { VesselSettings, ChainType, useSettings } from '../../../context/SettingsContext';
+import { useTheme } from '../../../context/ThemeContext';
 import { weatherAPI, WeatherForecastResponse } from '../../../services/api';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
@@ -157,7 +158,9 @@ interface MarkerDialogProps {
   onSave: (lat: number, lon: number, name: string, color: string, icon: string, id?: string) => void;
 }
 
-const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
+const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+  const { theme } = useTheme();
+  return (
   <button
     onClick={onClick}
     className="touch-btn"
@@ -174,7 +177,7 @@ const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       alignItems: 'center',
       justifyContent: 'center',
       borderRadius: '6px',
-      color: 'rgba(255, 255, 255, 0.6)',
+      color: theme.colors.textSecondary,
     }}
   >
     <svg
@@ -191,13 +194,15 @@ const CloseButton: React.FC<{ onClick: () => void }> = ({ onClick }) => (
       <line x1="6" y1="6" x2="18" y2="18" />
     </svg>
   </button>
-);
+  );
+};
 
 const IconSelector: React.FC<{
   selectedIcon: string;
   selectedColor: string;
   onSelect: (icon: string) => void;
 }> = ({ selectedIcon, selectedColor, onSelect }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   return (
   <>
@@ -225,11 +230,11 @@ const IconSelector: React.FC<{
             background:
               selectedIcon === iconKey
                 ? 'rgba(79, 195, 247, 0.3)'
-                : 'rgba(255, 255, 255, 0.1)',
+                : theme.colors.bgCardActive,
             border:
               selectedIcon === iconKey
                 ? '2px solid #4fc3f7'
-                : '1px solid rgba(255,255,255,0.2)',
+                : `1px solid ${theme.colors.borderHover}`,
             cursor: 'pointer',
             display: 'flex',
             alignItems: 'center',
@@ -257,6 +262,7 @@ const ColorSelector: React.FC<{
   selectedColor: string;
   onSelect: (color: string) => void;
 }> = ({ selectedColor, onSelect }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   return (
   <>
@@ -285,7 +291,7 @@ const ColorSelector: React.FC<{
             border:
               selectedColor === color
                 ? '2px solid #fff'
-                : '1px solid rgba(255,255,255,0.2)',
+                : `1px solid ${theme.colors.borderHover}`,
             cursor: 'pointer',
           }}
         />
@@ -298,7 +304,9 @@ const ColorSelector: React.FC<{
 const DialogOverlay: React.FC<{
   onClick: () => void;
   children: React.ReactNode;
-}> = ({ onClick, children }) => (
+}> = ({ onClick, children }) => {
+  const { theme } = useTheme();
+  return (
   <>
     <div
       onClick={(e) => {
@@ -321,8 +329,8 @@ const DialogOverlay: React.FC<{
         top: '50%',
         left: '50%',
         transform: 'translate(-50%, -50%)',
-        background: 'rgba(10, 25, 41, 0.98)',
-        border: '1px solid rgba(255, 255, 255, 0.15)',
+        background: theme.colors.bgSecondary,
+        border: `1px solid ${theme.colors.borderDashed}`,
         borderRadius: '8px',
         padding: '1.25rem',
         zIndex: 1101,
@@ -333,12 +341,14 @@ const DialogOverlay: React.FC<{
       {children}
     </div>
   </>
-);
+  );
+};
 
 const NameInput: React.FC<{
   value: string;
   onChange: (value: string) => void;
 }> = ({ value, onChange }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   return (
   <input
@@ -351,10 +361,10 @@ const NameInput: React.FC<{
       width: '100%',
       padding: '0.75rem',
       marginBottom: '1rem',
-      background: 'rgba(255, 255, 255, 0.1)',
-      border: '1px solid rgba(255, 255, 255, 0.2)',
+      background: theme.colors.bgCardActive,
+      border: `1px solid ${theme.colors.borderHover}`,
       borderRadius: '6px',
-      color: '#fff',
+      color: theme.colors.textPrimary,
       fontSize: '1rem',
       outline: 'none',
     }}
@@ -374,6 +384,7 @@ export const MarkerDialog: React.FC<MarkerDialogProps> = ({
   onClose,
   onSave,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const isEditing = !!marker;
   const lat = marker?.lat ?? position?.lat ?? 0;
@@ -411,7 +422,7 @@ export const MarkerDialog: React.FC<MarkerDialogProps> = ({
           padding: '0.9rem',
           background: markerName.trim()
             ? 'rgba(79, 195, 247, 0.5)'
-            : 'rgba(255, 255, 255, 0.05)',
+            : theme.colors.bgCard,
           border: 'none',
           borderRadius: '6px',
           color: '#fff',
@@ -437,6 +448,7 @@ const ChainCalculationInfoDialog: React.FC<{
   forecastMaxGust?: number;
   windUnit?: string;
 }> = ({ depth, vesselSettings, onClose, onToggleFormula, forecastMaxWind, forecastMaxGust, windUnit = 'kt' }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const effectiveBoatLength = vesselSettings?.length || 10;
   const effectiveDisplacement = vesselSettings?.displacement || 5;
@@ -484,8 +496,8 @@ const ChainCalculationInfoDialog: React.FC<{
           top: '50%',
           left: '50%',
           transform: 'translate(-50%, -50%)',
-          background: 'rgba(10, 25, 41, 0.98)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          background: theme.colors.bgSecondary,
+          border: `1px solid ${theme.colors.borderDashed}`,
           borderRadius: '6px',
           padding: '1rem',
           zIndex: 2001,
@@ -513,7 +525,7 @@ const ChainCalculationInfoDialog: React.FC<{
             alignItems: 'center',
             justifyContent: 'center',
             borderRadius: '6px',
-            color: 'rgba(255, 255, 255, 0.6)',
+            color: theme.colors.textSecondary,
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -528,7 +540,7 @@ const ChainCalculationInfoDialog: React.FC<{
 
         {/* How we calculate - explanation */}
         <div style={{
-          background: 'rgba(255, 255, 255, 0.08)',
+          background: theme.colors.bgCardHover,
           borderRadius: '4px',
           padding: '0.5rem',
           marginBottom: '0.75rem',
@@ -581,7 +593,7 @@ const ChainCalculationInfoDialog: React.FC<{
 
             {/* Wind Conditions */}
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '4px',
               padding: '0.5rem',
             }}>
@@ -596,7 +608,7 @@ const ChainCalculationInfoDialog: React.FC<{
 
             {/* Scope Reference */}
             <div style={{
-              background: 'rgba(255, 255, 255, 0.05)',
+              background: theme.colors.bgCard,
               borderRadius: '4px',
               padding: '0.5rem',
             }}>
@@ -615,14 +627,14 @@ const ChainCalculationInfoDialog: React.FC<{
 
           {/* Middle column - Catenary Method */}
           <div style={{
-            background: useCatenary ? 'rgba(255, 167, 38, 0.1)' : 'rgba(255, 255, 255, 0.03)',
-            border: useCatenary ? '1px solid rgba(255, 167, 38, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+            background: useCatenary ? 'rgba(255, 167, 38, 0.1)' : theme.colors.bgCard,
+            border: useCatenary ? '1px solid rgba(255, 167, 38, 0.3)' : `1px solid ${theme.colors.border}`,
             borderRadius: '4px',
             padding: '0.5rem',
             opacity: useCatenary ? 1 : 0.5,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <div style={{ fontWeight: 'bold', color: useCatenary ? '#ffa726' : 'rgba(255, 255, 255, 0.5)' }}>
+              <div style={{ fontWeight: 'bold', color: useCatenary ? '#ffa726' : theme.colors.textMuted }}>
                 {t('chart.method_catenary')}
               </div>
               {onToggleFormula && (
@@ -632,10 +644,10 @@ const ChainCalculationInfoDialog: React.FC<{
                   style={{
                     padding: '0.35rem 0.6rem',
                     fontSize: '0.75rem',
-                    background: useCatenary ? 'rgba(255, 167, 38, 0.3)' : 'rgba(255, 255, 255, 0.1)',
-                    border: useCatenary ? '1px solid rgba(255, 167, 38, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
+                    background: useCatenary ? 'rgba(255, 167, 38, 0.3)' : theme.colors.bgCardActive,
+                    border: useCatenary ? '1px solid rgba(255, 167, 38, 0.5)' : `1px solid ${theme.colors.borderHover}`,
                     borderRadius: '4px',
-                    color: useCatenary ? '#ffa726' : 'rgba(255, 255, 255, 0.5)',
+                    color: useCatenary ? '#ffa726' : theme.colors.textMuted,
                     cursor: 'pointer',
                   }}
                 >
@@ -677,14 +689,14 @@ const ChainCalculationInfoDialog: React.FC<{
 
           {/* Right column - Wind + LOA Method */}
           <div style={{
-            background: useWindLoa ? 'rgba(102, 187, 106, 0.1)' : 'rgba(255, 255, 255, 0.03)',
-            border: useWindLoa ? '1px solid rgba(102, 187, 106, 0.3)' : '1px solid rgba(255, 255, 255, 0.1)',
+            background: useWindLoa ? 'rgba(102, 187, 106, 0.1)' : theme.colors.bgCard,
+            border: useWindLoa ? '1px solid rgba(102, 187, 106, 0.3)' : `1px solid ${theme.colors.border}`,
             borderRadius: '4px',
             padding: '0.5rem',
             opacity: useWindLoa ? 1 : 0.5,
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.2rem' }}>
-              <div style={{ fontWeight: 'bold', color: useWindLoa ? '#66bb6a' : 'rgba(255, 255, 255, 0.5)' }}>
+              <div style={{ fontWeight: 'bold', color: useWindLoa ? '#66bb6a' : theme.colors.textMuted }}>
                 {t('chart.method_wind_loa')}
               </div>
               {onToggleFormula && (
@@ -694,10 +706,10 @@ const ChainCalculationInfoDialog: React.FC<{
                   style={{
                     padding: '0.35rem 0.6rem',
                     fontSize: '0.75rem',
-                    background: useWindLoa ? 'rgba(102, 187, 106, 0.3)' : 'rgba(255, 255, 255, 0.1)',
-                    border: useWindLoa ? '1px solid rgba(102, 187, 106, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
+                    background: useWindLoa ? 'rgba(102, 187, 106, 0.3)' : theme.colors.bgCardActive,
+                    border: useWindLoa ? '1px solid rgba(102, 187, 106, 0.5)' : `1px solid ${theme.colors.borderHover}`,
                     borderRadius: '4px',
-                    color: useWindLoa ? '#66bb6a' : 'rgba(255, 255, 255, 0.5)',
+                    color: useWindLoa ? '#66bb6a' : theme.colors.textMuted,
                     cursor: 'pointer',
                   }}
                 >
@@ -753,7 +765,7 @@ const ChainCalculationInfoDialog: React.FC<{
           marginTop: '0.5rem',
           fontSize: '0.65rem',
           opacity: 0.5,
-          borderTop: '1px solid rgba(255,255,255,0.1)',
+          borderTop: `1px solid ${theme.colors.border}`,
           paddingTop: '0.4rem',
         }}>
           {t('chart.sources')}
@@ -771,6 +783,7 @@ const ScopeVisualization: React.FC<{
   showRecommendations?: boolean;
   onUpdateVesselSettings?: (settings: VesselSettings) => void;
 }> = ({ chainLength, depth, vesselSettings, showRecommendations = false, onUpdateVesselSettings }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [showCalcInfo, setShowCalcInfo] = React.useState(false);
 
@@ -981,11 +994,11 @@ const ScopeVisualization: React.FC<{
           y1={waterLevel}
           x2={boatX - 20}
           y2={waterLevel + visualDepth}
-          stroke="rgba(255,255,255,0.3)"
+          stroke={theme.colors.textDisabled}
           strokeWidth="1"
           strokeDasharray="3,3"
         />
-        <text x={boatX - 25} y={waterLevel + visualDepth / 2 + 3} fill="rgba(255,255,255,0.5)" fontSize="8" textAnchor="end">
+        <text x={boatX - 25} y={waterLevel + visualDepth / 2 + 3} fill={theme.colors.textMuted} fontSize="8" textAnchor="end">
           {depth.toFixed(1)}m
         </text>
 
@@ -1098,7 +1111,7 @@ const ScopeVisualization: React.FC<{
         })()}
 
         {/* Chain length label */}
-        <text x={svgWidth - 10} y={waterLevel + 15} fill="rgba(255,255,255,0.6)" fontSize="9" textAnchor="end">
+        <text x={svgWidth - 10} y={waterLevel + 15} fill={theme.colors.textSecondary} fontSize="9" textAnchor="end">
           {t('chart.chain_label', { length: chainLength.toFixed(0) })}
         </text>
         </g>
@@ -1168,7 +1181,7 @@ const ScopeVisualization: React.FC<{
           <div style={{
             marginTop: '0.5rem',
             padding: '0.4rem',
-            background: 'rgba(255, 255, 255, 0.05)',
+            background: theme.colors.bgCard,
             borderRadius: '6px',
             fontSize: '0.75rem',
           }}>
@@ -1445,6 +1458,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
   onAnchorPositionChange,
   weatherEnabled = true,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const setChainLength = onChainLengthChange;
   const depth = anchorDepth;
@@ -1558,9 +1572,9 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
               width: '52px',
               padding: '0.6rem 0',
               borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff',
+              background: theme.colors.bgCardActive,
+              border: `1px solid ${theme.colors.borderHover}`,
+              color: theme.colors.textPrimary,
               fontSize: '1.3rem',
               cursor: 'pointer',
             }}
@@ -1581,10 +1595,10 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             style={{
               flex: 1,
               padding: '0.6rem',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: chainHasError ? '1px solid #ef5350' : '1px solid rgba(255, 255, 255, 0.2)',
+              background: theme.colors.bgCardActive,
+              border: chainHasError ? '1px solid #ef5350' : `1px solid ${theme.colors.borderHover}`,
               borderRadius: '6px',
-              color: chainHasError ? '#ef5350' : '#fff',
+              color: chainHasError ? '#ef5350' : theme.colors.textPrimary,
               fontSize: '1rem',
               textAlign: 'center',
               outline: 'none',
@@ -1597,9 +1611,9 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
               width: '52px',
               padding: '0.6rem 0',
               borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff',
+              background: theme.colors.bgCardActive,
+              border: `1px solid ${theme.colors.borderHover}`,
+              color: theme.colors.textPrimary,
               fontSize: '1.3rem',
               cursor: 'pointer',
             }}
@@ -1627,9 +1641,9 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
               width: '52px',
               padding: '0.6rem 0',
               borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff',
+              background: theme.colors.bgCardActive,
+              border: `1px solid ${theme.colors.borderHover}`,
+              color: theme.colors.textPrimary,
               fontSize: '1.3rem',
               cursor: 'pointer',
             }}
@@ -1656,10 +1670,10 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             style={{
               flex: 1,
               padding: '0.6rem',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: depthHasError ? '1px solid #ef5350' : '1px solid rgba(255, 255, 255, 0.2)',
+              background: theme.colors.bgCardActive,
+              border: depthHasError ? '1px solid #ef5350' : `1px solid ${theme.colors.borderHover}`,
               borderRadius: '6px',
-              color: depthHasError ? '#ef5350' : '#fff',
+              color: depthHasError ? '#ef5350' : theme.colors.textPrimary,
               fontSize: '1rem',
               textAlign: 'center',
               outline: 'none',
@@ -1672,9 +1686,9 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
               width: '52px',
               padding: '0.6rem 0',
               borderRadius: '6px',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255,255,255,0.2)',
-              color: '#fff',
+              background: theme.colors.bgCardActive,
+              border: `1px solid ${theme.colors.borderHover}`,
+              color: theme.colors.textPrimary,
               fontSize: '1.3rem',
               cursor: 'pointer',
             }}
@@ -1697,10 +1711,10 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           width: '100%',
           marginBottom: '0.5rem',
           padding: '0.75rem',
-          background: 'rgba(255, 255, 255, 0.05)',
-          border: '1px solid rgba(255, 255, 255, 0.15)',
+          background: theme.colors.bgCard,
+          border: `1px solid ${theme.colors.borderDashed}`,
           borderRadius: '6px',
-          color: anchorPosition ? '#4fc3f7' : 'rgba(255, 255, 255, 0.7)',
+          color: anchorPosition ? '#4fc3f7' : theme.colors.textSecondary,
           fontSize: '0.95rem',
           cursor: 'pointer',
           display: 'flex',
@@ -1763,10 +1777,10 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                 style={{
                   flex: 1,
                   padding: '0.7rem 0.4rem',
-                  background: forecastHours === hours ? 'rgba(79, 195, 247, 0.3)' : 'rgba(255, 255, 255, 0.05)',
-                  border: forecastHours === hours ? '1px solid #4fc3f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                  background: forecastHours === hours ? 'rgba(79, 195, 247, 0.3)' : theme.colors.bgCard,
+                  border: forecastHours === hours ? '1px solid #4fc3f7' : `1px solid ${theme.colors.border}`,
                   borderRadius: '6px',
-                  color: forecastHours === hours ? '#4fc3f7' : 'rgba(255, 255, 255, 0.7)',
+                  color: forecastHours === hours ? '#4fc3f7' : theme.colors.textSecondary,
                   fontSize: '0.9rem',
                   fontWeight: forecastHours === hours ? 'bold' : 'normal',
                   cursor: 'pointer',
@@ -1785,7 +1799,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                 <div style={{
                   flex: 1,
                   padding: '0.3rem',
-                  background: 'rgba(255,255,255,0.03)',
+                  background: theme.colors.bgCard,
                   borderRadius: '4px',
                   textAlign: 'center',
                 }}>
@@ -1793,7 +1807,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   <div style={{
                     width: '2.5rem',
                     height: '1.1rem',
-                    background: 'rgba(255,255,255,0.08)',
+                    background: theme.colors.bgCardHover,
                     borderRadius: '2px',
                     margin: '0.15rem auto',
                   }} />
@@ -1801,7 +1815,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                 <div style={{
                   flex: 1,
                   padding: '0.3rem',
-                  background: 'rgba(255,255,255,0.03)',
+                  background: theme.colors.bgCard,
                   borderRadius: '4px',
                   textAlign: 'center',
                 }}>
@@ -1809,7 +1823,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   <div style={{
                     width: '2.5rem',
                     height: '1.1rem',
-                    background: 'rgba(255,255,255,0.08)',
+                    background: theme.colors.bgCardHover,
                     borderRadius: '2px',
                     margin: '0.15rem auto',
                   }} />
@@ -1822,7 +1836,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   <div style={{
                     width: '2rem',
                     height: '0.7rem',
-                    background: 'rgba(255,255,255,0.08)',
+                    background: theme.colors.bgCardHover,
                     borderRadius: '2px',
                   }} />
                 </div>
@@ -1831,7 +1845,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
                   <div style={{
                     width: '2rem',
                     height: '0.7rem',
-                    background: 'rgba(255,255,255,0.08)',
+                    background: theme.colors.bgCardHover,
                     borderRadius: '2px',
                   }} />
                 </div>
@@ -2000,10 +2014,10 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
           style={{
             flex: 1,
             padding: '0.9rem',
-            background: isEditing ? 'rgba(239, 83, 80, 0.3)' : 'rgba(255, 255, 255, 0.1)',
-            border: isEditing ? '1px solid rgba(239, 83, 80, 0.5)' : '1px solid rgba(255, 255, 255, 0.2)',
+            background: isEditing ? 'rgba(239, 83, 80, 0.3)' : theme.colors.bgCardActive,
+            border: isEditing ? '1px solid rgba(239, 83, 80, 0.5)' : `1px solid ${theme.colors.borderHover}`,
             borderRadius: '6px',
-            color: isEditing ? '#ef5350' : '#fff',
+            color: isEditing ? '#ef5350' : theme.colors.textPrimary,
             cursor: 'pointer',
             fontSize: '1rem',
           }}
@@ -2019,7 +2033,7 @@ export const AnchorAlarmDialog: React.FC<AnchorAlarmDialogProps> = ({
             padding: '0.9rem',
             background: canActivate
               ? 'rgba(79, 195, 247, 0.5)'
-              : 'rgba(255, 255, 255, 0.05)',
+              : theme.colors.bgCard,
             border: 'none',
             borderRadius: '6px',
             color: '#fff',

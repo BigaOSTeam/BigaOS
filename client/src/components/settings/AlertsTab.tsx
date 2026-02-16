@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useSettings, windConversions, speedConversions, depthConversions, temperatureConversions } from '../../context/SettingsContext';
 import { useAlerts } from '../../context/AlertContext';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -15,6 +15,7 @@ import { SButton, SCard, SToggle } from '../ui/SettingsUI';
 import { AlertEditDialog } from './AlertEditDialog';
 
 export const AlertsTab: React.FC = () => {
+  const { theme } = useTheme();
   const {
     alertSettings,
     windUnit,

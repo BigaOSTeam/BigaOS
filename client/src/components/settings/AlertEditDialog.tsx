@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useSettings, windConversions, speedConversions, depthConversions, temperatureConversions } from '../../context/SettingsContext';
 import { CustomSelect, SelectOption } from '../ui/CustomSelect';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -57,6 +57,7 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
   onDelete,
   onClose,
 }) => {
+  const { theme } = useTheme();
   const {
     windUnit,
     speedUnit,
@@ -374,10 +375,10 @@ export const AlertEditDialog: React.FC<AlertEditDialogProps> = ({
                     background:
                       severity === s
                         ? getSeverityLightColor(s)
-                        : 'rgba(255, 255, 255, 0.1)',
+                        : theme.colors.bgCardActive,
                     border: 'none',
                     borderRadius: theme.radius.md,
-                    color: '#fff',
+                    color: theme.colors.textPrimary,
                     fontSize: theme.fontSize.md,
                     textTransform: 'capitalize',
                     cursor: 'pointer',

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg } from '../../utils/angle';
 
@@ -18,6 +19,7 @@ const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: 
 };
 
 export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [historyData, setHistoryData] = useState<TimeSeriesDataPoint[]>([]);
   const [timeframe, setTimeframe] = useState<TimeframeOption>('5m');
@@ -80,7 +82,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
           cy={center}
           r={outerRadius}
           fill="none"
-          stroke="rgba(255,255,255,0.2)"
+          stroke={theme.colors.borderHover}
           strokeWidth="2"
         />
 
@@ -89,8 +91,8 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
           cx={center}
           cy={center}
           r={innerRadius}
-          fill="rgba(255,255,255,0.03)"
-          stroke="rgba(255,255,255,0.1)"
+          fill={theme.colors.bgCard}
+          stroke={theme.colors.border}
           strokeWidth="1"
         />
 
@@ -112,14 +114,14 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
                 y1={y1}
                 x2={x2}
                 y2={y2}
-                stroke={isMajor ? '#fff' : 'rgba(255,255,255,0.4)'}
+                stroke={isMajor ? theme.colors.textPrimary : theme.colors.textMuted}
                 strokeWidth={isMajor ? 2 : 1}
               />
               {isMajor && (
                 <text
                   x={center + Math.cos(angle) * (innerRadius - 20)}
                   y={center + Math.sin(angle) * (innerRadius - 20)}
-                  fill="#fff"
+                  fill={theme.colors.textPrimary}
                   fontSize="16"
                   fontWeight="bold"
                   textAnchor="middle"
@@ -142,7 +144,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
           {/* South pointer (white) */}
           <polygon
             points={`${center},${center + outerRadius - 5} ${center - 12},${center} ${center + 12},${center}`}
-            fill="rgba(255,255,255,0.5)"
+            fill={theme.colors.textMuted}
           />
           {/* Center dot */}
           <circle cx={center} cy={center} r="8" fill="#fff" />
@@ -161,7 +163,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#0a1929',
+      background: theme.colors.bgPrimary,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -171,14 +173,14 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
         display: 'flex',
         alignItems: 'center',
         padding: '1rem',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}>
         <button
           onClick={onClose}
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             padding: '0.5rem',
             marginRight: '1rem',
@@ -254,10 +256,10 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
                 onClick={() => setTimeframe(tf)}
                 style={{
                   padding: '0.25rem 0.5rem',
-                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
+                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
                   border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
                   borderRadius: '4px',
-                  color: '#fff',
+                  color: theme.colors.textPrimary,
                   cursor: 'pointer',
                   fontSize: '0.7rem',
                   fontWeight: timeframe === tf ? 'bold' : 'normal',
@@ -270,7 +272,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
         </div>
         <div style={{
           flex: 1,
-          background: 'rgba(255,255,255,0.03)',
+          background: theme.colors.bgCard,
           borderRadius: '8px',
           overflow: 'hidden',
           position: 'relative',

@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { navigationAPI } from '../../../services/api';
+import { useTheme } from '../../../context/ThemeContext';
 
 export type DebugMode = 'off' | 'grid';
 
@@ -142,6 +143,7 @@ export const DebugInfoPanel: React.FC<DebugInfoPanelProps> = ({
   loading,
   currentResolution,
 }) => {
+  const { theme } = useTheme();
   const [info, setInfo] = useState<{
     initialized: boolean;
     usingSpatialIndex: boolean;
@@ -173,11 +175,11 @@ export const DebugInfoPanel: React.FC<DebugInfoPanelProps> = ({
         left: '1rem',
         right: `${sidebarWidth + 16}px`,
         maxWidth: '280px',
-        background: 'rgba(10, 25, 41, 0.95)',
+        background: theme.colors.bgSecondary,
         borderRadius: '8px',
         padding: '1rem',
         zIndex: 1001,
-        color: '#fff',
+        color: theme.colors.textPrimary,
         fontSize: '0.85rem',
         boxShadow: '0 4px 12px rgba(0,0,0,0.4)',
       }}
@@ -227,10 +229,10 @@ export const DebugInfoPanel: React.FC<DebugInfoPanelProps> = ({
             onClick={onClear}
             style={{
               padding: '0.6rem 1rem',
-              background: 'rgba(255,255,255,0.1)',
+              background: theme.colors.bgCardActive,
               border: 'none',
               borderRadius: '4px',
-              color: '#fff',
+              color: theme.colors.textPrimary,
               cursor: 'pointer',
               fontSize: '0.8rem',
             }}
@@ -242,7 +244,7 @@ export const DebugInfoPanel: React.FC<DebugInfoPanelProps> = ({
 
       {/* Results */}
       {gridPoints.length > 0 && (
-        <div style={{ marginBottom: '1rem', padding: '0.5rem', background: 'rgba(255,255,255,0.05)', borderRadius: '4px' }}>
+        <div style={{ marginBottom: '1rem', padding: '0.5rem', background: theme.colors.bgCard, borderRadius: '4px' }}>
           <div style={{ fontSize: '0.75rem', opacity: 0.7, marginBottom: '0.5rem', display: 'flex', justifyContent: 'space-between' }}>
             <span>{gridPoints.length} points</span>
             {currentResolution && (

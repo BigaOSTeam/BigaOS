@@ -3,6 +3,7 @@ import { SearchResult } from '../../../services/geocoding';
 import { CustomMarker, markerIcons } from './map-icons';
 import { useSettings, windConversions, depthConversions, temperatureConversions, SidebarPosition } from '../../../context/SettingsContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { useTheme } from '../../../context/ThemeContext';
 import { radToDeg, degToRad, TWO_PI } from '../../../utils/angle';
 
 // Helper to compute panel positioning based on sidebar position
@@ -48,6 +49,7 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
   onClose,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
   const settingsPanelWidth = 180;
   const alarmOptions = depthUnit === 'm' ? [1, 2, 3, 5, 10] : [3, 6, 10, 15, 30];
 
@@ -60,8 +62,8 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
           width: `min(${settingsPanelWidth}px, calc(100vw - ${sidebarWidth + 16}px))`,
           maxHeight: 'calc(100dvh - 32px)',
           overflowY: 'auto',
-          background: 'rgb(10, 25, 41)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
+          background: theme.colors.bgPrimary,
+          border: `1px solid ${theme.colors.borderHover}`,
           borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
@@ -79,10 +81,10 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
               background:
                 depthAlarm === null
                   ? 'rgba(25, 118, 210, 0.5)'
-                  : 'rgba(255, 255, 255, 0.1)',
+                  : theme.colors.bgCardActive,
               border: 'none',
               borderRadius: '6px',
-              color: '#fff',
+              color: theme.colors.textPrimary,
               cursor: 'pointer',
               fontSize: '1.1rem',
               textAlign: 'left',
@@ -99,10 +101,10 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
                 background:
                   depthAlarm === alarmDepth
                     ? 'rgba(25, 118, 210, 0.5)'
-                    : 'rgba(255, 255, 255, 0.1)',
+                    : theme.colors.bgCardActive,
                 border: 'none',
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 fontSize: '1.1rem',
                 textAlign: 'left',
@@ -130,10 +132,10 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
             padding: '0.9rem 0.75rem',
             background: soundAlarmEnabled
               ? 'rgba(25, 118, 210, 0.5)'
-              : 'rgba(255, 255, 255, 0.1)',
+              : theme.colors.bgCardActive,
             border: 'none',
             borderRadius: '6px',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             fontSize: '1.1rem',
             textAlign: 'left',
@@ -199,6 +201,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
   onClose,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
   const settingsPanelWidth = 200;
 
   const adjustHeading = (deltaDeg: number) => {
@@ -221,8 +224,8 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
           width: `min(${settingsPanelWidth}px, calc(100vw - ${sidebarWidth + 16}px))`,
           maxHeight: 'calc(100dvh - 32px)',
           overflowY: 'auto',
-          background: 'rgb(10, 25, 41)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
+          background: theme.colors.bgPrimary,
+          border: `1px solid ${theme.colors.borderHover}`,
           borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
@@ -239,9 +242,9 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             textAlign: 'center',
             marginBottom: '1rem',
             padding: '0.75rem',
-            background: isActive ? 'rgba(39, 174, 96, 0.2)' : 'rgba(255, 255, 255, 0.05)',
+            background: isActive ? 'rgba(39, 174, 96, 0.2)' : theme.colors.bgCard,
             borderRadius: '6px',
-            border: isActive ? '1px solid rgba(39, 174, 96, 0.5)' : '1px solid rgba(255, 255, 255, 0.1)',
+            border: isActive ? '1px solid rgba(39, 174, 96, 0.5)' : `1px solid ${theme.colors.border}`,
           }}
         >
           <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>
@@ -260,10 +263,10 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
               onClick={() => adjustHeading(-1)}
               style={{
                 padding: '0.7rem',
-                background: 'rgba(255, 255, 255, 0.1)',
+                background: theme.colors.bgCardActive,
                 border: 'none',
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 fontSize: '0.95rem',
               }}
@@ -274,10 +277,10 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
               onClick={() => adjustHeading(-10)}
               style={{
                 padding: '0.7rem',
-                background: 'rgba(255, 255, 255, 0.1)',
+                background: theme.colors.bgCardActive,
                 border: 'none',
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 fontSize: '0.95rem',
               }}
@@ -291,10 +294,10 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
               onClick={() => adjustHeading(1)}
               style={{
                 padding: '0.7rem',
-                background: 'rgba(255, 255, 255, 0.1)',
+                background: theme.colors.bgCardActive,
                 border: 'none',
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 fontSize: '0.95rem',
               }}
@@ -305,10 +308,10 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
               onClick={() => adjustHeading(10)}
               style={{
                 padding: '0.7rem',
-                background: 'rgba(255, 255, 255, 0.1)',
+                background: theme.colors.bgCardActive,
                 border: 'none',
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 fontSize: '0.95rem',
               }}
@@ -327,7 +330,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
               justifyContent: 'space-between',
               padding: '0.5rem 0',
               marginBottom: '0.5rem',
-              borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+              borderBottom: `1px solid ${theme.colors.border}`,
             }}
           >
             <div>
@@ -345,7 +348,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
                 height: '32px',
                 borderRadius: '16px',
                 border: 'none',
-                background: followingRoute ? 'rgba(39, 174, 96, 0.8)' : 'rgba(255, 255, 255, 0.2)',
+                background: followingRoute ? 'rgba(39, 174, 96, 0.8)' : theme.colors.borderHover,
                 cursor: 'pointer',
                 position: 'relative',
                 transition: 'background 0.2s',
@@ -376,7 +379,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
             background: isActive ? 'rgba(239, 83, 80, 0.3)' : 'rgba(39, 174, 96, 0.3)',
             border: `1px solid ${isActive ? 'rgba(239, 83, 80, 0.5)' : 'rgba(39, 174, 96, 0.5)'}`,
             borderRadius: '6px',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             fontSize: '1rem',
           }}
@@ -452,6 +455,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
   onClose,
 }) => {
   const settingsPanelWidth = 320;
+  const { theme } = useTheme();
   const { windUnit, depthUnit, temperatureUnit, timeFormat, dateFormat } = useSettings();
   const { t, language } = useLanguage();
 
@@ -553,8 +557,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           width: `min(${settingsPanelWidth}px, calc(100vw - ${sidebarWidth + 16}px))`,
           maxHeight: 'calc(100dvh - 32px)',
           overflowY: 'auto',
-          background: 'rgb(10, 25, 41)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
+          background: theme.colors.bgPrimary,
+          border: `1px solid ${theme.colors.borderHover}`,
           borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
@@ -591,8 +595,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                   padding: '0.9rem 0.4rem',
                   borderRadius: '6px',
                   border: 'none',
-                  background: displayMode === mode && enabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
+                  background: displayMode === mode && enabled ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
+                  color: theme.colors.textPrimary,
                   fontSize: '0.9rem',
                   cursor: 'pointer',
                   fontWeight: displayMode === mode && enabled ? 'bold' : 'normal',
@@ -608,8 +612,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               padding: '0.9rem 0.4rem',
               borderRadius: '6px',
               border: 'none',
-              background: !enabled ? 'rgba(239, 83, 80, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-              color: '#fff',
+              background: !enabled ? 'rgba(239, 83, 80, 0.5)' : theme.colors.bgCardActive,
+              color: theme.colors.textPrimary,
               fontSize: '0.9rem',
               cursor: 'pointer',
               fontWeight: !enabled ? 'bold' : 'normal',
@@ -651,7 +655,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           ) : enabled ? (
             <span style={{ color: '#4FC3F7' }}>{getForecastTime()}</span>
           ) : (
-            <span style={{ color: 'rgba(255, 255, 255, 0.4)' }}>{t('weather.select_time')}</span>
+            <span style={{ color: theme.colors.textMuted }}>{t('weather.select_time')}</span>
           )}
         </div>
 
@@ -675,8 +679,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 padding: '0.9rem 0.3rem',
                 borderRadius: '6px',
                 border: 'none',
-                background: isSelected(opt.hour) ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-                color: '#fff',
+                background: isSelected(opt.hour) ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
+                color: theme.colors.textPrimary,
                 fontSize: '0.9rem',
                 cursor: 'pointer',
               }}
@@ -690,8 +694,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               padding: '0.9rem 0.3rem',
               borderRadius: '6px',
               border: 'none',
-              background: !isPresetSelected && enabled ? 'rgba(25, 118, 210, 0.5)' : 'rgba(255, 255, 255, 0.1)',
-              color: '#fff',
+              background: !isPresetSelected && enabled ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
+              color: theme.colors.textPrimary,
               fontSize: '0.9rem',
               cursor: 'pointer',
               fontWeight: !isPresetSelected && enabled ? 'bold' : 'normal',
@@ -704,7 +708,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
         {/* Legend */}
         <div style={{
           paddingTop: '0.75rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: `1px solid ${theme.colors.border}`,
         }}>
           {displayMode === 'wind' ? (
             <>
@@ -716,7 +720,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.85)',
+                color: theme.colors.textPrimary,
               }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#4FC3F7' }}></span>
@@ -750,7 +754,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.85)',
+                color: theme.colors.textPrimary,
               }}>
                 {depthUnit === 'm' ? (
                   <>
@@ -811,7 +815,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.85)',
+                color: theme.colors.textPrimary,
               }}>
                 <span style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
                   <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#ADD8E6' }}></span>
@@ -845,7 +849,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 fontSize: '0.75rem',
-                color: 'rgba(255, 255, 255, 0.85)',
+                color: theme.colors.textPrimary,
               }}>
                 {temperatureUnit === '°C' ? (
                   <>
@@ -903,7 +907,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
         <div style={{
           marginTop: '0.75rem',
           paddingTop: '0.5rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: `1px solid ${theme.colors.border}`,
           fontSize: '0.65rem',
           opacity: 0.5,
           textAlign: 'center',
@@ -926,8 +930,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
             top: '50%',
             left: '50%',
             transform: 'translate(-50%, -50%)',
-            background: 'rgb(10, 25, 41)',
-            border: '1px solid rgba(255, 255, 255, 0.3)',
+            background: theme.colors.bgPrimary,
+            border: `1px solid ${theme.colors.textDisabled}`,
             borderRadius: '8px',
             padding: '1.25rem',
             zIndex: 1100,
@@ -950,8 +954,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                   height: '52px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
+                  background: theme.colors.bgCardActive,
+                  color: theme.colors.textPrimary,
                   fontSize: '1.4rem',
                   cursor: 'pointer',
                 }}
@@ -973,8 +977,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                   height: '52px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
+                  background: theme.colors.bgCardActive,
+                  color: theme.colors.textPrimary,
                   fontSize: '1.4rem',
                   cursor: 'pointer',
                 }}
@@ -995,8 +999,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                   height: '52px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
+                  background: theme.colors.bgCardActive,
+                  color: theme.colors.textPrimary,
                   fontSize: '1.4rem',
                   cursor: 'pointer',
                 }}
@@ -1018,8 +1022,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                   height: '52px',
                   borderRadius: '6px',
                   border: 'none',
-                  background: 'rgba(255, 255, 255, 0.1)',
-                  color: '#fff',
+                  background: theme.colors.bgCardActive,
+                  color: theme.colors.textPrimary,
                   fontSize: '1.4rem',
                   cursor: 'pointer',
                 }}
@@ -1087,8 +1091,8 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 padding: '0.9rem',
                 borderRadius: '6px',
                 border: 'none',
-                background: 'rgba(255, 255, 255, 0.1)',
-                color: '#fff',
+                background: theme.colors.bgCardActive,
+                color: theme.colors.textPrimary,
                 fontSize: '1rem',
                 cursor: 'pointer',
               }}
@@ -1103,7 +1107,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 borderRadius: '6px',
                 border: 'none',
                 background: 'rgba(25, 118, 210, 0.6)',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 fontSize: '1rem',
                 cursor: 'pointer',
                 fontWeight: 'bold',
@@ -1161,6 +1165,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
   onClose,
 }) => {
   const { t } = useLanguage();
+  const { theme } = useTheme();
   const getMatchingMarkers = (query: string): CustomMarker[] => {
     const lowerQuery = query.toLowerCase().trim();
     if (lowerQuery.length < 2) return [];
@@ -1179,8 +1184,8 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
           ...getPanelPositionStyle(sidebarWidth, sidebarPosition),
           width: `min(340px, calc(100vw - ${sidebarWidth + 16}px))`,
           maxHeight: 'calc(100dvh - 32px)',
-          background: 'rgb(10, 25, 41)',
-          border: '1px solid rgba(255, 255, 255, 0.2)',
+          background: theme.colors.bgPrimary,
+          border: `1px solid ${theme.colors.borderHover}`,
           borderRadius: '6px',
           padding: '1rem',
           zIndex: 1001,
@@ -1242,10 +1247,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               width: '100%',
               padding: '0.75rem',
               paddingRight: searchLoading ? '2.5rem' : '0.75rem',
-              background: 'rgba(255, 255, 255, 0.1)',
-              border: '1px solid rgba(255, 255, 255, 0.2)',
+              background: theme.colors.bgCardActive,
+              border: `1px solid ${theme.colors.borderHover}`,
               borderRadius: '6px',
-              color: '#fff',
+              color: theme.colors.textPrimary,
               fontSize: '1rem',
               outline: 'none',
             }}
@@ -1301,10 +1306,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   style={{
                     width: '100%',
                     padding: '0.75rem',
-                    background: 'rgba(255, 255, 255, 0.1)',
+                    background: theme.colors.bgCardActive,
                     border: `1px solid ${marker.color}`,
                     borderRadius: '6px',
-                    color: '#fff',
+                    color: theme.colors.textPrimary,
                     cursor: 'pointer',
                     textAlign: 'left',
                     fontSize: '0.9rem',
@@ -1362,7 +1367,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
                   style={{
                     width: '24px',
                     height: '24px',
-                    border: '2px solid rgba(255, 255, 255, 0.2)',
+                    border: `2px solid ${theme.colors.borderHover}`,
                     borderTopColor: '#fff',
                     borderRadius: '50%',
                     animation: 'spin 0.8s linear infinite',
@@ -1396,10 +1401,10 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
               style={{
                 width: '100%',
                 padding: '0.75rem',
-                background: 'rgba(255, 255, 255, 0.1)',
-                border: '1px solid rgba(255, 255, 255, 0.1)',
+                background: theme.colors.bgCardActive,
+                border: `1px solid ${theme.colors.border}`,
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 cursor: 'pointer',
                 textAlign: 'left',
                 fontSize: '0.9rem',
@@ -1422,7 +1427,7 @@ export const SearchPanel: React.FC<SearchPanelProps> = ({
         <div style={{
           marginTop: '0.5rem',
           paddingTop: '0.5rem',
-          borderTop: '1px solid rgba(255, 255, 255, 0.1)',
+          borderTop: `1px solid ${theme.colors.border}`,
           fontSize: '0.65rem',
           opacity: 0.5,
           textAlign: 'center',

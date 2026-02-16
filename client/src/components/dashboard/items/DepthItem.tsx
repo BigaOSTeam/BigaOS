@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSettings, depthConversions } from '../../../context/SettingsContext';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface DepthItemProps {
@@ -8,6 +8,7 @@ interface DepthItemProps {
 }
 
 export const DepthItem: React.FC<DepthItemProps> = ({ depth }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const { depthUnit, depthAlarm, isDepthAlarmTriggered, convertDepth } = useSettings();
 

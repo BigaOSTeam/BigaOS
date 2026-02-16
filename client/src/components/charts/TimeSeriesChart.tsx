@@ -1,5 +1,6 @@
 import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useSettings } from '../../context/SettingsContext';
+import { useTheme } from '../../context/ThemeContext';
 
 export interface TimeSeriesDataPoint {
   timestamp: number;
@@ -44,6 +45,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   alarmColor = '#ef5350',
 }) => {
   const { timeFormat } = useSettings();
+  const { theme } = useTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const [chartSize, setChartSize] = useState({ width: 300, height: 150 });
 
@@ -183,13 +185,13 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
                 y1={y}
                 x2={width - padding.right}
                 y2={y}
-                stroke="rgba(255,255,255,0.1)"
+                stroke={theme.colors.border}
                 strokeWidth="1"
               />
               <text
                 x={padding.left - 8}
                 y={y + 4}
-                fill="rgba(255,255,255,0.5)"
+                fill={theme.colors.textMuted}
                 fontSize="11"
                 textAnchor="end"
               >
@@ -207,7 +209,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
               key={`x-${i}`}
               x={x}
               y={height - 8}
-              fill="rgba(255,255,255,0.5)"
+              fill={theme.colors.textMuted}
               fontSize="11"
               textAnchor="middle"
             >
@@ -251,7 +253,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
             cy={points[points.length - 1].y}
             r="5"
             fill={lineColor}
-            stroke="#0a1929"
+            stroke={theme.colors.bgPrimary}
             strokeWidth="2"
           />
         )}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSettings, windConversions } from '../../../context/SettingsContext';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface WindItemProps {
@@ -9,6 +9,7 @@ interface WindItemProps {
 }
 
 export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const { windUnit, convertWind } = useSettings();
   const convertedSpeed = convertWind(speedApparent);

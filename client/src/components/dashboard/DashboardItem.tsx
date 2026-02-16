@@ -1,6 +1,6 @@
 import React from 'react';
 import { ViewType } from '../../types/dashboard';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface DashboardItemProps {
@@ -18,6 +18,7 @@ export const DashboardItem: React.FC<DashboardItemProps> = ({
   editMode = false,
   onDelete,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const handleClick = () => {
     if (editMode) {

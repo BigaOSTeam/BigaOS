@@ -4,7 +4,7 @@ import { ViewType } from '../types/dashboard';
 // Navigation parameters for different views
 export interface NavigationParams {
   settings?: {
-    tab?: 'general' | 'display' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'plugins' | 'clients' | 'advanced';
+    tab?: 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'plugins' | 'clients' | 'advanced';
   };
 }
 

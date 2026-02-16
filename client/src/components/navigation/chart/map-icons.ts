@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import { radToDeg } from '../../../utils/angle';
+import { darkTheme } from '../../../styles/themes';
 
 // Custom marker interface
 export interface CustomMarker {
@@ -74,7 +75,7 @@ export const createCustomMarkerIcon = (
   const markerHtml = `
     <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
       <div style="
-        background: rgba(10, 25, 41, 0.95);
+        background: ${darkTheme.colors.bgSecondary};
         border: 1px solid ${color};
         border-radius: 4px;
         padding: 4px 8px;

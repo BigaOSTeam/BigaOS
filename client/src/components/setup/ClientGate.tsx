@@ -2,9 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { ClientProvider } from '../../context/ClientContext';
 import { SetupWizard } from './SetupWizard';
 import App from '../../App';
-import { theme } from '../../styles/theme';
+import { applyThemeToDOM, StandaloneThemeProvider } from '../../context/ThemeContext';
+import { themes, type ThemeMode } from '../../styles/themes';
 import { wsService } from '../../services/websocket';
 import { API_BASE_URL } from '../../utils/urls';
+
+// Apply saved theme immediately before any render (avoids flash)
+const savedTheme = (localStorage.getItem('bigaos-theme-mode') || 'dark') as ThemeMode;
+applyThemeToDOM(themes[savedTheme] || themes.dark);
 
 export const ClientGate: React.FC = () => {
   const [clientId, setClientId] = useState<string | null>(null);
@@ -72,12 +77,12 @@ export const ClientGate: React.FC = () => {
       <div style={{
         width: '100vw',
         height: '100dvh',
-        background: theme.colors.bgPrimary,
+        background: 'var(--color-bg-primary)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        color: theme.colors.textPrimary,
-        fontSize: theme.fontSize.lg,
+        color: 'var(--color-text-primary)',
+        fontSize: '1.25rem',
       }}>
         Loading...
       </div>
@@ -85,7 +90,11 @@ export const ClientGate: React.FC = () => {
   }
 
   if (!clientId) {
-    return <SetupWizard onComplete={handleWizardComplete} />;
+    return (
+      <StandaloneThemeProvider>
+        <SetupWizard onComplete={handleWizardComplete} />
+      </StandaloneThemeProvider>
+    );
   }
 
   return (

@@ -1,5 +1,5 @@
 import React from 'react';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { radToDeg } from '../../../utils/angle';
 
@@ -8,6 +8,7 @@ interface COGItemProps {
 }
 
 export const COGItem: React.FC<COGItemProps> = ({ cog }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const getCardinalDirection = (deg: number): string => {
     const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];

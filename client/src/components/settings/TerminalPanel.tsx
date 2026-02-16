@@ -7,7 +7,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { usePlugins } from '../../context/PluginContext';
@@ -28,12 +28,6 @@ const HELPFUL_COMMANDS = [
 
 const MONO_FONT = '"Cascadia Code", "Fira Code", "Source Code Pro", "Consolas", monospace';
 
-// Terminal buttons use smaller sizing — keep them compact
-const termBtnStyle: React.CSSProperties = {
-  padding: `${theme.space.xs} ${theme.space.sm}`,
-  fontSize: theme.fontSize.sm,
-  minHeight: '36px',
-};
 
 interface TerminalLine {
   type: 'cmd' | 'stdout' | 'stderr' | 'exit';
@@ -41,6 +35,14 @@ interface TerminalLine {
 }
 
 export const TerminalPanel: React.FC = () => {
+  const { theme } = useTheme();
+
+  const termBtnStyle: React.CSSProperties = {
+    padding: `${theme.space.xs} ${theme.space.sm}`,
+    fontSize: theme.fontSize.sm,
+    minHeight: "36px",
+  };
+
   const { t } = useLanguage();
   const { rebootSystem } = usePlugins();
   const [logs, setLogs] = useState('');
@@ -206,7 +208,7 @@ export const TerminalPanel: React.FC = () => {
               style={{
                 ...termBtnStyle,
                 background: theme.colors.warningLight,
-                color: '#fff',
+                color: theme.colors.warning,
               }}
               icon={
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

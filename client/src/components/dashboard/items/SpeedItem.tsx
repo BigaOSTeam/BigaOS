@@ -1,6 +1,6 @@
 import React from 'react';
 import { useSettings, speedConversions } from '../../../context/SettingsContext';
-import { theme } from '../../../styles/theme';
+import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface SpeedItemProps {
@@ -8,6 +8,7 @@ interface SpeedItemProps {
 }
 
 export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const { speedUnit, convertSpeed } = useSettings();
   const convertedSpeed = convertSpeed(speed);

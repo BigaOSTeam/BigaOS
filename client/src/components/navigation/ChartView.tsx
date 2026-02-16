@@ -7,6 +7,7 @@ import {
   useSettings,
   distanceConversions,
 } from '../../context/SettingsContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
@@ -128,6 +129,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
   onOpenSettings,
   hideSidebar = false,
 }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   // UI State
   const [autoCenter, setAutoCenter] = useState(true);
@@ -1436,7 +1438,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
             <div
               style={{
                 fontSize: '0.5rem',
-                color: 'rgba(255,255,255,0.6)',
+                color: theme.colors.textSecondary,
                 textShadow: '0 1px 2px rgba(0,0,0,0.8)',
                 whiteSpace: 'nowrap',
                 marginTop: '2px',
@@ -1498,7 +1500,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
               style={{
                 width: '40px',
                 height: '40px',
-                border: '3px solid rgba(255, 255, 255, 0.2)',
+                border: `3px solid ${theme.colors.borderHover}`,
                 borderTopColor: '#4fc3f7',
                 borderRadius: '50%',
                 animation: 'spin 1s linear infinite',
@@ -1559,10 +1561,10 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 onClick={() => setNavDataError(null)}
                 style={{
                   padding: '0.6rem 1.25rem',
-                  background: 'rgba(255, 255, 255, 0.1)',
+                  background: theme.colors.bgCardActive,
                   border: 'none',
                   borderRadius: '6px',
-                  color: '#fff',
+                  color: theme.colors.textPrimary,
                   cursor: 'pointer',
                   fontSize: '0.9rem',
                 }}
@@ -1650,7 +1652,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                   background: 'rgba(255, 152, 0, 0.2)',
                   border: '1px solid rgba(255, 152, 0, 0.4)',
                   borderRadius: '6px',
-                  color: '#fff',
+                  color: theme.colors.textPrimary,
                   cursor: 'pointer',
                   fontSize: '0.9rem',
                   fontWeight: 500,
@@ -2035,11 +2037,11 @@ export const ChartView: React.FC<ChartViewProps> = ({
               bottom: '2rem',
               left: `calc(50% - ${sidebarWidth / 2}px)`,
               transform: 'translateX(-50%)',
-              background: 'rgba(10, 25, 41, 0.95)',
+              background: theme.colors.bgSecondary,
               border: '1px solid rgba(79, 195, 247, 0.5)',
               borderRadius: '8px',
               padding: '0.75rem 1rem',
-              color: '#fff',
+              color: theme.colors.textPrimary,
               zIndex: 1002,
               boxShadow: '0 4px 20px rgba(0,0,0,0.5)',
               display: 'flex',
@@ -2085,7 +2087,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
                 background: 'rgba(79, 195, 247, 0.5)',
                 border: 'none',
                 borderRadius: '6px',
-                color: '#fff',
+                color: theme.colors.textPrimary,
                 fontSize: '1rem',
                 fontWeight: 'bold',
                 cursor: 'pointer',
@@ -2504,12 +2506,12 @@ export const ChartView: React.FC<ChartViewProps> = ({
             width: '56px',
             height: '56px',
             background: autoCenter ? 'rgba(25, 118, 210, 0.3)' : 'transparent',
-            border: '1px solid rgba(255, 255, 255, 0.1)',
+            border: `1px solid ${theme.colors.border}`,
             borderRadius: '4px',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             zIndex: 1000,
           }}
           title={autoCenter ? t('chart.auto_centering_on') : t('chart.click_to_recenter')}

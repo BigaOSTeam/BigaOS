@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { theme } from '../styles/theme';
+import { useTheme } from './ThemeContext';
 
 interface ConfirmDialogOptions {
   title: string;
@@ -28,6 +28,7 @@ interface DialogState extends ConfirmDialogOptions {
 }
 
 export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { theme } = useTheme();
   const [dialog, setDialog] = useState<DialogState | null>(null);
 
   const confirm = useCallback((options: ConfirmDialogOptions): Promise<boolean> => {
@@ -67,7 +68,7 @@ export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({
         >
           <div
             style={{
-              background: '#1a1a2e',
+              background: theme.colors.bgSecondary,
               borderRadius: theme.radius.lg,
               padding: theme.space.xl,
               minWidth: '280px',
@@ -100,6 +101,7 @@ export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({
             <div style={{ display: 'flex', gap: theme.space.md }}>
               <button
                 onClick={handleCancel}
+                className="s-btn"
                 style={{
                   flex: 1,
                   padding: theme.space.md,
@@ -116,6 +118,7 @@ export const ConfirmDialogProvider: React.FC<{ children: React.ReactNode }> = ({
               </button>
               <button
                 onClick={handleConfirm}
+                className="s-btn"
                 style={{
                   flex: 1,
                   padding: theme.space.md,

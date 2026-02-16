@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { GeoPosition } from '../../types';
 import { useSettings, distanceConversions } from '../../context/SettingsContext';
+import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 
 interface PositionHistoryPoint {
@@ -17,6 +18,7 @@ const POSITION_HISTORY_MAX_POINTS = 300;
 
 export const PositionView: React.FC<PositionViewProps> = ({ position, onClose }) => {
   const { distanceUnit, convertDistance } = useSettings();
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [positionHistory, setPositionHistory] = useState<PositionHistoryPoint[]>([]);
   const lastReadingTime = useRef<number>(0);
@@ -119,7 +121,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
     return (
       <svg width={plotSize} height={plotSize} viewBox={`0 0 ${plotSize} ${plotSize}`}>
         {/* Background */}
-        <rect x="0" y="0" width={plotSize} height={plotSize} fill="rgba(255,255,255,0.03)" rx="8" />
+        <rect x="0" y="0" width={plotSize} height={plotSize} fill={theme.colors.bgCard} rx="8" />
 
         {/* Grid */}
         {[0.25, 0.5, 0.75].map((ratio, i) => (
@@ -129,7 +131,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
               y1="0"
               x2={ratio * plotSize}
               y2={plotSize}
-              stroke="rgba(255,255,255,0.1)"
+              stroke={theme.colors.border}
               strokeWidth="1"
             />
             <line
@@ -137,7 +139,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
               y1={ratio * plotSize}
               x2={plotSize}
               y2={ratio * plotSize}
-              stroke="rgba(255,255,255,0.1)"
+              stroke={theme.colors.border}
               strokeWidth="1"
             />
           </g>
@@ -177,7 +179,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
     <div style={{
       width: '100%',
       height: '100%',
-      background: '#0a1929',
+      background: theme.colors.bgPrimary,
       display: 'flex',
       flexDirection: 'column',
       position: 'relative',
@@ -187,14 +189,14 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
         display: 'flex',
         alignItems: 'center',
         padding: '1rem',
-        borderBottom: '1px solid rgba(255,255,255,0.1)',
+        borderBottom: `1px solid ${theme.colors.border}`,
       }}>
         <button
           onClick={onClose}
           style={{
             background: 'transparent',
             border: 'none',
-            color: '#fff',
+            color: theme.colors.textPrimary,
             cursor: 'pointer',
             padding: '0.5rem',
             marginRight: '1rem',
@@ -240,7 +242,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
         display: 'flex',
         padding: '1rem',
         gap: '1rem',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderTop: `1px solid ${theme.colors.border}`,
       }}>
         {/* Track plot */}
         <div style={{
@@ -270,7 +272,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
           gap: '1rem',
         }}>
           <div style={{
-            background: 'rgba(255,255,255,0.05)',
+            background: theme.colors.bgCard,
             borderRadius: '8px',
             padding: '1rem',
           }}>
@@ -283,7 +285,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
           </div>
 
           <div style={{
-            background: 'rgba(255,255,255,0.05)',
+            background: theme.colors.bgCard,
             borderRadius: '8px',
             padding: '1rem',
           }}>
@@ -300,7 +302,7 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
       {/* Decimal coordinates */}
       <div style={{
         padding: '1rem',
-        borderTop: '1px solid rgba(255,255,255,0.1)',
+        borderTop: `1px solid ${theme.colors.border}`,
         marginTop: 'auto',
       }}>
         <div style={{

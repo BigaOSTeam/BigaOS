@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
 import type { Map as LeafletMap } from 'leaflet';
-import { theme } from '../../styles/theme';
+import { useTheme } from '../../context/ThemeContext';
 import { offlineMapsAPI, OfflineRegion, Bounds, TileEstimate, StorageStats } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -68,6 +68,7 @@ const BoundsTracker: React.FC<{
 };
 
 export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }) => {
+  const { theme } = useTheme();
   const { t } = useLanguage();
   const [regions, setRegions] = useState<OfflineRegion[]>([]);
   const [loading, setLoading] = useState(true);
