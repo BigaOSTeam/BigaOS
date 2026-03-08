@@ -186,6 +186,10 @@ function AppContent() {
         localStorage.setItem('bigaos-grid-config', JSON.stringify(data.settings.dashboardGridConfig));
         window.dispatchEvent(new Event('bigaos-dashboard-changed'));
       }
+      if (data.settings.dashboardSidebarPosition) {
+        localStorage.setItem('bigaos-dashboard-sidebar-position', data.settings.dashboardSidebarPosition);
+        window.dispatchEvent(new Event('bigaos-dashboard-changed'));
+      }
     });
 
     wsService.on('sensor_update', (data: any) => {
@@ -479,7 +483,7 @@ function AppContent() {
   if (activeView === 'settings') {
     return (
       <>
-        <SettingsView onClose={handleGoBack} initialTab={navigationParams.settings?.tab} />
+        <SettingsView onClose={handleGoBack} initialTab={navigationParams.settings?.tab} backTarget={chartOnly ? 'chart' : 'dashboard'} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />

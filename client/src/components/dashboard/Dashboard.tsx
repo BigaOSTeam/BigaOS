@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GridLayout, { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { SensorData } from '../../types';
 import {
   DashboardItemConfig,
   DashboardItemType,
+  DashboardSidebarPosition,
   DEFAULT_DASHBOARD_ITEMS,
   ViewType,
 } from '../../types/dashboard';
@@ -17,9 +18,9 @@ import {
   PositionItem,
   BatteryItem,
   COGItem,
-  ChartMiniItem,
   WeatherForecastItem,
 } from './items';
+import { DashboardSidebar } from './DashboardSidebar';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useClient } from '../../context/ClientContext';
@@ -27,6 +28,7 @@ import { wsService } from '../../services/websocket';
 
 const LAYOUT_STORAGE_KEY = 'bigaos-dashboard-layout';
 const GRID_CONFIG_KEY = 'bigaos-grid-config';
+const SIDEBAR_POSITION_KEY = 'bigaos-dashboard-sidebar-position';
 const IS_REMOTE_CLIENT = typeof window !== 'undefined' && localStorage.getItem('bigaos-client-type') === 'remote';
 const DEFAULT_GRID_COLS = IS_REMOTE_CLIENT ? 2 : 6;
 const DEFAULT_GRID_ROWS = 3;
@@ -44,14 +46,12 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'position': { label: 'Position', targetView: 'position', defaultSize: { w: 1, h: 1 } },
   'battery': { label: 'Battery', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
   'cog': { label: 'COG', targetView: 'cog', defaultSize: { w: 1, h: 1 } },
-  'chart-mini': { label: 'Chart', targetView: 'chart', defaultSize: { w: 2, h: 2 } },
   'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 2, h: 1 } },
 };
 
 // Migrate old items to use new targetView values
 const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
   return items.map(item => {
-    // Update targetView to match the item type (each widget gets its own view now)
     const config = ITEM_TYPE_CONFIG[item.type];
     if (config && item.targetView !== config.targetView) {
       return { ...item, targetView: config.targetView };
@@ -65,6 +65,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const { t } = useLanguage();
   const { clientId } = useClient();
 
+  // Dashboard sidebar position - independent from chart sidebar, saved per client
+  const [sidebarPosition, setSidebarPosition] = useState<DashboardSidebarPosition>(() => {
+    const saved = localStorage.getItem(SIDEBAR_POSITION_KEY);
+    if (saved && ['left', 'right', 'top', 'bottom'].includes(saved)) {
+      return saved as DashboardSidebarPosition;
+    }
+    return 'left';
+  });
+
   const getItemTypeLabel = (type: DashboardItemType): string => {
     const labelKeys: Record<DashboardItemType, string> = {
       'speed': 'dashboard.speed',
@@ -74,7 +83,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'position': 'dashboard.position',
       'battery': 'dashboard.battery',
       'cog': 'dashboard.cog',
-      'chart-mini': 'dashboard.chart',
       'weather-forecast': 'dashboard.weather',
     };
     return t(labelKeys[type]);
@@ -86,7 +94,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       try {
         const parsed = JSON.parse(saved);
         const migrated = migrateItems(parsed);
-        // Save migrated items back to localStorage
         if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
           localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(migrated));
         }
@@ -101,6 +108,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const [editMode, setEditMode] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
   const [containerSize, setContainerSize] = useState({ width: window.innerWidth, height: window.innerHeight });
+  const [showColsPicker, setShowColsPicker] = useState(false);
+  const [showRowsPicker, setShowRowsPicker] = useState(false);
 
   // Grid configuration state
   const [gridCols, setGridCols] = useState(() => {
@@ -135,11 +144,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     wsService.emit('client_settings_update', { clientId, key: 'dashboardGridConfig', value: gridConfig });
   }, [clientId]);
 
+  const handleSidebarPositionChange = useCallback((position: DashboardSidebarPosition) => {
+    setSidebarPosition(position);
+    localStorage.setItem(SIDEBAR_POSITION_KEY, position);
+    wsService.emit('client_settings_update', { clientId, key: 'dashboardSidebarPosition', value: position });
+  }, [clientId]);
+
   // Listen for layout changes from server (e.g. when switching to existing client)
   useEffect(() => {
     const handleDashboardChanged = () => {
       const savedLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
       const savedGrid = localStorage.getItem(GRID_CONFIG_KEY);
+      const savedSidebarPos = localStorage.getItem(SIDEBAR_POSITION_KEY);
       if (savedLayout) {
         try { setItems(migrateItems(JSON.parse(savedLayout))); } catch {}
       }
@@ -149,6 +165,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           if (config.cols) setGridCols(config.cols);
           if (config.rows) setGridRows(config.rows);
         } catch {}
+      }
+      if (savedSidebarPos && ['left', 'right', 'top', 'bottom'].includes(savedSidebarPos)) {
+        setSidebarPosition(savedSidebarPos as DashboardSidebarPosition);
       }
     };
     window.addEventListener('bigaos-dashboard-changed', handleDashboardChanged);
@@ -172,88 +191,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     syncLayoutToServer([], { cols: gridCols, rows: newRows });
   }, [gridCols, syncLayoutToServer]);
 
-  // Pull-down menu with settings and edit icons
-  const [pullDistance, setPullDistance] = useState(0);
-  const [isPulling, setIsPulling] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [showColsPicker, setShowColsPicker] = useState(false);
-  const [showRowsPicker, setShowRowsPicker] = useState(false);
-  const touchStartY = useRef<number | null>(null);
-  const isValidPullStart = useRef(false);
-  const TOP_ZONE = 60; // Only start pull if touch begins in top 60px
-  const PULL_THRESHOLD = 80; // Distance needed to open menu
-  const MENU_HEIGHT = 140; // Height of open menu
-
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    if (editMode) return;
-    // Don't close menu if a picker is open
-    if (showColsPicker || showRowsPicker) return;
-
-    const startY = e.touches[0].clientY;
-
-    // If menu is open, check if touch is outside menu to close it
-    if (menuOpen) {
-      if (startY > MENU_HEIGHT) {
-        setMenuOpen(false);
-        setPullDistance(0);
-      }
-      return;
-    }
-
-    // Only allow pull-down if starting from top zone
-    if (startY <= TOP_ZONE) {
-      touchStartY.current = startY;
-      isValidPullStart.current = true;
-      setIsPulling(true);
-    } else {
-      isValidPullStart.current = false;
-    }
-  }, [editMode, menuOpen, showColsPicker, showRowsPicker]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (menuOpen || !isValidPullStart.current || touchStartY.current === null) return;
-
-    const currentY = e.touches[0].clientY;
-    const delta = Math.max(0, currentY - touchStartY.current);
-    // Apply resistance - pull slows down as it gets further
-    const resistedDelta = Math.min(MENU_HEIGHT, delta * 0.7);
-    setPullDistance(resistedDelta);
-  }, [menuOpen]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (menuOpen || !isValidPullStart.current) {
-      return;
-    }
-
-    // Use functional update to get current pullDistance value
-    setPullDistance(currentPullDistance => {
-      if (currentPullDistance >= PULL_THRESHOLD) {
-        // Open the menu
-        setMenuOpen(true);
-        return MENU_HEIGHT;
-      } else {
-        // Snap back
-        return 0;
-      }
-    });
-
-    setIsPulling(false);
-    touchStartY.current = null;
-    isValidPullStart.current = false;
-  }, [menuOpen]);
-
-  const handleSettingsClick = useCallback(() => {
-    setMenuOpen(false);
-    setPullDistance(0);
-    onNavigate('settings');
-  }, [onNavigate]);
-
-  const handleEditClick = useCallback(() => {
-    setMenuOpen(false);
-    setPullDistance(0);
-    setEditMode(true);
-  }, []);
-
   useEffect(() => {
     const handleResize = () => {
       setContainerSize({ width: window.innerWidth, height: window.innerHeight });
@@ -262,10 +199,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     return () => window.removeEventListener('resize', handleResize);
   }, []);
 
+  // Sidebar sizing
+  const isMobile = containerSize.width <= 600;
+  const sidebarSize = isMobile ? 48 : 64;
+  const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
+
+  // Grid area calculations accounting for sidebar
   const margin = 2;
-  // Account for containerPadding (margin on all sides) and gaps between items
-  const rowHeight = Math.floor((containerSize.height - margin * 2 - margin * (gridRows - 1)) / gridRows);
-  const gridWidth = containerSize.width;
+  const availableWidth = isHorizontal ? containerSize.width : containerSize.width - sidebarSize;
+  const availableHeight = isHorizontal ? containerSize.height - sidebarSize : containerSize.height;
+  const rowHeight = Math.floor((availableHeight - margin * 2 - margin * (gridRows - 1)) / gridRows);
+  const gridWidth = availableWidth;
 
   const findNextAvailablePosition = useCallback((w: number, h: number): { x: number; y: number } | null => {
     const grid: boolean[][] = Array(gridRows).fill(null).map(() => Array(gridCols).fill(false));
@@ -298,28 +242,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     return null;
   }, [items, gridRows, gridCols]);
 
-  // Check if there's space to add a new item
   const hasSpaceForNewItem = useMemo(() => {
     return findNextAvailablePosition(1, 1) !== null;
   }, [findNextAvailablePosition]);
 
   const handleLayoutChange = useCallback((newLayout: Layout[]) => {
-    // Enforce bounds - prevent items from going below the grid
     const boundedLayout = newLayout.map(layoutItem => {
       let { x, y, w, h } = layoutItem;
-
-      // Clamp x position
       if (x < 0) x = 0;
       if (x + w > gridCols) x = gridCols - w;
-
-      // Clamp y position - prevent going below grid
       if (y < 0) y = 0;
       if (y + h > gridRows) y = gridRows - h;
-
-      // Clamp size if item would exceed bounds
       if (w > gridCols) w = gridCols;
       if (h > gridRows) h = gridRows;
-
       return { ...layoutItem, x, y, w, h };
     });
 
@@ -379,9 +314,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const handleExitEditMode = useCallback(() => {
     setEditMode(false);
     setShowAddMenu(false);
+    setShowColsPicker(false);
+    setShowRowsPicker(false);
   }, []);
 
-  // Handle Escape key to toggle/close settings menu
+  const handleToggleEditMode = useCallback(() => {
+    if (editMode) {
+      handleExitEditMode();
+    } else {
+      setEditMode(true);
+    }
+  }, [editMode, handleExitEditMode]);
+
+  // Handle Escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
@@ -393,20 +338,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           setShowAddMenu(false);
         } else if (editMode) {
           handleExitEditMode();
-        } else if (menuOpen) {
-          // Close menu
-          setMenuOpen(false);
-          setPullDistance(0);
-        } else {
-          // Open menu
-          setMenuOpen(true);
-          setPullDistance(MENU_HEIGHT);
         }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [menuOpen, showColsPicker, showRowsPicker, showAddMenu, editMode, handleExitEditMode]);
+  }, [showColsPicker, showRowsPicker, showAddMenu, editMode, handleExitEditMode]);
 
   const renderItemContent = (item: DashboardItemConfig) => {
     switch (item.type) {
@@ -434,15 +371,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         );
       case 'cog':
         return <COGItem cog={sensorData.navigation.courseOverGround} />;
-      case 'chart-mini':
-        return (
-          <ChartMiniItem
-            position={sensorData.navigation.position}
-            heading={sensorData.navigation.heading}
-            speed={sensorData.navigation.speedOverGround}
-            depth={sensorData.environment.depth.belowTransducer}
-          />
-        );
       case 'weather-forecast':
         return (
           <WeatherForecastItem
@@ -511,12 +439,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>COG</div>
           </div>
         );
-      case 'chart-mini':
-        return (
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={iconStyle}>
-            <polygon points="3 11 22 2 13 21 11 13 3 11" />
-          </svg>
-        );
       case 'weather-forecast':
         return (
           <div style={{ textAlign: 'center' }}>
@@ -543,13 +465,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     }));
   }, [items, editMode, gridRows]);
 
-  const pullProgress = Math.min(1, pullDistance / PULL_THRESHOLD);
+  // Compute grid container offset based on sidebar position
+  const gridContainerStyle: React.CSSProperties = {
+    position: 'absolute',
+    ...(sidebarPosition === 'left' && { left: sidebarSize, top: 0, right: 0, bottom: 0 }),
+    ...(sidebarPosition === 'right' && { left: 0, top: 0, right: sidebarSize, bottom: 0 }),
+    ...(sidebarPosition === 'top' && { left: 0, top: sidebarSize, right: 0, bottom: 0 }),
+    ...(sidebarPosition === 'bottom' && { left: 0, top: 0, right: 0, bottom: sidebarSize }),
+    overflow: 'hidden',
+  };
 
   return (
     <div
-      onTouchStart={handleTouchStart}
-      onTouchMove={handleTouchMove}
-      onTouchEnd={handleTouchEnd}
       style={{
         width: '100vw',
         height: '100dvh',
@@ -557,308 +484,230 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         position: 'relative',
       }}
     >
-      {/* Pull-down menu */}
-      {(isPulling || menuOpen || pullDistance > 0) && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            height: `${pullDistance}px`,
-            background: `linear-gradient(to bottom, ${theme.colors.bgSecondary}, ${theme.colors.bgTertiary})`,
-            borderBottom: menuOpen ? `1px solid ${theme.colors.border}` : 'none',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: theme.zIndex.modal,
-            transition: isPulling ? 'none' : `height ${theme.transition.slow}`,
+      {/* Fixed Sidebar */}
+      <DashboardSidebar
+        sidebarPosition={sidebarPosition}
+        sidebarWidth={sidebarSize}
+        onNavigate={onNavigate}
+        onEditMode={handleToggleEditMode}
+        editMode={editMode}
+      />
+
+      {/* Grid Container */}
+      <div style={gridContainerStyle}>
+        <GridLayout
+          className="layout"
+          layout={layout}
+          cols={gridCols}
+          rowHeight={rowHeight}
+          width={gridWidth}
+          onLayoutChange={handleLayoutChange}
+          isDraggable={editMode}
+          isResizable={editMode}
+          isBounded={true}
+          compactType={null}
+          preventCollision={true}
+          margin={[margin, margin]}
+          containerPadding={[margin, margin]}
+          useCSSTransforms={true}
+          maxRows={gridRows}
+          resizeHandles={['se', 'sw', 'ne', 'nw']}
+          onResize={(_layout, _oldItem, newItem, _placeholder) => {
+            if (newItem.y + newItem.h > gridRows) {
+              newItem.h = gridRows - newItem.y;
+            }
+            if (newItem.x + newItem.w > gridCols) {
+              newItem.w = gridCols - newItem.x;
+            }
+          }}
+          onDrag={(_layout, _oldItem, newItem) => {
+            if (newItem.y + newItem.h > gridRows) {
+              newItem.y = gridRows - newItem.h;
+            }
+            if (newItem.x + newItem.w > gridCols) {
+              newItem.x = gridCols - newItem.w;
+            }
           }}
         >
-          {/* Center group: Grid + Edit */}
+          {items.map((item) => (
+            <div key={item.id}>
+              <DashboardItem
+                targetView={item.targetView}
+                onNavigate={onNavigate}
+                editMode={editMode}
+                onDelete={() => handleDeleteItem(item.id)}
+              >
+                {renderItemContent(item)}
+              </DashboardItem>
+            </div>
+          ))}
+        </GridLayout>
+
+        {/* Edit Mode Toolbar */}
+        {editMode && (
           <div
             style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '16px',
-            }}
-          >
-            {/* Grid size dropdowns */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: theme.space.sm,
-                opacity: pullProgress,
-                transform: `scale(${0.5 + pullProgress * 0.5})`,
-                transition: isPulling ? 'none' : `all ${theme.transition.slow}`,
-                padding: theme.space.md,
-              }}
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: theme.space.xs }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowColsPicker(true);
-                    setShowRowsPicker(false);
-                  }}
-                  style={{
-                    background: theme.colors.warningLight,
-                    border: 'none',
-                    borderRadius: theme.radius.lg,
-                    color: theme.colors.textPrimary,
-                    padding: '16px 24px',
-                    fontSize: theme.fontSize.xl,
-                    fontWeight: theme.fontWeight.bold,
-                    cursor: 'pointer',
-                    minWidth: '70px',
-                    textAlign: 'center',
-                  }}
-                >
-                  {gridCols}
-                </button>
-                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>{t('dashboard.width')}</span>
-              </div>
-              <span style={{ fontSize: theme.fontSize.xl, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.bold, marginBottom: '20px' }}>×</span>
-              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: theme.space.xs }}>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setShowRowsPicker(true);
-                    setShowColsPicker(false);
-                  }}
-                  style={{
-                    background: theme.colors.warningLight,
-                    border: 'none',
-                    borderRadius: theme.radius.lg,
-                    color: theme.colors.textPrimary,
-                    padding: '16px 24px',
-                    fontSize: theme.fontSize.xl,
-                    fontWeight: theme.fontWeight.bold,
-                    cursor: 'pointer',
-                    minWidth: '70px',
-                    textAlign: 'center',
-                  }}
-                >
-                  {gridRows}
-                </button>
-                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>{t('dashboard.height')}</span>
-              </div>
-            </div>
-
-            {/* Edit button */}
-            <button
-              onClick={handleEditClick}
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                gap: theme.space.sm,
-                background: 'transparent',
-                border: 'none',
-                cursor: menuOpen ? 'pointer' : 'default',
-                opacity: pullProgress,
-                transform: `scale(${0.5 + pullProgress * 0.5})`,
-                transition: isPulling ? 'none' : `all ${theme.transition.slow}`,
-                padding: theme.space.md,
-              }}
-            >
-              <div
-                style={{
-                  width: '56px',
-                  height: '56px',
-                  borderRadius: theme.radius.lg,
-                  background: theme.colors.successLight,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                <svg
-                  width="28"
-                  height="28"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke={theme.colors.textPrimary}
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                  <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                </svg>
-              </div>
-              <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>{t('common.edit')}</span>
-            </button>
-          </div>
-
-          {/* Settings button - positioned on right */}
-          <button
-            onClick={handleSettingsClick}
-            style={{
               position: 'absolute',
-              right: theme.space.xl,
+              bottom: theme.space.xl,
+              left: '50%',
+              transform: 'translateX(-50%)',
               display: 'flex',
-              flexDirection: 'column',
               alignItems: 'center',
-              gap: theme.space.sm,
-              background: 'transparent',
-              border: 'none',
-              cursor: menuOpen ? 'pointer' : 'default',
-              opacity: pullProgress,
-              transform: `scale(${0.5 + pullProgress * 0.5})`,
-              transition: isPulling ? 'none' : `all ${theme.transition.slow}`,
-              padding: theme.space.md,
+              gap: '12px',
+              background: theme.colors.bgSecondary,
+              border: `1px solid ${theme.colors.border}`,
+              borderRadius: theme.radius.lg,
+              padding: `${theme.space.sm} ${theme.space.md}`,
+              boxShadow: theme.shadow.lg,
+              zIndex: 100,
             }}
           >
-            <div
+            {/* Add button */}
+            <button
+              onClick={() => setShowAddMenu(!showAddMenu)}
+              disabled={!hasSpaceForNewItem}
               style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: theme.radius.lg,
-                background: theme.colors.primaryLight,
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
+                width: '48px',
+                height: '48px',
+                borderRadius: theme.radius.md,
+                background: hasSpaceForNewItem ? 'rgba(255, 167, 38, 0.9)' : 'rgba(100, 100, 100, 0.5)',
+                border: 'none',
+                cursor: hasSpaceForNewItem ? 'pointer' : 'not-allowed',
+                opacity: hasSpaceForNewItem ? 1 : 0.5,
               }}
             >
-              <svg
-                width="28"
-                height="28"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke={theme.colors.textPrimary}
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="3" />
-                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textPrimary} strokeWidth="2.5">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
               </svg>
-            </div>
-            <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textSecondary }}>Settings</span>
-          </button>
-        </div>
-      )}
+            </button>
 
-      {/* Grid overlay for visualization when menu is open */}
-      {menuOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            pointerEvents: 'none',
-            zIndex: theme.zIndex.base,
-          }}
-        >
-          {/* Container padding - edges */}
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: margin, background: theme.colors.primary, opacity: 0.7 }} />
-          <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, height: margin, background: theme.colors.primary, opacity: 0.7 }} />
-          <div style={{ position: 'absolute', top: 0, left: 0, bottom: 0, width: margin, background: theme.colors.primary, opacity: 0.7 }} />
-          <div style={{ position: 'absolute', top: 0, right: 0, bottom: 0, width: margin, background: theme.colors.primary, opacity: 0.7 }} />
-
-          {/* Vertical gaps between columns */}
-          {Array.from({ length: gridCols - 1 }, (_, i) => {
-            const availableWidth = gridWidth - margin * 2 - margin * (gridCols - 1);
-            const colWidth = availableWidth / gridCols;
-            // Gap starts after column i: margin + (i+1)*colWidth + i*margin
-            const x = margin + (i + 1) * colWidth + i * margin;
-            return (
-              <div
-                key={`vgap-${i}`}
-                style={{
-                  position: 'absolute',
-                  left: `${x}px`,
-                  top: margin,
-                  bottom: margin,
-                  width: `${margin}px`,
-                  background: theme.colors.primary,
-                  opacity: 0.7,
-                }}
-              />
-            );
-          })}
-
-          {/* Horizontal gaps between rows */}
-          {Array.from({ length: gridRows - 1 }, (_, i) => {
-            // Gap starts after row i: margin + (i+1)*rowHeight + i*margin
-            const y = margin + (i + 1) * rowHeight + i * margin;
-            return (
-              <div
-                key={`hgap-${i}`}
-                style={{
-                  position: 'absolute',
-                  top: `${y}px`,
-                  left: margin,
-                  right: margin,
-                  height: `${margin}px`,
-                  background: theme.colors.primary,
-                  opacity: 0.7,
-                }}
-              />
-            );
-          })}
-        </div>
-      )}
-
-      {/* Grid */}
-      <GridLayout
-        className="layout"
-        layout={layout}
-        cols={gridCols}
-        rowHeight={rowHeight}
-        width={gridWidth}
-        onLayoutChange={handleLayoutChange}
-        isDraggable={editMode}
-        isResizable={editMode}
-        isBounded={true}
-        compactType={null}
-        preventCollision={true}
-        margin={[margin, margin]}
-        containerPadding={[margin, margin]}
-        useCSSTransforms={true}
-        maxRows={gridRows}
-        resizeHandles={['se', 'sw', 'ne', 'nw']}
-        onResize={(_layout, _oldItem, newItem, _placeholder) => {
-          // Prevent resize beyond grid bounds
-          if (newItem.y + newItem.h > gridRows) {
-            newItem.h = gridRows - newItem.y;
-          }
-          if (newItem.x + newItem.w > gridCols) {
-            newItem.w = gridCols - newItem.x;
-          }
-        }}
-        onDrag={(_layout, _oldItem, newItem) => {
-          // Prevent drag beyond grid bounds
-          if (newItem.y + newItem.h > gridRows) {
-            newItem.y = gridRows - newItem.h;
-          }
-          if (newItem.x + newItem.w > gridCols) {
-            newItem.x = gridCols - newItem.w;
-          }
-        }}
-      >
-        {items.map((item) => (
-          <div key={item.id}>
-            <DashboardItem
-              targetView={item.targetView}
-              onNavigate={onNavigate}
-              editMode={editMode}
-              onDelete={() => handleDeleteItem(item.id)}
+            {/* Grid size: Cols button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowColsPicker(true);
+                setShowRowsPicker(false);
+              }}
+              style={{
+                background: theme.colors.warningLight,
+                border: 'none',
+                borderRadius: theme.radius.md,
+                color: theme.colors.textPrimary,
+                padding: '0 16px',
+                height: '48px',
+                fontSize: theme.fontSize.lg,
+                fontWeight: theme.fontWeight.bold,
+                cursor: 'pointer',
+                minWidth: '50px',
+                textAlign: 'center',
+              }}
             >
-              {renderItemContent(item)}
-            </DashboardItem>
-          </div>
-        ))}
-      </GridLayout>
+              {gridCols}
+            </button>
+            <span style={{ fontSize: theme.fontSize.lg, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.bold }}>×</span>
+            {/* Grid size: Rows button */}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowRowsPicker(true);
+                setShowColsPicker(false);
+              }}
+              style={{
+                background: theme.colors.warningLight,
+                border: 'none',
+                borderRadius: theme.radius.md,
+                color: theme.colors.textPrimary,
+                padding: '0 16px',
+                height: '48px',
+                fontSize: theme.fontSize.lg,
+                fontWeight: theme.fontWeight.bold,
+                cursor: 'pointer',
+                minWidth: '50px',
+                textAlign: 'center',
+              }}
+            >
+              {gridRows}
+            </button>
 
-      {/* Add Item Menu - Grid of miniature items */}
+            {/* Sidebar position cycle button */}
+            <button
+              onClick={() => {
+                const positions: DashboardSidebarPosition[] = ['left', 'right', 'top', 'bottom'];
+                const idx = positions.indexOf(sidebarPosition);
+                handleSidebarPositionChange(positions[(idx + 1) % positions.length]);
+              }}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '48px',
+                height: '48px',
+                borderRadius: theme.radius.md,
+                background: theme.colors.primaryLight,
+                border: 'none',
+                cursor: 'pointer',
+                color: theme.colors.textPrimary,
+              }}
+              title={t('settings.sidebar_position')}
+            >
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                {sidebarPosition === 'left' && (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="9" y1="3" x2="9" y2="21" />
+                  </>
+                )}
+                {sidebarPosition === 'right' && (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="15" y1="3" x2="15" y2="21" />
+                  </>
+                )}
+                {sidebarPosition === 'top' && (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="3" y1="9" x2="21" y2="9" />
+                  </>
+                )}
+                {sidebarPosition === 'bottom' && (
+                  <>
+                    <rect x="3" y="3" width="18" height="18" rx="2" />
+                    <line x1="3" y1="15" x2="21" y2="15" />
+                  </>
+                )}
+              </svg>
+            </button>
+
+            {/* Done button */}
+            <button
+              onClick={handleExitEditMode}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: '48px',
+                height: '48px',
+                borderRadius: theme.radius.md,
+                background: 'rgba(102, 187, 106, 0.9)',
+                border: 'none',
+                cursor: 'pointer',
+              }}
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textPrimary} strokeWidth="2.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* Add Item Menu */}
       {showAddMenu && hasSpaceForNewItem && (
         <>
-          {/* Backdrop to close menu */}
           <div
             onClick={() => setShowAddMenu(false)}
             style={{
@@ -1078,85 +927,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             </div>
           </div>
         </>
-      )}
-
-      {/* Edit Mode Indicator & Buttons */}
-      {editMode && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: theme.space.xl,
-            left: '50%',
-            transform: 'translateX(-50%)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '16px',
-          }}
-        >
-          {/* Add button */}
-          <button
-            onClick={() => setShowAddMenu(!showAddMenu)}
-            disabled={!hasSpaceForNewItem}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: theme.space.sm,
-              background: 'transparent',
-              border: 'none',
-              cursor: hasSpaceForNewItem ? 'pointer' : 'not-allowed',
-              opacity: hasSpaceForNewItem ? 1 : 0.5,
-              padding: theme.space.md,
-            }}
-          >
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: theme.radius.lg,
-                background: hasSpaceForNewItem ? 'rgba(255, 167, 38, 0.9)' : 'rgba(100, 100, 100, 0.5)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textPrimary} strokeWidth="2.5">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-            </div>
-          </button>
-          {/* Done button */}
-          <button
-            onClick={handleExitEditMode}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: theme.space.sm,
-              background: 'transparent',
-              border: 'none',
-              cursor: 'pointer',
-              padding: theme.space.md,
-            }}
-          >
-            <div
-              style={{
-                width: '56px',
-                height: '56px',
-                borderRadius: theme.radius.lg,
-                background: 'rgba(102, 187, 106, 0.9)',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}
-            >
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textPrimary} strokeWidth="2.5">
-                <polyline points="20 6 9 17 4 12" />
-              </svg>
-            </div>
-          </button>
-        </div>
       )}
     </div>
   );

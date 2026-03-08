@@ -1,5 +1,7 @@
 import { Layout } from 'react-grid-layout';
 
+export type DashboardSidebarPosition = 'left' | 'right' | 'top' | 'bottom';
+
 export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'cog' | 'position' | 'battery' | 'weather';
 
 export interface DashboardItemConfig {
@@ -17,7 +19,6 @@ export type DashboardItemType =
   | 'position'
   | 'battery'
   | 'cog'
-  | 'chart-mini'
   | 'weather-forecast';
 
 export interface DashboardLayout {
@@ -35,5 +36,4 @@ export const DEFAULT_DASHBOARD_ITEMS: DashboardItemConfig[] = [
   { id: 'cog', type: 'cog', targetView: 'cog', layout: { i: 'cog', x: 1, y: 1, w: 1, h: 1, minW: 1, minH: 1 } },
   { id: 'position', type: 'position', targetView: 'position', layout: { i: 'position', x: 2, y: 1, w: 1, h: 1, minW: 1, minH: 1 } },
   { id: 'battery', type: 'battery', targetView: 'battery', layout: { i: 'battery', x: 0, y: 2, w: 1, h: 1, minW: 1, minH: 1 } },
-  { id: 'chart-mini', type: 'chart-mini', targetView: 'chart', layout: { i: 'chart-mini', x: 3, y: 0, w: 3, h: 2, minW: 1, minH: 1 } },
 ];

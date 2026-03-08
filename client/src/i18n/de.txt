@@ -57,6 +57,8 @@ settings.theme_light=Hell
 settings.sidebar_position=Seitenleiste Position
 settings.sidebar_left=Links
 settings.sidebar_right=Rechts
+settings.sidebar_top=Oben
+settings.sidebar_bottom=Unten
 
 # ==================== Schiff ====================
 vessel.name=Schiffsname
@@ -108,6 +110,7 @@ units.depth_label=Tiefe
 units.change_note=Das Ändern der Einheiten aktualisiert alle Anzeigen in der Anwendung. Der Tiefenalarm wird beim Ändern der Tiefeneinheit zurückgesetzt.
 
 # ==================== Dashboard ====================
+dashboard.title=Dashboard
 dashboard.add_widget=Widget hinzufügen
 dashboard.select_columns=Spalten wählen
 dashboard.select_rows=Zeilen wählen
