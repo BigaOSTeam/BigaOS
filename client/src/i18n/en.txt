@@ -25,6 +25,7 @@ common.loading_history=Loading history...
 common.no_data=No data
 common.starting=Starting...
 common.other=Other
+common.settings=Settings
 
 # ==================== App ====================
 app.demo=DEMO
@@ -123,14 +124,12 @@ dashboard.depth=Depth
 dashboard.wind=Wind
 dashboard.position=Position
 dashboard.battery=Battery
-dashboard.cog=COG
 dashboard.chart=Chart
 dashboard.weather=Weather
 
 # ==================== Dashboard Items ====================
 dashboard_item.battery=Battery
-dashboard_item.hdg=HDG
-dashboard_item.cog=COG
+dashboard_item.hdg=Heading
 dashboard_item.awa=AWA
 dashboard_item.head=HEAD
 dashboard_item.stbd=STBD
@@ -402,16 +401,16 @@ offline_maps.storage_free=Storage: {available} free
 offline_maps.error=Error
 
 # ==================== Chart / Navigation ====================
-chart.speed=SPEED
-chart.depth=DEPTH
-chart.forecast=FORECAST
-chart.search=SEARCH
+chart.speed=Speed
+chart.depth=Depth
+chart.forecast=Forecast
+chart.search=Search
 chart.back_to_dashboard=Back to Dashboard
 chart.open_settings=Open Settings
 chart.switch_to_street=Switch to Street View
 chart.switch_to_satellite=Switch to Satellite View
-chart.map=MAP
-chart.satellite=SATELLITE
+chart.map=Map
+chart.satellite=Satellite
 chart.search_locations=Search locations
 chart.vessel_details=Vessel Details
 chart.my_vessel=My Vessel
@@ -480,6 +479,8 @@ chart.total_chain_warning={percent}% of total chain ({total}m)
 chart.sources=Sources: Yachting Monthly, trimaran-san.de, BoatUS, Rocna KB
 chart.max_wind_label=max wind
 chart.max_gust_label=max gust
+chart.no_data=No data available
+chart.no_data_timeframe=No data in timeframe
 chart.no_forecast=No forecast
 chart.forecast_unavailable=Forecast unavailable
 chart.search_attribution=Search powered by Photon (© OpenStreetMap)

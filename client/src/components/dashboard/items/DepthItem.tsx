@@ -28,38 +28,47 @@ export const DepthItem: React.FC<DepthItemProps> = ({ depth }) => {
       alignItems: 'center',
       justifyContent: 'center',
       height: '100%',
-      padding: theme.space.lg,
+      padding: 'clamp(4px, 4cqmin, 24px)',
       background: isDepthAlarmTriggered ? theme.colors.errorLight : 'transparent',
-      transition: `background ${theme.transition.slow}`,
+      animation: isDepthAlarmTriggered ? 'depth-item-pulse 1.5s ease-in-out infinite' : 'none',
     }}>
       <div style={{
-        fontSize: theme.fontSize.sm,
+        fontSize: 'clamp(8px, 7cqmin, 28px)',
         color: theme.colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
         display: 'flex',
         alignItems: 'center',
-        gap: '0.35rem',
+        justifyContent: 'center',
+        gap: 'clamp(2px, 1.5cqmin, 8px)',
+        width: '100%',
       }}>
         {t('dashboard.depth')}
         {depthAlarm !== null && (
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={isDepthAlarmTriggered ? theme.colors.error : theme.colors.dataDepth} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke={isDepthAlarmTriggered ? theme.colors.error : theme.colors.dataDepth}
+            strokeWidth="2.5"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            style={{ width: 'clamp(8px, 5cqmin, 24px)', height: 'clamp(8px, 5cqmin, 24px)' }}
+          >
             <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
             <path d="M13.73 21a2 2 0 0 1-3.46 0" />
           </svg>
         )}
       </div>
       <div style={{
-        fontSize: theme.fontSize['3xl'],
+        fontSize: 'clamp(14px, 25cqmin, 120px)',
         fontWeight: theme.fontWeight.bold,
         color: getDepthColor(depth),
         lineHeight: 1,
-        marginTop: theme.space.xs,
-        animation: isDepthAlarmTriggered ? 'pulse 1s infinite' : 'none',
+        marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
         {convertedDepth.toFixed(1)}
       </div>
-      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{depthConversions[depthUnit].label}</div>
+      <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{depthConversions[depthUnit].label}</div>
     </div>
   );
 };

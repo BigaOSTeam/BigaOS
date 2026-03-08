@@ -88,6 +88,19 @@ class DatabaseService {
   }
 
   /**
+   * Get sensor history filtered by time window
+   */
+  getSensorHistoryByTime(category: string, sensorName: string, minutes: number): any[] {
+    const stmt = this.getDb().prepare(`
+      SELECT * FROM sensor_data
+      WHERE category = ? AND sensor_name = ?
+        AND timestamp >= datetime('now', '-' || ? || ' minutes')
+      ORDER BY timestamp ASC
+    `);
+    return stmt.all(category, sensorName, minutes);
+  }
+
+  /**
    * Get recent sensor data for all sensors
    */
   getRecentSensorData(minutes: number = 60): any[] {

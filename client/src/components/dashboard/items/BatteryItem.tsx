@@ -23,10 +23,10 @@ export const BatteryItem: React.FC<BatteryItemProps> = ({ voltage, stateOfCharge
       alignItems: 'center',
       justifyContent: 'center',
       height: '100%',
-      padding: theme.space.lg,
+      padding: 'clamp(4px, 4cqmin, 24px)',
     }}>
       <div style={{
-        fontSize: theme.fontSize.sm,
+        fontSize: 'clamp(8px, 7cqmin, 28px)',
         color: theme.colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
@@ -34,15 +34,15 @@ export const BatteryItem: React.FC<BatteryItemProps> = ({ voltage, stateOfCharge
         {t('dashboard_item.battery')}
       </div>
       <div style={{
-        fontSize: theme.fontSize['2xl'],
+        fontSize: 'clamp(12px, 20cqmin, 96px)',
         fontWeight: theme.fontWeight.bold,
         color: getBatteryColor(stateOfCharge),
         lineHeight: 1,
-        marginTop: theme.space.xs,
+        marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
         {stateOfCharge.toFixed(0)}%
       </div>
-      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>{voltage.toFixed(1)}V</div>
+      <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{voltage.toFixed(1)}V</div>
     </div>
   );
 };

@@ -25,10 +25,10 @@ export const PositionItem: React.FC<PositionItemProps> = ({ position }) => {
       alignItems: 'center',
       justifyContent: 'center',
       height: '100%',
-      padding: theme.space.lg,
+      padding: 'clamp(4px, 4cqmin, 24px)',
     }}>
       <div style={{
-        fontSize: theme.fontSize.sm,
+        fontSize: 'clamp(8px, 7cqmin, 28px)',
         color: theme.colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
@@ -36,13 +36,13 @@ export const PositionItem: React.FC<PositionItemProps> = ({ position }) => {
         {t('dashboard.position')}
       </div>
       <div style={{
-        marginTop: theme.space.sm,
+        marginTop: 'clamp(4px, 2cqmin, 12px)',
         textAlign: 'center',
       }}>
-        <div style={{ fontSize: theme.fontSize.base, color: theme.colors.dataPosition, fontFamily: 'monospace' }}>
+        <div style={{ fontSize: 'clamp(10px, 12cqmin, 48px)', color: theme.colors.dataPosition, fontFamily: 'monospace' }}>
           {formatCoord(position.latitude, true)}
         </div>
-        <div style={{ fontSize: theme.fontSize.base, color: theme.colors.dataPosition, fontFamily: 'monospace', marginTop: theme.space.xs }}>
+        <div style={{ fontSize: 'clamp(10px, 12cqmin, 48px)', color: theme.colors.dataPosition, fontFamily: 'monospace', marginTop: 'clamp(2px, 1cqmin, 8px)' }}>
           {formatCoord(position.longitude, false)}
         </div>
       </div>

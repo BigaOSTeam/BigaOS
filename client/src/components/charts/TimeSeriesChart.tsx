@@ -1,6 +1,7 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useRef, useState, useEffect, useMemo, useCallback } from 'react';
 import { useSettings } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 export interface TimeSeriesDataPoint {
   timestamp: number;
@@ -10,21 +11,18 @@ export interface TimeSeriesDataPoint {
 export interface TimeSeriesChartProps {
   data: TimeSeriesDataPoint[];
   timeframeMs: number;
-  // Y-axis configuration
-  yInterval: number;      // e.g., 3 for 3m steps, 2 for 2kt steps
-  yHeadroom: number;      // e.g., 2 for 2m headroom above max
-  yUnit?: string;         // e.g., 'm', 'kt', '°' - displayed on axis
-  yMinValue?: number;     // Minimum Y value (default: 0)
-  yMaxValue?: number;     // Fixed maximum (if not provided, auto-calculated)
-  // Styling
-  lineColor?: string;     // Line color (default: #4fc3f7)
-  fillGradient?: boolean; // Show gradient fill under line (default: true)
-  // Optional alarm threshold
+  yInterval: number;
+  yHeadroom: number;
+  yUnit?: string;
+  yMinValue?: number;
+  yMaxValue?: number;
+  lineColor?: string;
+  fillGradient?: boolean;
   alarmThreshold?: number | null;
   alarmColor?: string;
+  yLabelFormatter?: (value: number) => string;
 }
 
-// Calculate nice Y-axis maximum with fixed intervals and headroom
 const calculateNiceMax = (maxValue: number, interval: number, headroom: number): number => {
   const minRequired = maxValue + headroom;
   const niceMax = Math.ceil(minRequired / interval) * interval;
@@ -43,27 +41,72 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   fillGradient = true,
   alarmThreshold,
   alarmColor = '#ef5350',
+  yLabelFormatter,
 }) => {
   const { timeFormat } = useSettings();
   const { theme } = useTheme();
+  const { t } = useLanguage();
   const containerRef = useRef<HTMLDivElement>(null);
-  const [chartSize, setChartSize] = useState({ width: 300, height: 150 });
+  const [chartSize, setChartSize] = useState({ width: 0, height: 0 });
+  const [transitioning, setTransitioning] = useState(false);
+  const prevTimeframeRef = useRef(timeframeMs);
 
-  // Measure container
+  // Fade out on timeframe change
   useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setChartSize({ width: rect.width, height: rect.height });
+    if (prevTimeframeRef.current !== timeframeMs) {
+      prevTimeframeRef.current = timeframeMs;
+      setTransitioning(true);
+      const timer = setTimeout(() => setTransitioning(false), 300);
+      return () => clearTimeout(timer);
+    }
+  }, [timeframeMs]);
+
+  // Use ResizeObserver for reliable container measurement
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const { width, height } = entry.contentRect;
+        if (width > 0 && height > 0) {
+          setChartSize({ width: Math.floor(width), height: Math.floor(height) });
+        }
       }
-    };
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    });
+
+    observer.observe(el);
+
+    // Initial measurement
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      setChartSize({ width: Math.floor(rect.width), height: Math.floor(rect.height) });
+    }
+
+    return () => observer.disconnect();
   }, []);
 
-  // Generate unique gradient ID to avoid conflicts when multiple charts are on the page
   const gradientId = useMemo(() => `chartGradient-${Math.random().toString(36).substr(2, 9)}`, []);
+
+  const formatTime = useCallback((ts: number) => {
+    const d = new Date(ts);
+    return d.toLocaleTimeString([], {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: timeFormat === '12h'
+    });
+  }, [timeFormat]);
+
+  const { width, height } = chartSize;
+
+  // Responsive font size and padding based on chart dimensions
+  const fontSize = Math.max(10, Math.min(13, Math.floor(Math.min(width, height) * 0.06)));
+  const padding = {
+    top: 22,
+    right: 20,
+    bottom: fontSize + 12,
+    left: fontSize * 3,
+  };
 
   if (data.length < 2) {
     return (
@@ -76,17 +119,20 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           opacity: 0.5,
-          fontSize: '0.9rem',
+          fontSize: '0.85rem',
+          color: theme.colors.textMuted,
         }}
       >
-        No data available
+        {data.length > 0 ? t('chart.no_data') : ''}
       </div>
     );
   }
 
-  const padding = { top: 20, right: 20, bottom: 30, left: 45 };
-  const width = chartSize.width;
-  const height = chartSize.height;
+  // Not yet measured
+  if (width <= 0 || height <= 0) {
+    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+  }
+
   const chartWidth = width - padding.left - padding.right;
   const chartHeight = height - padding.top - padding.bottom;
 
@@ -94,14 +140,12 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
     return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
   }
 
-  // Time bounds - use current time as right edge
+  // Time bounds
   const now = Date.now();
   const timeStart = now - timeframeMs;
 
-  // Filter data to only include points within the timeframe
   const filteredData = data.filter(d => d.timestamp >= timeStart && d.timestamp <= now);
 
-  // If no data in timeframe after filtering, show message
   if (filteredData.length < 2) {
     return (
       <div
@@ -113,59 +157,64 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
           alignItems: 'center',
           justifyContent: 'center',
           opacity: 0.5,
-          fontSize: '0.9rem',
+          fontSize: '0.85rem',
+          color: theme.colors.textMuted,
         }}
       >
-        No data in timeframe
+        {t('chart.no_data_timeframe')}
       </div>
     );
   }
 
-  // Calculate bounds using filtered data
+  // Y-axis bounds
   const values = filteredData.map(d => d.value);
   const minVal = yMinValue;
   const dataMax = Math.max(...values) || yInterval;
   const maxVal = yMaxValue !== undefined ? yMaxValue : calculateNiceMax(dataMax, yInterval, yHeadroom);
+  const yRange = maxVal - minVal || 1;
 
-  // Generate Y ticks at fixed intervals
-  const yTickCount = Math.round((maxVal - minVal) / yInterval) + 1;
-  const yTicks = Array.from({ length: yTickCount }, (_, i) => minVal + i * yInterval);
+  // Y ticks - limit count to avoid crowding in small charts
+  const maxYTicks = Math.max(2, Math.floor(chartHeight / 30));
+  const yTickStep = Math.max(yInterval, Math.ceil((maxVal - minVal) / maxYTicks / yInterval) * yInterval);
+  const yTicks: number[] = [];
+  for (let v = minVal; v <= maxVal; v += yTickStep) {
+    yTicks.push(v);
+  }
 
-  // Generate X ticks
-  const xTickCount = 4;
+  // X ticks - adaptive count based on width
+  const maxXTicks = Math.max(2, Math.floor(chartWidth / 60));
+  const xTickCount = Math.min(maxXTicks, 6);
   const xStep = timeframeMs / (xTickCount - 1);
   const xTicks = Array.from({ length: xTickCount }, (_, i) => timeStart + i * xStep);
 
-  // Map filtered data to coordinates
+  // Map data to coordinates
   const points = filteredData.map(d => {
     const x = padding.left + ((d.timestamp - timeStart) / timeframeMs) * chartWidth;
-    const y = padding.top + chartHeight - ((d.value - minVal) / (maxVal - minVal)) * chartHeight;
+    const y = padding.top + chartHeight - ((d.value - minVal) / yRange) * chartHeight;
     return { x, y };
   });
 
-  // Create path
-  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x},${p.y}`).join(' ');
+  // Paths
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
   const areaPath = fillGradient
-    ? `${linePath} L${points[points.length - 1].x},${padding.top + chartHeight} L${points[0].x},${padding.top + chartHeight} Z`
+    ? `${linePath} L${points[points.length - 1].x.toFixed(1)},${(padding.top + chartHeight).toFixed(1)} L${points[0].x.toFixed(1)},${(padding.top + chartHeight).toFixed(1)} Z`
     : '';
 
-  // Alarm line Y position
+  // Alarm line
   const alarmY = alarmThreshold !== null && alarmThreshold !== undefined
-    ? padding.top + chartHeight - ((alarmThreshold - minVal) / (maxVal - minVal)) * chartHeight
+    ? padding.top + chartHeight - ((alarmThreshold - minVal) / yRange) * chartHeight
     : null;
 
-  const formatTime = (ts: number) => {
-    const d = new Date(ts);
-    return d.toLocaleTimeString([], {
-      hour: '2-digit',
-      minute: '2-digit',
-      hour12: timeFormat === '12h'
-    });
-  };
+  const lastPoint = points[points.length - 1];
+  const dotRadius = Math.max(3, Math.min(5, Math.floor(Math.min(width, height) * 0.025)));
 
   return (
     <div ref={containerRef} style={{ width: '100%', height: '100%' }}>
-      <svg width={width} height={height} style={{ display: 'block' }}>
+      <svg width={width} height={height} style={{
+        display: 'block',
+        opacity: transitioning ? 0 : 1,
+        transition: 'opacity 0.25s ease',
+      }}>
         {fillGradient && (
           <defs>
             <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
@@ -175,9 +224,9 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
           </defs>
         )}
 
-        {/* Grid lines */}
+        {/* Y grid lines + labels */}
         {yTicks.map((tick, i) => {
-          const y = padding.top + chartHeight - ((tick - minVal) / (maxVal - minVal)) * chartHeight;
+          const y = padding.top + chartHeight - ((tick - minVal) / yRange) * chartHeight;
           return (
             <g key={`y-${i}`}>
               <line
@@ -189,13 +238,13 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
                 strokeWidth="1"
               />
               <text
-                x={padding.left - 8}
-                y={y + 4}
+                x={padding.left - 6}
+                y={y + fontSize * 0.35}
                 fill={theme.colors.textMuted}
-                fontSize="11"
+                fontSize={fontSize}
                 textAnchor="end"
               >
-                {Number.isInteger(tick) ? tick : tick.toFixed(1)}{yUnit}
+                {yLabelFormatter ? yLabelFormatter(tick) : `${Number.isInteger(tick) ? tick : tick.toFixed(1)}${yUnit}`}
               </text>
             </g>
           );
@@ -208,9 +257,9 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
             <text
               key={`x-${i}`}
               x={x}
-              y={height - 8}
+              y={height - Math.max(4, padding.bottom * 0.2)}
               fill={theme.colors.textMuted}
-              fontSize="11"
+              fontSize={fontSize}
               textAnchor="middle"
             >
               {formatTime(tick)}
@@ -247,11 +296,11 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
         />
 
         {/* Current value dot */}
-        {points.length > 0 && (
+        {lastPoint && (
           <circle
-            cx={points[points.length - 1].x}
-            cy={points[points.length - 1].y}
-            r="5"
+            cx={lastPoint.x}
+            cy={lastPoint.y}
+            r={dotRadius}
             fill={lineColor}
             stroke={theme.colors.bgPrimary}
             strokeWidth="2"

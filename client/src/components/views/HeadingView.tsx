@@ -1,21 +1,43 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg } from '../../utils/angle';
+import {
+  ViewLayout,
+  ChartContainer,
+} from './shared';
+
+/**
+ * Unwrap heading angles so the line chart doesn't jump at the 0°/360° boundary.
+ * E.g., [350, 355, 5, 10] becomes [350, 355, 365, 370].
+ */
+function unwrapHeadingData(data: TimeSeriesDataPoint[]): TimeSeriesDataPoint[] {
+  if (data.length === 0) return data;
+  const result: TimeSeriesDataPoint[] = [data[0]];
+  let offset = 0;
+  for (let i = 1; i < data.length; i++) {
+    let diff = data[i].value - data[i - 1].value;
+    if (diff > 180) offset -= 360;
+    else if (diff < -180) offset += 360;
+    result.push({ timestamp: data[i].timestamp, value: data[i].value + offset });
+  }
+  return result;
+}
 
 interface HeadingViewProps {
   heading: number; // Current heading in radians
   onClose: () => void;
 }
 
-type TimeframeOption = '5m' | '15m' | '1h';
+type TimeframeOption = '5m' | '15m' | '1h' | '6h';
 
 const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: number }> = {
   '5m': { label: '5m', ms: 5 * 60 * 1000, minutes: 5 },
   '15m': { label: '15m', ms: 15 * 60 * 1000, minutes: 15 },
   '1h': { label: '1h', ms: 60 * 60 * 1000, minutes: 60 },
+  '6h': { label: '6h', ms: 6 * 60 * 60 * 1000, minutes: 360 },
 };
 
 export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) => {
@@ -25,13 +47,6 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
   const [timeframe, setTimeframe] = useState<TimeframeOption>('5m');
   const [isLoading, setIsLoading] = useState(true);
 
-  const getCardinalDirection = (degrees: number): string => {
-    const dirs = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'];
-    const index = Math.round(degrees / 22.5) % 16;
-    return dirs[index];
-  };
-
-  // Fetch history data from server
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -40,12 +55,11 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
         'heading',
         TIMEFRAMES[timeframe].minutes
       );
-      const data = response.data.map((item: any) => ({
-        // Database stores UTC timestamps without 'Z' suffix, so append it for correct parsing
+      const rawData = response.data.map((item: any) => ({
         timestamp: new Date(item.timestamp + 'Z').getTime(),
-        value: item.value,
+        value: radToDeg(item.value),
       }));
-      setHistoryData(data);
+      setHistoryData(rawData);
     } catch (error) {
       console.error('Failed to fetch heading history:', error);
     } finally {
@@ -53,255 +67,193 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
     }
   }, [timeframe]);
 
-  // Fetch history on mount and when timeframe changes
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Periodically refresh history data
   useEffect(() => {
-    const interval = setInterval(fetchHistory, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchHistory, 10000);
     return () => clearInterval(interval);
   }, [fetchHistory]);
 
-  const chartData = historyData;
+  const unwrappedData = useMemo(() => unwrapHeadingData(historyData), [historyData]);
 
-  // Render compass rose
+  const headingYMin = useMemo(() => {
+    if (unwrappedData.length === 0) return 0;
+    const min = Math.min(...unwrappedData.map(d => d.value));
+    return Math.floor(min / 90) * 90;
+  }, [unwrappedData]);
+
+  const headingLabelFormatter = useCallback((value: number) => {
+    let deg = value % 360;
+    if (deg < 0) deg += 360;
+    return `${Math.round(deg)}°`;
+  }, []);
+
+  const headingDeg = radToDeg(heading);
+
+  const compassPoints = [
+    { deg: 0, label: 'N' },
+    { deg: 45, label: 'NE' },
+    { deg: 90, label: 'E' },
+    { deg: 135, label: 'SE' },
+    { deg: 180, label: 'S' },
+    { deg: 225, label: 'SW' },
+    { deg: 270, label: 'W' },
+    { deg: 315, label: 'NW' },
+  ];
+
+  const stripWidth = 360;
+
+  const getPointPosition = (pointDeg: number) => {
+    let diff = pointDeg - headingDeg;
+    while (diff > 180) diff -= 360;
+    while (diff < -180) diff += 360;
+    return diff * (stripWidth / 180);
+  };
+
   const renderCompass = () => {
-    const size = 280;
-    const center = size / 2;
-    const outerRadius = center - 20;
-    const innerRadius = center - 50;
-    const tickRadius = center - 15;
-
     return (
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
-        {/* Outer circle */}
-        <circle
-          cx={center}
-          cy={center}
-          r={outerRadius}
-          fill="none"
-          stroke={theme.colors.borderHover}
-          strokeWidth="2"
-        />
+      <div style={{ width: '100%', maxWidth: '100%' }}>
+        {/* Center indicator triangle */}
+        <div style={{
+          width: '0',
+          height: '0',
+          borderLeft: '8px solid transparent',
+          borderRight: '8px solid transparent',
+          borderTop: `10px solid ${theme.colors.dataHeading}`,
+          margin: '0 auto 4px auto',
+        }} />
 
-        {/* Inner circle */}
-        <circle
-          cx={center}
-          cy={center}
-          r={innerRadius}
-          fill={theme.colors.bgCard}
-          stroke={theme.colors.border}
-          strokeWidth="1"
-        />
+        {/* Compass strip */}
+        <div
+          style={{
+            position: 'relative',
+            height: '56px',
+            overflow: 'hidden',
+            width: `${stripWidth}px`,
+            margin: '0 auto',
+            background: 'transparent',
+          }}
+        >
+          <div style={{ position: 'relative', height: '100%' }}>
+            {/* Tick marks */}
+            {Array.from({ length: 72 }, (_, i) => i * 5).map((deg) => {
+              const pos = getPointPosition(deg);
+              const centerPos = stripWidth / 2 + pos;
+              const isVisible = centerPos > -10 && centerPos < stripWidth + 10;
+              const isCardinal = deg % 90 === 0;
+              const isIntercardinal = deg % 45 === 0 && !isCardinal;
+              const isMajor = deg % 15 === 0;
 
-        {/* Tick marks and labels */}
-        {Array.from({ length: 36 }, (_, i) => {
-          const angle = (i * 10 - 90) * (Math.PI / 180);
-          const isMajor = i % 9 === 0;
-          const isMinor = i % 3 === 0;
-          const tickLength = isMajor ? 15 : isMinor ? 10 : 5;
-          const x1 = center + Math.cos(angle) * (tickRadius - tickLength);
-          const y1 = center + Math.sin(angle) * (tickRadius - tickLength);
-          const x2 = center + Math.cos(angle) * tickRadius;
-          const y2 = center + Math.sin(angle) * tickRadius;
+              if (!isVisible) return null;
 
-          return (
-            <g key={i}>
-              <line
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={isMajor ? theme.colors.textPrimary : theme.colors.textMuted}
-                strokeWidth={isMajor ? 2 : 1}
-              />
-              {isMajor && (
-                <text
-                  x={center + Math.cos(angle) * (innerRadius - 20)}
-                  y={center + Math.sin(angle) * (innerRadius - 20)}
-                  fill={theme.colors.textPrimary}
-                  fontSize="16"
-                  fontWeight="bold"
-                  textAnchor="middle"
-                  dominantBaseline="middle"
+              return (
+                <div
+                  key={`tick-${deg}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${centerPos}px`,
+                    top: 0,
+                    transform: 'translateX(-50%)',
+                    width: isCardinal ? '2px' : isMajor ? '1.5px' : '1px',
+                    height: isCardinal ? '22px' : isIntercardinal ? '16px' : isMajor ? '10px' : '6px',
+                    background: isCardinal
+                      ? theme.colors.textPrimary
+                      : theme.colors.textMuted,
+                    transition: 'left 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)',
+                  }}
+                />
+              );
+            })}
+
+            {/* Cardinal/intercardinal labels */}
+            {compassPoints.map((point) => {
+              const pos = getPointPosition(point.deg);
+              const centerPos = stripWidth / 2 + pos;
+              const isVisible = centerPos > -20 && centerPos < stripWidth + 20;
+              const isNorth = point.label === 'N';
+
+              if (!isVisible) return null;
+
+              return (
+                <div
+                  key={point.label}
+                  style={{
+                    position: 'absolute',
+                    left: `${centerPos}px`,
+                    top: '28px',
+                    transform: 'translateX(-50%)',
+                    fontSize: 'clamp(1rem, 3vw, 1.3rem)',
+                    fontWeight: 'bold',
+                    color: isNorth ? '#ef5350' : theme.colors.textSecondary,
+                    transition: 'left 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)',
+                    whiteSpace: 'nowrap',
+                  }}
                 >
-                  {['N', 'E', 'S', 'W'][i / 9]}
-                </text>
-              )}
-            </g>
-          );
-        })}
+                  {point.label}
+                </div>
+              );
+            })}
 
-        {/* Heading pointer */}
-        <g transform={`rotate(${radToDeg(heading)}, ${center}, ${center})`}>
-          {/* North pointer (red) */}
-          <polygon
-            points={`${center},${center - outerRadius + 5} ${center - 12},${center} ${center + 12},${center}`}
-            fill="#ef5350"
-          />
-          {/* South pointer (white) */}
-          <polygon
-            points={`${center},${center + outerRadius - 5} ${center - 12},${center} ${center + 12},${center}`}
-            fill={theme.colors.textMuted}
-          />
-          {/* Center dot */}
-          <circle cx={center} cy={center} r="8" fill="#fff" />
-        </g>
-
-        {/* Current heading indicator at top */}
-        <polygon
-          points={`${center - 10},20 ${center + 10},20 ${center},35`}
-          fill="#ffa726"
-        />
-      </svg>
+          </div>
+        </div>
+      </div>
     );
   };
 
-  return (
-    <div style={{
-      width: '100%',
-      height: '100%',
-      background: theme.colors.bgPrimary,
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'relative',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '1rem',
-        borderBottom: `1px solid ${theme.colors.border}`,
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: theme.colors.textPrimary,
-            cursor: 'pointer',
-            padding: '0.5rem',
-            marginRight: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-        </button>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>{t('heading.heading')}</h1>
-      </div>
+  const timeframeOptions = (Object.keys(TIMEFRAMES) as TimeframeOption[]).map(
+    (key) => ({ key, label: TIMEFRAMES[key].label })
+  );
 
-      {/* Main heading display with compass */}
+  return (
+    <ViewLayout title={t('heading.heading')} onClose={onClose}>
+      {/* Main heading display */}
       <div style={{
         flex: '0 0 auto',
-        padding: '1rem',
+        padding: 'clamp(1rem, 3vw, 2rem) 1rem',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
+        gap: '1rem',
       }}>
-        {renderCompass()}
-        <div style={{
-          marginTop: '1rem',
-          textAlign: 'center',
-        }}>
+        {/* Heading value */}
+        <div style={{ textAlign: 'center' }}>
           <div style={{
-            fontSize: '4rem',
+            fontSize: 'clamp(3rem, 10vw, 5rem)',
             fontWeight: 'bold',
-            color: '#ffa726',
+            color: theme.colors.dataHeading,
             lineHeight: 1,
           }}>
-            {Math.round(radToDeg(heading)) % 360}°
-          </div>
-          <div style={{
-            fontSize: '1.5rem',
-            opacity: 0.6,
-            marginTop: '0.25rem',
-          }}>
-            {getCardinalDirection(radToDeg(heading))}
+            {Math.round(headingDeg) % 360}°
           </div>
         </div>
+
+        {/* Linear compass strip */}
+        {renderCompass()}
       </div>
 
       {/* Heading history graph */}
-      <div style={{
-        flex: '1 1 auto',
-        padding: '1rem',
-        minHeight: '150px',
-        display: 'flex',
-        flexDirection: 'column',
-      }}>
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '0.5rem',
-        }}>
-          <div style={{
-            fontSize: '0.75rem',
-            opacity: 0.6,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-          }}>
-            {t('heading.heading_history')}
-          </div>
-          <div style={{ display: 'flex', gap: '0.5rem' }}>
-            {(Object.keys(TIMEFRAMES) as TimeframeOption[]).map((tf) => (
-              <button
-                key={tf}
-                onClick={() => setTimeframe(tf)}
-                style={{
-                  padding: '0.25rem 0.5rem',
-                  background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
-                  border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
-                  borderRadius: '4px',
-                  color: theme.colors.textPrimary,
-                  cursor: 'pointer',
-                  fontSize: '0.7rem',
-                  fontWeight: timeframe === tf ? 'bold' : 'normal',
-                }}
-              >
-                {TIMEFRAMES[tf].label}
-              </button>
-            ))}
-          </div>
-        </div>
-        <div style={{
-          flex: 1,
-          background: theme.colors.bgCard,
-          borderRadius: '8px',
-          overflow: 'hidden',
-          position: 'relative',
-        }}>
-          {isLoading && chartData.length === 0 && (
-            <div style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              opacity: 0.5,
-              fontSize: '0.9rem',
-            }}>
-              {t('common.loading_history')}
-            </div>
-          )}
-          <TimeSeriesChart
-            data={chartData}
-            timeframeMs={TIMEFRAMES[timeframe].ms}
-            yInterval={90}
-            yHeadroom={0}
-            yUnit="°"
-            yMinValue={0}
-            yMaxValue={359}
-            lineColor="#ffa726"
-            fillGradient={false}
-          />
-        </div>
-      </div>
-    </div>
+      <ChartContainer
+        isLoading={isLoading}
+        hasData={historyData.length > 0}
+        title={t('heading.heading_history')}
+        timeframeOptions={timeframeOptions}
+        selectedTimeframe={timeframe}
+        onTimeframeSelect={(key) => { setHistoryData([]); setTimeframe(key as TimeframeOption); }}
+      >
+        <TimeSeriesChart
+          data={unwrappedData}
+          timeframeMs={TIMEFRAMES[timeframe].ms}
+          yInterval={90}
+          yHeadroom={10}
+          yUnit="°"
+          yMinValue={headingYMin}
+          lineColor={theme.colors.dataHeading}
+          fillGradient={false}
+          yLabelFormatter={headingLabelFormatter}
+        />
+      </ChartContainer>
+    </ViewLayout>
   );
 };

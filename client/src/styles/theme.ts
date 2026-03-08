@@ -45,11 +45,10 @@ export const theme = {
     infoLight: 'rgba(79, 195, 247, 0.3)',
 
     // Data visualization
-    dataSpeed: '#66bb6a',
-    dataDepth: '#4fc3f7',
+    dataSpeed: '#4fc3f7',
+    dataDepth: '#66bb6a',
     dataHeading: '#ab47bc',
     dataWind: '#ffa726',
-    dataCog: '#29b6f6',
     dataPosition: '#4fc3f7',
 
     // Border

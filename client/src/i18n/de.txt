@@ -25,6 +25,7 @@ common.loading_history=Verlauf laden...
 common.no_data=Keine Daten
 common.starting=Starten...
 common.other=Sonstige
+common.settings=Einstellungen
 
 # ==================== App ====================
 app.demo=DEMO
@@ -123,14 +124,12 @@ dashboard.depth=Tiefe
 dashboard.wind=Wind
 dashboard.position=Position
 dashboard.battery=Batterie
-dashboard.cog=COG
 dashboard.chart=Karte
 dashboard.weather=Wetter
 
 # ==================== Dashboard Items ====================
 dashboard_item.battery=Batterie
-dashboard_item.hdg=HDG
-dashboard_item.cog=COG
+dashboard_item.hdg=Kurs
 dashboard_item.awa=AWA
 dashboard_item.head=BUG
 dashboard_item.stbd=STBD
@@ -402,16 +401,16 @@ offline_maps.storage_free=Speicher: {available} frei
 offline_maps.error=Fehler
 
 # ==================== Karte / Navigation ====================
-chart.speed=GESCHW.
-chart.depth=TIEFE
-chart.forecast=VORHERSAGE
-chart.search=SUCHE
+chart.speed=Geschw.
+chart.depth=Tiefe
+chart.forecast=Vorhersage
+chart.search=Suche
 chart.back_to_dashboard=Zurück zum Dashboard
 chart.open_settings=Einstellungen öffnen
 chart.switch_to_street=Zur Straßenansicht wechseln
 chart.switch_to_satellite=Zur Satellitenansicht wechseln
-chart.map=KARTE
-chart.satellite=SATELLIT
+chart.map=Karte
+chart.satellite=Satellit
 chart.search_locations=Orte suchen
 chart.vessel_details=Schiffsdetails
 chart.my_vessel=Mein Schiff
@@ -480,6 +479,8 @@ chart.total_chain_warning={percent}% der gesamten Kette ({total}m)
 chart.sources=Quellen: Yachting Monthly, trimaran-san.de, BoatUS, Rocna KB
 chart.max_wind_label=max. Wind
 chart.max_gust_label=max. Böe
+chart.no_data=Keine Daten verfügbar
+chart.no_data_timeframe=Keine Daten im Zeitraum
 chart.no_forecast=Keine Vorhersage
 chart.forecast_unavailable=Vorhersage nicht verfügbar
 chart.search_attribution=Suche bereitgestellt von Photon (© OpenStreetMap)

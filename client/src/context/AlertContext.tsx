@@ -155,10 +155,10 @@ export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     };
   }, [setAlertSettings]);
 
-  // Clear triggered alerts when global is disabled
+  // Clear custom triggered alerts when global is disabled (keep special alarms like depth/anchor)
   useEffect(() => {
     if (!alertSettings.globalEnabled) {
-      setTriggeredAlerts([]);
+      setTriggeredAlerts((prev) => prev.filter((t) => t.alertId.startsWith('special_')));
     }
   }, [alertSettings.globalEnabled]);
 

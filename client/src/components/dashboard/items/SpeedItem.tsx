@@ -20,10 +20,10 @@ export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
       alignItems: 'center',
       justifyContent: 'center',
       height: '100%',
-      padding: theme.space.lg,
+      padding: 'clamp(4px, 4cqmin, 24px)',
     }}>
       <div style={{
-        fontSize: theme.fontSize.sm,
+        fontSize: 'clamp(8px, 7cqmin, 28px)',
         color: theme.colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
@@ -31,15 +31,15 @@ export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
         {t('dashboard.speed')}
       </div>
       <div style={{
-        fontSize: theme.fontSize['3xl'],
+        fontSize: 'clamp(14px, 25cqmin, 120px)',
         fontWeight: theme.fontWeight.bold,
         color: theme.colors.dataSpeed,
         lineHeight: 1,
-        marginTop: theme.space.xs,
+        marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
         {convertedSpeed.toFixed(1)}
       </div>
-      <div style={{ fontSize: theme.fontSize.md, color: theme.colors.textMuted }}>
+      <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>
         {speedConversions[speedUnit].label}
       </div>
     </div>

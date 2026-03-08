@@ -109,10 +109,12 @@ export const AlertContainer: React.FC = () => {
     };
   }, []);
 
-  // Don't render if alerts are disabled globally
-  if (!alertSettings.globalEnabled) return null;
+  // Filter notifications: show all when global enabled, only special alarms when disabled
+  const visibleNotifications = alertSettings.globalEnabled
+    ? notifications
+    : notifications.filter((n) => n.id.startsWith('special_'));
 
-  if (notifications.length === 0) return null;
+  if (visibleNotifications.length === 0) return null;
 
   return (
     <div
@@ -129,7 +131,7 @@ export const AlertContainer: React.FC = () => {
         pointerEvents: 'none',
       }}
     >
-      {notifications.map((notification) => (
+      {visibleNotifications.map((notification) => (
         <div
           key={notification.id}
           style={{

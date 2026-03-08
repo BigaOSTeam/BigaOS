@@ -3,11 +3,11 @@ import { useSettings, speedConversions } from '../../context/SettingsContext';
 import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { useTheme } from '../../context/ThemeContext';
 import {
   ViewLayout,
   MainValueDisplay,
   StatsRow,
-  TimeframeSelector,
   ChartContainer,
 } from './shared';
 
@@ -25,15 +25,8 @@ const TIMEFRAMES: Record<TimeframeOption, { label: string; ms: number; minutes: 
   '6h': { label: '6h', ms: 6 * 60 * 60 * 1000, minutes: 360 },
 };
 
-const getSpeedColor = (speedInKnots: number): string => {
-  if (speedInKnots < 1) return '#64b5f6'; // Light blue - very slow
-  if (speedInKnots < 5) return '#4fc3f7'; // Cyan - cruising
-  if (speedInKnots < 10) return '#66bb6a'; // Green - good speed
-  if (speedInKnots < 15) return '#ffa726'; // Orange - fast
-  return '#ef5350'; // Red - very fast
-};
-
 export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
+  const { theme } = useTheme();
   const { speedUnit, convertSpeed } = useSettings();
   const { t } = useLanguage();
   const [historyData, setHistoryData] = useState<TimeSeriesDataPoint[]>([]);
@@ -93,36 +86,33 @@ export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
       <MainValueDisplay
         value={convertedSpeed.toFixed(1)}
         unit={speedConversions[speedUnit].label}
-        color={getSpeedColor(speed)}
+        color={theme.colors.dataSpeed}
       />
 
       <StatsRow
         stats={[
           { label: t('speed.avg'), value: stats.avg.toFixed(1), color: '#64b5f6' },
-          { label: t('speed.max'), value: stats.max.toFixed(1), color: '#66bb6a' },
-          { label: t('speed.min'), value: stats.min.toFixed(1), color: '#ffa726' },
+          { label: t('speed.max'), value: stats.max.toFixed(1), color: theme.colors.dataSpeed },
+          { label: t('speed.min'), value: stats.min.toFixed(1), color: theme.colors.dataWind },
         ]}
       />
 
-      <ChartContainer isLoading={isLoading} hasData={historyData.length > 0}>
-        <div style={{ marginBottom: '0.5rem', padding: '0 1rem' }}>
-          <TimeframeSelector
-            options={timeframeOptions}
-            selected={timeframe}
-            onSelect={(key) => setTimeframe(key as TimeframeOption)}
-            title={t('speed.speed_history')}
-          />
-        </div>
-        <div style={{ flex: 1 }}>
-          <TimeSeriesChart
-            data={historyData}
-            timeframeMs={TIMEFRAMES[timeframe].ms}
-            yInterval={2}
-            yHeadroom={1}
-            yUnit={speedConversions[speedUnit].label}
-            lineColor="#66bb6a"
-          />
-        </div>
+      <ChartContainer
+        isLoading={isLoading}
+        hasData={historyData.length > 0}
+        title={t('speed.speed_history')}
+        timeframeOptions={timeframeOptions}
+        selectedTimeframe={timeframe}
+        onTimeframeSelect={(key) => { setHistoryData([]); setTimeframe(key as TimeframeOption); }}
+      >
+        <TimeSeriesChart
+          data={historyData}
+          timeframeMs={TIMEFRAMES[timeframe].ms}
+          yInterval={2}
+          yHeadroom={1}
+          yUnit={speedConversions[speedUnit].label}
+          lineColor={theme.colors.dataSpeed}
+        />
       </ChartContainer>
     </ViewLayout>
   );

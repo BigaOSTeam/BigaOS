@@ -23,7 +23,6 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
   const [error, setError] = useState<string | null>(null);
   const { weatherSettings } = useSettings();
 
-  // Fetch weather data
   useEffect(() => {
     if (!weatherSettings?.enabled) {
       setLoading(false);
@@ -47,7 +46,6 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
 
     fetchForecast();
 
-    // Listen for weather updates via WebSocket
     const handleWeatherUpdate = (data: WeatherForecastResponse) => {
       setForecast(data);
     };
@@ -66,10 +64,10 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        padding: theme.space.md,
+        padding: 'clamp(4px, 3cqmin, 16px)',
         color: theme.colors.textMuted,
       }}>
-        <div style={{ fontSize: theme.fontSize.sm }}>{t('dashboard_item.loading_weather')}</div>
+        <div style={{ fontSize: 'clamp(8px, 7cqmin, 28px)' }}>{t('dashboard_item.loading_weather')}</div>
       </div>
     );
   }
@@ -82,21 +80,25 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         alignItems: 'center',
         justifyContent: 'center',
         height: '100%',
-        padding: theme.space.md,
+        padding: 'clamp(4px, 3cqmin, 16px)',
         color: theme.colors.textMuted,
       }}>
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          style={{ width: 'clamp(16px, 15cqmin, 64px)', height: 'clamp(16px, 15cqmin, 64px)' }}
+        >
           <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <div style={{ fontSize: theme.fontSize.sm, marginTop: theme.space.sm }}>{error || t('dashboard_item.no_data')}</div>
+        <div style={{ fontSize: 'clamp(8px, 7cqmin, 28px)', marginTop: 'clamp(4px, 2cqmin, 12px)' }}>{error || t('dashboard_item.no_data')}</div>
       </div>
     );
   }
 
   const current = forecast.current;
   const windColor = getWindColor(current.wind.speed);
-
-  // Get next 6 hours of forecast
   const nextHours = forecast.hourly?.slice(0, 6) || [];
 
   return (
@@ -104,11 +106,11 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
       display: 'flex',
       flexDirection: 'column',
       height: '100%',
-      padding: theme.space.md,
+      padding: 'clamp(4px, 3cqmin, 16px)',
     }}>
       {/* Header */}
       <div style={{
-        fontSize: theme.fontSize.sm,
+        fontSize: 'clamp(8px, 7cqmin, 28px)',
         color: theme.colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
@@ -122,16 +124,16 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        gap: theme.space.md,
+        gap: 'clamp(4px, 3cqmin, 16px)',
         flex: 1,
         minHeight: 0,
       }}>
         {/* Wind arrow */}
         <svg
-          width="36"
-          height="36"
           viewBox="0 0 24 24"
           style={{
+            width: 'clamp(16px, 15cqmin, 64px)',
+            height: 'clamp(16px, 15cqmin, 64px)',
             transform: `rotate(${radToDeg(current.wind.direction + Math.PI)}deg)`,
             transition: `transform ${theme.transition.slow}`,
             flexShrink: 0,
@@ -148,18 +150,18 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         {/* Wind info */}
         <div style={{ textAlign: 'center' }}>
           <div style={{
-            fontSize: theme.fontSize['2xl'],
+            fontSize: 'clamp(12px, 18cqmin, 80px)',
             fontWeight: theme.fontWeight.bold,
             color: windColor,
             lineHeight: 1,
           }}>
             {Math.round(current.wind.speed)}
           </div>
-          <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>
+          <div style={{ fontSize: 'clamp(7px, 5cqmin, 20px)', color: theme.colors.textMuted }}>
             {t('units.knots')} {formatWindDirection(current.wind.direction)}
           </div>
           {current.wind.gusts > current.wind.speed + 5 && (
-            <div style={{ fontSize: theme.fontSize.xs, color: '#FF9800' }}>
+            <div style={{ fontSize: 'clamp(7px, 5cqmin, 20px)', color: '#FF9800' }}>
               G{Math.round(current.wind.gusts)}
             </div>
           )}
@@ -169,8 +171,8 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         <div style={{
           display: 'flex',
           flexDirection: 'column',
-          gap: theme.space.xs,
-          fontSize: theme.fontSize.xs,
+          gap: 'clamp(2px, 1cqmin, 6px)',
+          fontSize: 'clamp(7px, 5cqmin, 20px)',
           color: theme.colors.textSecondary,
         }}>
           {current.waves && (
@@ -189,10 +191,10 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         <div style={{
           display: 'flex',
           justifyContent: 'space-between',
-          gap: theme.space.xs,
+          gap: 'clamp(2px, 1cqmin, 6px)',
           borderTop: `1px solid ${theme.colors.border}`,
-          paddingTop: theme.space.sm,
-          marginTop: theme.space.sm,
+          paddingTop: 'clamp(4px, 2cqmin, 12px)',
+          marginTop: 'clamp(4px, 2cqmin, 12px)',
         }}>
           {nextHours.map((hour, i) => {
             const time = new Date(hour.timestamp);
@@ -201,17 +203,17 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                fontSize: theme.fontSize.xs,
+                fontSize: 'clamp(7px, 5cqmin, 20px)',
                 flex: 1,
               }}>
                 <div style={{ color: theme.colors.textMuted }}>
                   {time.getHours().toString().padStart(2, '0')}h
                 </div>
                 <svg
-                  width="16"
-                  height="16"
                   viewBox="0 0 24 24"
                   style={{
+                    width: 'clamp(8px, 6cqmin, 28px)',
+                    height: 'clamp(8px, 6cqmin, 28px)',
                     transform: `rotate(${radToDeg(hour.wind.direction + Math.PI)}deg)`,
                     margin: '2px 0',
                   }}
@@ -234,10 +236,10 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
 
       {/* Attribution */}
       <div style={{
-        fontSize: '9px',
+        fontSize: 'clamp(6px, 3cqmin, 12px)',
         color: theme.colors.textMuted,
         textAlign: 'center',
-        marginTop: theme.space.xs,
+        marginTop: 'clamp(2px, 1cqmin, 6px)',
         opacity: 0.6,
       }}>
         Open-Meteo.com (CC-BY 4.0)

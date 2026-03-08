@@ -33,11 +33,11 @@ export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent
       alignItems: 'center',
       justifyContent: 'center',
       height: '100%',
-      padding: theme.space.lg,
+      padding: 'clamp(4px, 4cqmin, 24px)',
       position: 'relative',
     }}>
       <div style={{
-        fontSize: theme.fontSize.sm,
+        fontSize: 'clamp(8px, 7cqmin, 28px)',
         color: theme.colors.textMuted,
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
@@ -45,28 +45,28 @@ export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent
         {t('dashboard.wind')}
       </div>
       <div style={{
-        fontSize: theme.fontSize['2xl'],
+        fontSize: 'clamp(12px, 20cqmin, 96px)',
         fontWeight: theme.fontWeight.bold,
         color: theme.colors.dataWind,
         lineHeight: 1,
-        marginTop: theme.space.xs,
+        marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
         {displayValue}
       </div>
-      <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+      <div style={{ fontSize: 'clamp(8px, 7cqmin, 28px)', color: theme.colors.textMuted }}>
         {windConversions[windUnit].label} {t('dashboard_item.awa')}
       </div>
       <div style={{
         display: 'flex',
         alignItems: 'center',
-        gap: theme.space.sm,
-        marginTop: theme.space.sm,
+        gap: 'clamp(4px, 2cqmin, 12px)',
+        marginTop: 'clamp(4px, 2cqmin, 12px)',
       }}>
         <svg
-          width="20"
-          height="20"
           viewBox="0 0 24 24"
           style={{
+            width: 'clamp(12px, 10cqmin, 48px)',
+            height: 'clamp(12px, 10cqmin, 48px)',
             transform: `rotate(${angleApparent}deg)`,
             transition: `transform ${theme.transition.slow}`,
           }}
@@ -76,7 +76,7 @@ export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent
             fill={theme.colors.dataWind}
           />
         </svg>
-        <span style={{ fontSize: theme.fontSize.md, color: theme.colors.dataWind }}>
+        <span style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.dataWind }}>
           {angleApparent.toFixed(0)}° {getWindDirection(angleApparent)}
         </span>
       </div>

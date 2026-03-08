@@ -377,13 +377,20 @@ export class AlertService extends EventEmitter {
    * Evaluate all alerts against current sensor data
    */
   evaluateSensorData(data: StandardSensorData): void {
-    if (!this.settings.globalEnabled) return;
-
-    // Store boat position for anchor alarm
+    // Store boat position (needed for anchor alarm and magnetic declination)
     this.lastBoatPosition = {
       lat: data.navigation.position.latitude,
       lon: data.navigation.position.longitude,
     };
+
+    // Special alarms (depth, anchor) always run regardless of globalEnabled
+    this.evaluateDepthAlarm(data.environment.depth.belowTransducer);
+    this.evaluateAnchorAlarm(
+      data.navigation.position.latitude,
+      data.navigation.position.longitude
+    );
+
+    if (!this.settings.globalEnabled) return;
 
     // Evaluate custom alerts
     for (const alert of this.settings.alerts) {
@@ -395,13 +402,6 @@ export class AlertService extends EventEmitter {
 
       this.evaluateAlert(alert, value);
     }
-
-    // Evaluate special alarms
-    this.evaluateDepthAlarm(data.environment.depth.belowTransducer);
-    this.evaluateAnchorAlarm(
-      data.navigation.position.latitude,
-      data.navigation.position.longitude
-    );
   }
 
   /**

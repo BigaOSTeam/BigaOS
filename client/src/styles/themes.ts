@@ -43,7 +43,6 @@ export interface ThemeColors {
   dataDepth: string;
   dataHeading: string;
   dataWind: string;
-  dataCog: string;
   dataPosition: string;
 
   border: string;
@@ -186,11 +185,10 @@ export const darkTheme: ThemeDefinition = {
     info: '#4fc3f7',
     infoLight: 'rgba(79, 195, 247, 0.3)',
 
-    dataSpeed: '#66bb6a',
-    dataDepth: '#4fc3f7',
+    dataSpeed: '#4fc3f7',
+    dataDepth: '#66bb6a',
     dataHeading: '#ab47bc',
     dataWind: '#ffa726',
-    dataCog: '#29b6f6',
     dataPosition: '#4fc3f7',
 
     border: 'rgba(255, 255, 255, 0.1)',
@@ -239,11 +237,10 @@ export const lightTheme: ThemeDefinition = {
     info: '#4fc3f7',
     infoLight: '#b3e5fc',
 
-    dataSpeed: '#66bb6a',
-    dataDepth: '#4fc3f7',
+    dataSpeed: '#4fc3f7',
+    dataDepth: '#66bb6a',
     dataHeading: '#ab47bc',
     dataWind: '#ffa726',
-    dataCog: '#29b6f6',
     dataPosition: '#4fc3f7',
 
     border: '#bcc5cf',

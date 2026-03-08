@@ -40,7 +40,7 @@ function degToRad(deg) {
 
 let api = null;
 let demoSpeed = 0;      // knots (from client)
-let demoHeading = 0;    // degrees
+let demoHeading = 0;    // radians (from client)
 let demoPosition = {
   latitude: 43.45,      // Adriatic Sea, west of Split
   longitude: 16.2,
@@ -55,7 +55,7 @@ function pushAllStreams() {
 
   // Core streams (angles in radians)
   api.pushSensorValue('gps', { ...position, timestamp: new Date() });
-  api.pushSensorValue('heading', degToRad(normalizeAngle(heading + 12)));
+  api.pushSensorValue('heading_true', heading);
   api.pushSensorValue('depth', randomVariation(8.5, 1.2));
   api.pushSensorValue('stw', knotsToMs(randomVariation(speedKnots * 0.9, 0.3)));
   api.pushSensorValue('roll', degToRad(speedKnots > 5 ? randomVariation(speedKnots * 2, 2) : randomVariation(2, 1)));
@@ -108,13 +108,13 @@ function generateLegacyPacket() {
     timestamp: new Date().toISOString(),
     navigation: {
       position: { ...position, timestamp: new Date() },
-      courseOverGround: degToRad(heading),
+      courseOverGround: heading,
       speedOverGround: knotsToMs(speedKnots),
-      heading: degToRad(normalizeAngle(heading + 12)),
+      heading: heading,
       attitude: {
         roll: degToRad(heelAngle),
         pitch: degToRad(randomVariation(2, 1)),
-        yaw: degToRad(heading),
+        yaw: heading,
       },
     },
     environment: {

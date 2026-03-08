@@ -3,13 +3,16 @@ import { TimeSeriesChart, TimeSeriesDataPoint } from '../charts';
 import { sensorAPI } from '../../services/api';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
+import {
+  ViewLayout,
+} from './shared';
 
 interface BatteryViewProps {
   voltage: number;
   current: number;
   temperature: number;
   stateOfCharge: number;
-  batteryId?: string; // e.g., 'house' or 'starter'
+  batteryId?: string;
   onClose: () => void;
 }
 
@@ -51,7 +54,6 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     return '#ef5350';
   };
 
-  // Fetch history data from server
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
@@ -60,7 +62,6 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         sensorAPI.getSpecificSensorHistory('electrical', `${batteryId}_stateOfCharge`, TIMEFRAMES[timeframe].minutes),
       ]);
 
-      // Database stores UTC timestamps without 'Z' suffix, so append it for correct parsing
       setVoltageHistory(voltageRes.data.map((item: any) => ({
         timestamp: new Date(item.timestamp + 'Z').getTime(),
         value: item.value,
@@ -77,34 +78,27 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     }
   }, [timeframe, batteryId]);
 
-  // Fetch history on mount and when timeframe changes
   useEffect(() => {
     fetchHistory();
   }, [fetchHistory]);
 
-  // Periodically refresh history data
   useEffect(() => {
-    const interval = setInterval(fetchHistory, 10000); // Refresh every 10 seconds
+    const interval = setInterval(fetchHistory, 10000);
     return () => clearInterval(interval);
   }, [fetchHistory]);
 
-  const voltageChartData = voltageHistory;
-  const chargeChartData = chargeHistory;
-
-  // Render battery icon
   const renderBatteryIcon = () => {
     const fillWidth = Math.max(0, Math.min(100, stateOfCharge));
     const color = getBatteryColor(stateOfCharge);
 
     return (
-      <svg width="120" height="60" viewBox="0 0 120 60">
-        {/* Battery outline */}
+      <svg
+        viewBox="0 0 120 60"
+        style={{ width: 'min(30vw, 150px)', height: 'auto' }}
+      >
         <rect x="5" y="10" width="100" height="40" rx="4" fill="none" stroke={theme.colors.textDisabled} strokeWidth="3" />
-        {/* Battery terminal */}
         <rect x="105" y="20" width="10" height="20" rx="2" fill={theme.colors.textDisabled} />
-        {/* Battery fill */}
         <rect x="9" y="14" width={fillWidth * 0.92} height="32" rx="2" fill={color} />
-        {/* Percentage text */}
         <text x="55" y="35" fill="#fff" fontSize="18" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
           {Math.round(stateOfCharge)}%
         </text>
@@ -112,47 +106,29 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     );
   };
 
-  return (
-    <div style={{
-      width: '100%',
-      height: '100%',
-      background: theme.colors.bgPrimary,
-      display: 'flex',
-      flexDirection: 'column',
-      position: 'relative',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '1rem',
-        borderBottom: `1px solid ${theme.colors.border}`,
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            background: 'transparent',
-            border: 'none',
-            color: theme.colors.textPrimary,
-            cursor: 'pointer',
-            padding: '0.5rem',
-            marginRight: '1rem',
-            display: 'flex',
-            alignItems: 'center',
-          }}
-        >
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
-        </button>
-        <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>{t('battery.battery')}</h1>
-      </div>
+  const timeframeOptions = (Object.keys(TIMEFRAMES) as TimeframeOption[]).map(
+    (key) => ({ key, label: TIMEFRAMES[key].label })
+  );
 
+  const statLabelStyle: React.CSSProperties = {
+    fontSize: 'clamp(0.65rem, 2vw, 0.8rem)',
+    opacity: 0.5,
+    textTransform: 'uppercase',
+    letterSpacing: '0.1em',
+    marginBottom: '0.25rem',
+  };
+
+  const statValueStyle: React.CSSProperties = {
+    fontSize: 'clamp(1.1rem, 4vw, 1.5rem)',
+    fontWeight: 'bold',
+  };
+
+  return (
+    <ViewLayout title={t('battery.battery')} onClose={onClose}>
       {/* Main battery display */}
       <div style={{
         flex: '0 0 auto',
-        padding: '1.5rem',
+        padding: 'clamp(1rem, 2vw, 1.5rem)',
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
@@ -160,7 +136,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         {renderBatteryIcon()}
         <div style={{
           marginTop: '0.5rem',
-          fontSize: '0.9rem',
+          fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
           opacity: 0.6,
         }}>
           {t('battery.state_of_charge')}
@@ -170,7 +146,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
       {/* Stats grid */}
       <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(2, 1fr)',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
         gap: '0.75rem',
         padding: '0 1rem 1rem',
       }}>
@@ -180,10 +156,10 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={statLabelStyle}>
             {t('battery.voltage')}
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: '#ffa726' }}>
+          <div style={{ ...statValueStyle, color: theme.colors.dataWind }}>
             {voltage.toFixed(1)}V
           </div>
         </div>
@@ -194,10 +170,10 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={statLabelStyle}>
             {t('battery.current')}
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: current >= 0 ? '#66bb6a' : '#ef5350' }}>
+          <div style={{ ...statValueStyle, color: current >= 0 ? '#66bb6a' : '#ef5350' }}>
             {current >= 0 ? '+' : ''}{current.toFixed(1)}A
           </div>
         </div>
@@ -208,10 +184,10 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={statLabelStyle}>
             {t('battery.temperature')}
           </div>
-          <div style={{ fontSize: '1.5rem', fontWeight: 'bold', color: getTemperatureColor(temperature) }}>
+          <div style={{ ...statValueStyle, color: getTemperatureColor(temperature) }}>
             {temperature.toFixed(0)}°C
           </div>
         </div>
@@ -222,134 +198,151 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           padding: '0.75rem',
           textAlign: 'center',
         }}>
-          <div style={{ fontSize: '0.7rem', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
+          <div style={statLabelStyle}>
             {t('battery.status')}
           </div>
-          <div style={{ fontSize: '1.1rem', fontWeight: 'bold', color: current > 0.5 ? '#66bb6a' : current < -0.5 ? '#ff7043' : '#64b5f6' }}>
+          <div style={{ ...statValueStyle, fontSize: 'clamp(0.9rem, 3vw, 1.1rem)', color: current > 0.5 ? '#66bb6a' : current < -0.5 ? '#ff7043' : '#64b5f6' }}>
             {current > 0.5 ? t('battery.charging') : current < -0.5 ? t('battery.discharging') : t('battery.idle')}
           </div>
         </div>
       </div>
 
-      {/* Timeframe selector */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'flex-end',
-        padding: '0.5rem 1rem',
-        gap: '0.5rem',
-      }}>
-        {(Object.keys(TIMEFRAMES) as TimeframeOption[]).map((tf) => (
-          <button
-            key={tf}
-            onClick={() => setTimeframe(tf)}
-            style={{
-              padding: '0.25rem 0.5rem',
-              background: timeframe === tf ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
-              border: timeframe === tf ? '1px solid rgba(25, 118, 210, 0.8)' : '1px solid transparent',
-              borderRadius: '4px',
-              color: theme.colors.textPrimary,
-              cursor: 'pointer',
-              fontSize: '0.7rem',
-              fontWeight: timeframe === tf ? 'bold' : 'normal',
-            }}
-          >
-            {TIMEFRAMES[tf].label}
-          </button>
-        ))}
-      </div>
-
       {/* Graphs */}
       <div style={{
         flex: '1 1 auto',
-        padding: '0 1rem 1rem',
+        padding: '1rem',
         display: 'flex',
         flexDirection: 'column',
-        gap: '0.75rem',
-        minHeight: '200px',
+        minHeight: '300px',
       }}>
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '80px' }}>
-          <div style={{
-            fontSize: '0.7rem',
+        <div
+          style={{
+            fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
             opacity: 0.6,
-            marginBottom: '0.25rem',
             textTransform: 'uppercase',
             letterSpacing: '0.1em',
-          }}>
-            {t('battery.voltage_history')}
-          </div>
-          <div style={{
-            flex: 1,
-            background: theme.colors.bgCard,
-            borderRadius: '8px',
-            overflow: 'hidden',
-            position: 'relative',
-          }}>
-            {isLoading && voltageChartData.length === 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                opacity: 0.5,
-                fontSize: '0.8rem',
-              }}>
-                {t('common.loading')}
-              </div>
-            )}
-            <TimeSeriesChart
-              data={voltageChartData}
-              timeframeMs={TIMEFRAMES[timeframe].ms}
-              yInterval={1}
-              yHeadroom={0.5}
-              yUnit="V"
-              lineColor="#ffa726"
-              fillGradient={false}
-            />
-          </div>
+            marginBottom: '0.5rem',
+          }}
+        >
+          {t('battery.voltage_history')}
         </div>
+        <div style={{ flex: 1, display: 'flex', gap: '0.5rem', minHeight: 0 }}>
+          {/* Charts column */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem', minWidth: 0 }}>
+            <div style={{
+              flex: 1,
+              background: theme.colors.bgCard,
+              borderRadius: '8px',
+              overflow: 'hidden',
+              position: 'relative',
+              minHeight: '120px',
+            }}>
+              {isLoading && voltageHistory.length === 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  opacity: 0.5,
+                  fontSize: '0.8rem',
+                  zIndex: 1,
+                }}>
+                  {t('common.loading')}
+                </div>
+              )}
+              <TimeSeriesChart
+                data={voltageHistory}
+                timeframeMs={TIMEFRAMES[timeframe].ms}
+                yInterval={1}
+                yHeadroom={0.5}
+                yUnit="V"
+                lineColor={theme.colors.dataWind}
+                fillGradient={false}
+              />
+            </div>
 
-        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', minHeight: '80px' }}>
-          <div style={{
-            fontSize: '0.7rem',
-            opacity: 0.6,
-            marginBottom: '0.25rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-          }}>
-            {t('battery.charge_history')}
+            <div style={{
+              fontSize: 'clamp(0.65rem, 2vw, 0.8rem)',
+              opacity: 0.6,
+              textTransform: 'uppercase',
+              letterSpacing: '0.1em',
+            }}>
+              {t('battery.charge_history')}
+            </div>
+            <div style={{
+              flex: 1,
+              background: theme.colors.bgCard,
+              borderRadius: '8px',
+              overflow: 'hidden',
+              position: 'relative',
+              minHeight: '120px',
+            }}>
+              {isLoading && chargeHistory.length === 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  opacity: 0.5,
+                  fontSize: '0.8rem',
+                  zIndex: 1,
+                }}>
+                  {t('common.loading')}
+                </div>
+              )}
+              <TimeSeriesChart
+                data={chargeHistory}
+                timeframeMs={TIMEFRAMES[timeframe].ms}
+                yInterval={25}
+                yHeadroom={0}
+                yUnit="%"
+                yMinValue={0}
+                yMaxValue={100}
+                lineColor={theme.colors.dataSpeed}
+              />
+            </div>
           </div>
+
+          {/* Timeframe sidebar */}
           <div style={{
-            flex: 1,
-            background: theme.colors.bgCard,
-            borderRadius: '8px',
-            overflow: 'hidden',
-            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.375rem',
+            flexShrink: 0,
           }}>
-            {isLoading && chargeChartData.length === 0 && (
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                opacity: 0.5,
-                fontSize: '0.8rem',
-              }}>
-                {t('common.loading')}
-              </div>
-            )}
-            <TimeSeriesChart
-              data={chargeChartData}
-              timeframeMs={TIMEFRAMES[timeframe].ms}
-              yInterval={25}
-              yHeadroom={0}
-              yUnit="%"
-              yMinValue={0}
-              yMaxValue={100}
-              lineColor="#66bb6a"
-            />
+            {timeframeOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => { if (timeframe === option.key) return; setVoltageHistory([]); setChargeHistory([]); setTimeframe(option.key as TimeframeOption); }}
+                className="touch-btn"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem 1.25rem',
+                  background:
+                    timeframe === option.key
+                      ? theme.colors.primaryMedium
+                      : theme.colors.bgCard,
+                  border:
+                    timeframe === option.key
+                      ? `1px solid ${theme.colors.primarySolid}`
+                      : `1px solid ${theme.colors.border}`,
+                  borderRadius: '6px',
+                  color: theme.colors.textPrimary,
+                  cursor: 'pointer',
+                  fontSize: 'clamp(1rem, 3vw, 1.25rem)',
+                  fontWeight: timeframe === option.key ? 'bold' : 'normal',
+                  minWidth: '3rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         </div>
       </div>
-    </div>
+    </ViewLayout>
   );
 };

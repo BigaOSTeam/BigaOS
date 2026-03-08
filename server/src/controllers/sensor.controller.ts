@@ -52,12 +52,8 @@ export class SensorController {
     const minutes = parseInt(req.query.minutes as string) || 60;
 
     try {
-      // Calculate approximate number of records based on 5-second intervals
-      const limit = Math.ceil(minutes * 60 / 5);
-      const history = db.getSensorHistory(category, sensor, limit);
-
-      // Return in chronological order (oldest first) for charting
-      res.json(history.reverse());
+      const history = db.getSensorHistoryByTime(category, sensor, minutes);
+      res.json(history);
     } catch (error) {
       console.error('Error fetching sensor history:', error);
       res.status(500).json({ error: 'Failed to fetch sensor history' });

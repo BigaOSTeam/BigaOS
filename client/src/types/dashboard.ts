@@ -2,7 +2,7 @@ import { Layout } from 'react-grid-layout';
 
 export type DashboardSidebarPosition = 'left' | 'right' | 'top' | 'bottom';
 
-export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'cog' | 'position' | 'battery' | 'weather';
+export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather';
 
 export interface DashboardItemConfig {
   id: string;
@@ -18,7 +18,6 @@ export type DashboardItemType =
   | 'wind'
   | 'position'
   | 'battery'
-  | 'cog'
   | 'weather-forecast';
 
 export interface DashboardLayout {
@@ -33,7 +32,6 @@ export const DEFAULT_DASHBOARD_ITEMS: DashboardItemConfig[] = [
   { id: 'heading', type: 'heading', targetView: 'heading', layout: { i: 'heading', x: 1, y: 0, w: 1, h: 1, minW: 1, minH: 1 } },
   { id: 'depth', type: 'depth', targetView: 'depth', layout: { i: 'depth', x: 2, y: 0, w: 1, h: 1, minW: 1, minH: 1 } },
   { id: 'wind', type: 'wind', targetView: 'wind', layout: { i: 'wind', x: 0, y: 1, w: 1, h: 1, minW: 1, minH: 1 } },
-  { id: 'cog', type: 'cog', targetView: 'cog', layout: { i: 'cog', x: 1, y: 1, w: 1, h: 1, minW: 1, minH: 1 } },
   { id: 'position', type: 'position', targetView: 'position', layout: { i: 'position', x: 2, y: 1, w: 1, h: 1, minW: 1, minH: 1 } },
   { id: 'battery', type: 'battery', targetView: 'battery', layout: { i: 'battery', x: 0, y: 2, w: 1, h: 1, minW: 1, minH: 1 } },
 ];

@@ -4,6 +4,7 @@ import { useSettings, windConversions } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg } from '../../utils/angle';
+import { ViewLayout } from './shared';
 
 interface WindViewProps {
   sensorData: SensorData;
@@ -46,11 +47,9 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
 
   const beaufort = beaufortScale(wind.speedApparent);
 
-  // Convert wind speeds
   const convertedApparent = convertWind(wind.speedApparent);
   const convertedTrue = convertWind(wind.speedTrue);
 
-  // Format display value based on unit
   const formatWindValue = (value: number) => {
     if (windUnit === 'bft') return value.toFixed(0);
     return value.toFixed(1);
@@ -59,64 +58,26 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
   const unitLabel = windConversions[windUnit].label;
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100dvh',
-      background: theme.colors.bgPrimary,
-      color: theme.colors.textPrimary,
-      display: 'flex',
-      flexDirection: 'column',
-    }}>
-      {/* Header */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        padding: '1rem',
-        borderBottom: `1px solid ${theme.colors.border}`,
-      }}>
-        <button
-          onClick={onClose}
-          style={{
-            background: theme.colors.bgCardActive,
-            border: 'none',
-            color: theme.colors.textPrimary,
-            padding: '0.5rem 1rem',
-            borderRadius: '8px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '0.5rem',
-            fontSize: '1rem',
-          }}
-        >
-          ← {t('common.back')}
-        </button>
-        <h1 style={{ marginLeft: '1rem', fontSize: '1.5rem', fontWeight: 'bold' }}>
-          {t('wind.instrument')}
-        </h1>
-      </div>
-
-      {/* Main Content */}
+    <ViewLayout title={t('wind.instrument')} onClose={onClose}>
+      {/* Main Content - scrollable */}
       <div style={{
         flex: 1,
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        justifyContent: 'center',
-        padding: '2rem',
+        padding: 'clamp(1rem, 3vw, 2rem)',
+        overflowY: 'auto',
       }}>
         {/* Wind Rose */}
         <div style={{
           position: 'relative',
-          width: '350px',
-          height: '350px',
+          width: 'min(70vw, 50vh, 350px)',
+          aspectRatio: '1',
+          flexShrink: 0,
         }}>
-          {/* Outer ring */}
           <svg
-            width="350"
-            height="350"
             viewBox="0 0 350 350"
-            style={{ position: 'absolute', top: 0, left: 0 }}
+            style={{ width: '100%', height: '100%' }}
           >
             {/* Background circle */}
             <circle cx="175" cy="175" r="170" fill={theme.colors.bgCard} stroke={theme.colors.border} strokeWidth="2" />
@@ -188,13 +149,13 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
                 y1="175"
                 x2="175"
                 y2="30"
-                stroke="#ffa726"
+                stroke={theme.colors.dataWind}
                 strokeWidth="4"
                 strokeLinecap="round"
               />
               <polygon
                 points="175,20 165,45 185,45"
-                fill="#ffa726"
+                fill={theme.colors.dataWind}
               />
             </g>
 
@@ -205,14 +166,14 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
                 y1="175"
                 x2="175"
                 y2="50"
-                stroke="#4fc3f7"
+                stroke={theme.colors.dataDepth}
                 strokeWidth="2"
                 strokeDasharray="8 4"
                 strokeLinecap="round"
               />
               <polygon
                 points="175,40 168,55 182,55"
-                fill="#4fc3f7"
+                fill={theme.colors.dataDepth}
               />
             </g>
           </svg>
@@ -220,55 +181,60 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
 
         {/* Wind data display */}
         <div style={{
-          display: 'grid',
-          gridTemplateColumns: '1fr 1fr',
-          gap: '2rem',
-          marginTop: '2rem',
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: 'clamp(0.75rem, 2vw, 2rem)',
+          marginTop: 'clamp(1rem, 2vw, 2rem)',
           width: '100%',
           maxWidth: '600px',
+          justifyContent: 'center',
         }}>
           {/* Apparent Wind */}
           <div style={{
+            flex: '1 1 200px',
+            minWidth: '160px',
             background: 'rgba(255, 167, 38, 0.1)',
             border: '1px solid rgba(255, 167, 38, 0.3)',
             borderRadius: '12px',
-            padding: '1.5rem',
+            padding: 'clamp(1rem, 2vw, 1.5rem)',
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: '0.875rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', opacity: 0.6, marginBottom: '0.5rem' }}>
               {t('wind.apparent_wind')}
             </div>
-            <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#ffa726' }}>
+            <div style={{ fontSize: 'clamp(2rem, 6vw, 3rem)', fontWeight: 'bold', color: theme.colors.dataWind }}>
               {formatWindValue(convertedApparent)}
             </div>
-            <div style={{ fontSize: '1rem', opacity: 0.6 }}>{unitLabel}</div>
-            <div style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#ffa726' }}>
+            <div style={{ fontSize: 'clamp(0.85rem, 2vw, 1rem)', opacity: 0.6 }}>{unitLabel}</div>
+            <div style={{ marginTop: '0.75rem', fontSize: 'clamp(1rem, 3vw, 1.5rem)', color: theme.colors.dataWind }}>
               {radToDeg(wind.angleApparent).toFixed(0)}°
             </div>
-            <div style={{ fontSize: '0.875rem', opacity: 0.6 }}>
+            <div style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', opacity: 0.6 }}>
               {getWindSector(radToDeg(wind.angleApparent))}
             </div>
           </div>
 
           {/* True Wind */}
           <div style={{
+            flex: '1 1 200px',
+            minWidth: '160px',
             background: 'rgba(79, 195, 247, 0.1)',
             border: '1px solid rgba(79, 195, 247, 0.3)',
             borderRadius: '12px',
-            padding: '1.5rem',
+            padding: 'clamp(1rem, 2vw, 1.5rem)',
             textAlign: 'center',
           }}>
-            <div style={{ fontSize: '0.875rem', opacity: 0.6, marginBottom: '0.5rem' }}>
+            <div style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', opacity: 0.6, marginBottom: '0.5rem' }}>
               {t('wind.true_wind')}
             </div>
-            <div style={{ fontSize: '3rem', fontWeight: 'bold', color: '#4fc3f7' }}>
+            <div style={{ fontSize: 'clamp(2rem, 6vw, 3rem)', fontWeight: 'bold', color: theme.colors.dataDepth }}>
               {formatWindValue(convertedTrue)}
             </div>
-            <div style={{ fontSize: '1rem', opacity: 0.6 }}>{unitLabel}</div>
-            <div style={{ marginTop: '1rem', fontSize: '1.5rem', color: '#4fc3f7' }}>
+            <div style={{ fontSize: 'clamp(0.85rem, 2vw, 1rem)', opacity: 0.6 }}>{unitLabel}</div>
+            <div style={{ marginTop: '0.75rem', fontSize: 'clamp(1rem, 3vw, 1.5rem)', color: theme.colors.dataDepth }}>
               {radToDeg(wind.angleTrue).toFixed(0)}°
             </div>
-            <div style={{ fontSize: '0.875rem', opacity: 0.6 }}>
+            <div style={{ fontSize: 'clamp(0.75rem, 2vw, 0.875rem)', opacity: 0.6 }}>
               {getWindSector(radToDeg(wind.angleTrue))}
             </div>
           </div>
@@ -276,14 +242,15 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
 
         {/* Beaufort Scale */}
         <div style={{
-          marginTop: '2rem',
+          marginTop: 'clamp(1rem, 2vw, 2rem)',
           background: theme.colors.bgCard,
           borderRadius: '12px',
-          padding: '1rem 2rem',
+          padding: 'clamp(0.75rem, 2vw, 1rem) clamp(1rem, 3vw, 2rem)',
           textAlign: 'center',
+          fontSize: 'clamp(0.85rem, 2vw, 1rem)',
         }}>
           <span style={{ opacity: 0.6 }}>{t('wind.beaufort')} </span>
-          <span style={{ fontWeight: 'bold', fontSize: '1.25rem' }}>
+          <span style={{ fontWeight: 'bold', fontSize: 'clamp(1rem, 3vw, 1.25rem)' }}>
             {t('wind.force')} {beaufort.force}
           </span>
           <span style={{ opacity: 0.6 }}> - {beaufort.description}</span>
@@ -292,20 +259,22 @@ export const WindView: React.FC<WindViewProps> = ({ sensorData, onClose }) => {
         {/* Legend */}
         <div style={{
           display: 'flex',
-          gap: '2rem',
-          marginTop: '1.5rem',
-          fontSize: '0.875rem',
+          flexWrap: 'wrap',
+          gap: 'clamp(1rem, 3vw, 2rem)',
+          marginTop: 'clamp(0.75rem, 2vw, 1.5rem)',
+          fontSize: 'clamp(0.75rem, 2vw, 0.875rem)',
+          justifyContent: 'center',
         }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: '20px', height: '4px', background: '#ffa726', borderRadius: '2px' }} />
+            <div style={{ width: '20px', height: '4px', background: theme.colors.dataWind, borderRadius: '2px' }} />
             <span style={{ opacity: 0.6 }}>{t('wind.apparent')}</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <div style={{ width: '20px', height: '4px', background: '#4fc3f7', borderRadius: '2px', borderStyle: 'dashed' }} />
+            <div style={{ width: '20px', height: '4px', background: theme.colors.dataDepth, borderRadius: '2px', borderStyle: 'dashed' }} />
             <span style={{ opacity: 0.6 }}>{t('wind.true')}</span>
           </div>
         </div>
       </div>
-    </div>
+    </ViewLayout>
   );
 };

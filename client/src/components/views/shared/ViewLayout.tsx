@@ -26,6 +26,7 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
+        overflow: 'hidden',
       }}
     >
       {/* Header */}
@@ -35,6 +36,7 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
           alignItems: 'center',
           padding: '1rem',
           borderBottom: `1px solid ${theme.colors.border}`,
+          flexShrink: 0,
         }}
       >
         <button
@@ -70,7 +72,17 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
           {title}
         </h1>
       </div>
-      {children}
+      {/* Scrollable content area */}
+      <div style={{
+        flex: 1,
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        minHeight: 0,
+      }}>
+        {children}
+      </div>
     </div>
   );
 };
@@ -100,7 +112,7 @@ export const MainValueDisplay: React.FC<MainValueDisplayProps> = ({
     >
       <div
         style={{
-          fontSize: '6rem',
+          fontSize: 'clamp(3rem, 12vw, 6rem)',
           fontWeight: 'bold',
           color: color || theme.colors.textPrimary,
           lineHeight: 1,
@@ -110,7 +122,7 @@ export const MainValueDisplay: React.FC<MainValueDisplayProps> = ({
       </div>
       <div
         style={{
-          fontSize: '1.5rem',
+          fontSize: 'clamp(1rem, 4vw, 1.5rem)',
           opacity: 0.6,
           marginTop: '0.5rem',
         }}
@@ -150,7 +162,7 @@ export const StatsRow: React.FC<StatsRowProps> = ({ stats }) => {
         <div key={index} style={{ textAlign: 'center' }}>
           <div
             style={{
-              fontSize: '0.75rem',
+              fontSize: 'clamp(0.7rem, 2vw, 0.9rem)',
               opacity: 0.5,
               textTransform: 'uppercase',
               letterSpacing: '0.1em',
@@ -160,7 +172,7 @@ export const StatsRow: React.FC<StatsRowProps> = ({ stats }) => {
           </div>
           <div
             style={{
-              fontSize: '1.5rem',
+              fontSize: 'clamp(1.1rem, 4vw, 1.5rem)',
               fontWeight: 'bold',
               color: stat.color,
             }}
@@ -206,7 +218,7 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
     >
       <div
         style={{
-          fontSize: '0.75rem',
+          fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
           opacity: 0.6,
           textTransform: 'uppercase',
           letterSpacing: '0.1em',
@@ -233,7 +245,7 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
               borderRadius: '4px',
               color: theme.colors.textPrimary,
               cursor: 'pointer',
-              fontSize: '0.7rem',
+              fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
               fontWeight: selected === option.key ? 'bold' : 'normal',
             }}
           >
@@ -248,15 +260,23 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
 interface ChartContainerProps {
   isLoading: boolean;
   hasData: boolean;
+  title?: string;
+  timeframeOptions?: { key: string; label: string }[];
+  selectedTimeframe?: string;
+  onTimeframeSelect?: (key: string) => void;
   children: React.ReactNode;
 }
 
 /**
- * Container for time series charts with loading state
+ * Container for time series charts with loading state and timeframe sidebar
  */
 export const ChartContainer: React.FC<ChartContainerProps> = ({
   isLoading,
   hasData,
+  title,
+  timeframeOptions,
+  selectedTimeframe,
+  onTimeframeSelect,
   children,
 }) => {
   const { theme } = useTheme();
@@ -265,36 +285,98 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     <div
       style={{
         flex: '1 1 auto',
-        padding: '1rem',
-        minHeight: '200px',
+        padding: '0.5rem',
+        minHeight: '300px',
         display: 'flex',
         flexDirection: 'column',
       }}
     >
-      <div
-        style={{
-          flex: 1,
-          background: theme.colors.bgCard,
-          borderRadius: '8px',
-          overflow: 'hidden',
-          position: 'relative',
-        }}
-      >
-        {isLoading && !hasData && (
+      {title && (
+        <div
+          style={{
+            fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
+            opacity: 0.6,
+            textTransform: 'uppercase',
+            letterSpacing: '0.1em',
+            marginBottom: '0.5rem',
+          }}
+        >
+          {title}
+        </div>
+      )}
+      <div style={{ flex: 1, display: 'flex', gap: '0.5rem', minHeight: 0 }}>
+        {/* Chart area */}
+        <div
+          style={{
+            flex: 1,
+            background: theme.colors.bgCard,
+            borderRadius: '8px',
+            overflow: 'hidden',
+            position: 'relative',
+            display: 'flex',
+            flexDirection: 'column',
+            minWidth: 0,
+          }}
+        >
+          {isLoading && !hasData && (
+            <div
+              style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                opacity: 0.5,
+                fontSize: '0.9rem',
+                zIndex: 1,
+              }}
+            >
+              {t('common.loading_history')}
+            </div>
+          )}
+          {children}
+        </div>
+        {/* Timeframe sidebar */}
+        {timeframeOptions && onTimeframeSelect && (
           <div
             style={{
-              position: 'absolute',
-              top: '50%',
-              left: '50%',
-              transform: 'translate(-50%, -50%)',
-              opacity: 0.5,
-              fontSize: '0.9rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.375rem',
+              flexShrink: 0,
             }}
           >
-            {t('common.loading_history')}
+            {timeframeOptions.map((option) => (
+              <button
+                key={option.key}
+                onClick={() => selectedTimeframe !== option.key && onTimeframeSelect(option.key)}
+                className="touch-btn"
+                style={{
+                  flex: 1,
+                  padding: '0.5rem 1.25rem',
+                  background:
+                    selectedTimeframe === option.key
+                      ? theme.colors.primaryMedium
+                      : theme.colors.bgCard,
+                  border:
+                    selectedTimeframe === option.key
+                      ? `1px solid ${theme.colors.primarySolid}`
+                      : `1px solid ${theme.colors.border}`,
+                  borderRadius: '6px',
+                  color: theme.colors.textPrimary,
+                  cursor: 'pointer',
+                  fontSize: 'clamp(1rem, 3vw, 1.25rem)',
+                  fontWeight: selectedTimeframe === option.key ? 'bold' : 'normal',
+                  minWidth: '3rem',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {option.label}
+              </button>
+            ))}
           </div>
         )}
-        {children}
       </div>
     </div>
   );

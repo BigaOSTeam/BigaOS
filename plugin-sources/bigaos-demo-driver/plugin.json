@@ -12,7 +12,7 @@
     "protocol": "demo",
     "dataStreams": [
       { "id": "gps", "name": "GPS Position", "dataType": "position", "unit": "degrees", "updateRate": 1 },
-      { "id": "heading", "name": "Heading", "dataType": "heading", "unit": "degrees", "updateRate": 1 },
+      { "id": "heading_true", "name": "True Heading", "dataType": "heading", "unit": "degrees", "updateRate": 1 },
       { "id": "depth", "name": "Depth", "dataType": "depth", "unit": "meters", "updateRate": 1 },
       { "id": "stw", "name": "Speed Through Water", "dataType": "speed_through_water", "unit": "m/s", "updateRate": 1 },
       { "id": "roll", "name": "Roll", "dataType": "roll", "unit": "degrees", "updateRate": 1 },

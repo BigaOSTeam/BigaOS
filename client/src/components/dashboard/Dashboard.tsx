@@ -17,7 +17,6 @@ import {
   WindItem,
   PositionItem,
   BatteryItem,
-  COGItem,
   WeatherForecastItem,
 } from './items';
 import { DashboardSidebar } from './DashboardSidebar';
@@ -45,19 +44,20 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'wind': { label: 'Wind', targetView: 'wind', defaultSize: { w: 1, h: 1 } },
   'position': { label: 'Position', targetView: 'position', defaultSize: { w: 1, h: 1 } },
   'battery': { label: 'Battery', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
-  'cog': { label: 'COG', targetView: 'cog', defaultSize: { w: 1, h: 1 } },
   'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 2, h: 1 } },
 };
 
 // Migrate old items to use new targetView values
 const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
-  return items.map(item => {
-    const config = ITEM_TYPE_CONFIG[item.type];
-    if (config && item.targetView !== config.targetView) {
-      return { ...item, targetView: config.targetView };
-    }
-    return item;
-  });
+  return items
+    .filter(item => item.type in ITEM_TYPE_CONFIG)
+    .map(item => {
+      const config = ITEM_TYPE_CONFIG[item.type];
+      if (config && item.targetView !== config.targetView) {
+        return { ...item, targetView: config.targetView };
+      }
+      return item;
+    });
 };
 
 export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) => {
@@ -82,7 +82,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'wind': 'dashboard.wind',
       'position': 'dashboard.position',
       'battery': 'dashboard.battery',
-      'cog': 'dashboard.cog',
       'weather-forecast': 'dashboard.weather',
     };
     return t(labelKeys[type]);
@@ -201,7 +200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
 
   // Sidebar sizing
   const isMobile = containerSize.width <= 600;
-  const sidebarSize = isMobile ? 48 : 64;
+  const sidebarSize = isMobile ? 56 : 100;
   const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
 
   // Grid area calculations accounting for sidebar
@@ -369,8 +368,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             stateOfCharge={sensorData.electrical.battery.stateOfCharge}
           />
         );
-      case 'cog':
-        return <COGItem cog={sensorData.navigation.courseOverGround} />;
       case 'weather-forecast':
         return (
           <WeatherForecastItem
@@ -398,7 +395,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         return (
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1 }}>247°</div>
-            <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>HDG</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>{t('dashboard_item.hdg')}</div>
           </div>
         );
       case 'depth':
@@ -430,13 +427,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
               <rect x="3" y="8" width="10" height="8" fill="#66bb6a" opacity="0.3" />
             </svg>
             <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-4px' }}>85%</div>
-          </div>
-        );
-      case 'cog':
-        return (
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1 }}>125°</div>
-            <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>COG</div>
           </div>
         );
       case 'weather-forecast':
@@ -789,12 +779,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                     {renderMiniPreview(type)}
                   </div>
                   <div style={{
-                    fontSize: theme.fontSize.md,
+                    fontSize: theme.fontSize.sm,
                     color: theme.colors.textSecondary,
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em',
                     fontWeight: theme.fontWeight.medium,
                     marginTop: '4px',
+                    textAlign: 'center',
+                    wordBreak: 'break-word',
+                    lineHeight: 1.2,
+                    width: '100%',
                   }}>
                     {getItemTypeLabel(type)}
                   </div>

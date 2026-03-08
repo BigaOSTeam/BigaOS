@@ -124,7 +124,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
       ) : onClose && (
         <button
           onClick={onClose}
-          className="chart-sidebar-btn"
+          className="chart-sidebar-btn with-label"
           style={{
             borderBottom: separator,
           }}
@@ -144,6 +144,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             <path d="M4 5C4 4.44772 4.44772 4 5 4H8C8.55228 4 9 4.44772 9 5V19C9 19.5523 8.55228 20 8 20H5C4.44772 20 4 19.5523 4 19V5Z" />
             <path d="M12 5C12 4.44772 12.4477 4 13 4H19C19.5523 4 20 4.44772 20 5V7C20 7.55228 19.5523 8 19 8H13C12.4477 8 12 7.55228 12 7V5Z" />
           </svg>
+          <span style={{ opacity: 0.7 }}>{t('dashboard.title')}</span>
         </button>
       )}
 
@@ -177,10 +178,10 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               borderRight: separator,
             }}
           >
-            <div style={{ fontSize: '1.3rem', fontWeight: 'bold' }}>
+            <div style={{ fontSize: 'clamp(1rem, 2.5vh, 1.5rem)', fontWeight: 'bold' }}>
               {convertedSpeed.toFixed(1)}
             </div>
-            <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>
+            <div style={{ fontSize: 'clamp(0.5rem, 1vh, 0.7rem)', opacity: 0.6 }}>
               {speedConversions[speedUnit].label}
             </div>
           </div>
@@ -194,10 +195,10 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               background: depthSettingsOpen ? theme.colors.bgCardActive : 'transparent',
             }}
           >
-            <div style={{ fontSize: '1.3rem', fontWeight: 'bold', color: depthColor }}>
+            <div style={{ fontSize: 'clamp(1rem, 2.5vh, 1.5rem)', fontWeight: 'bold', color: depthColor }}>
               {convertedDepth.toFixed(1)}
             </div>
-            <div style={{ fontSize: '0.6rem', opacity: 0.6 }}>
+            <div style={{ fontSize: 'clamp(0.5rem, 1vh, 0.7rem)', opacity: 0.6 }}>
               {depthConversions[depthUnit].label}
             </div>
           </div>
@@ -212,13 +213,13 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               borderBottom: separator,
             }}
           >
-            <div style={{ fontSize: '0.65rem', opacity: 0.6, marginBottom: '0.15rem' }}>
+            <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6, marginBottom: '0.15rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
               {t('chart.speed')}
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>
+            <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold' }}>
               {convertedSpeed.toFixed(1)}
             </div>
-            <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>
+            <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6 }}>
               {speedConversions[speedUnit].label}
             </div>
           </div>
@@ -237,13 +238,15 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           >
             <div
               style={{
-                fontSize: '0.65rem',
+                fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)',
                 opacity: 0.6,
                 marginBottom: '0.15rem',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
                 gap: '0.25rem',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
               }}
             >
               {t('chart.depth')}
@@ -263,25 +266,27 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
                 </svg>
               )}
             </div>
-            <div style={{ fontSize: '1.4rem', fontWeight: 'bold', color: depthColor }}>
+            <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold', color: depthColor }}>
               {convertedDepth.toFixed(1)}
             </div>
-            <div style={{ fontSize: '0.65rem', opacity: 0.6 }}>
+            <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6 }}>
               {depthConversions[depthUnit].label}
             </div>
           </div>
         </>
       )}
 
-      {/* Bottom action buttons - fill remaining space */}
-      <div style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+      {/* Spacer */}
+      <div style={{ flex: 1 }} />
+
+      {/* Bottom action buttons */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
         {/* Forecast overlay toggle */}
           {onWeatherClick && (
             <button
               onClick={onWeatherClick}
               className={`chart-sidebar-btn with-label ${weatherPanelOpen || weatherOverlayEnabled ? 'active' : ''}`}
               style={{
-                flex: 1,
                 borderTop: separator,
                 background: weatherPanelOpen ? theme.colors.bgCardActive : 'transparent',
               }}
@@ -330,7 +335,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
                   </g>
                 )}
               </svg>
-              <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.forecast')}</span>
+              <span style={{ opacity: 0.7 }}>{t('chart.forecast')}</span>
             </button>
           )}
 
@@ -339,7 +344,6 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             onClick={onSearchClick}
             className={`chart-sidebar-btn with-label ${searchOpen ? 'active' : ''}`}
             style={{
-              flex: 1,
               borderTop: separator,
             }}
             title={t('search.search_locations')}
@@ -357,7 +361,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               <circle cx="11" cy="11" r="8" />
               <line x1="21" y1="21" x2="16.65" y2="16.65" />
             </svg>
-            <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>{t('chart.search')}</span>
+            <span style={{ opacity: 0.7 }}>{t('chart.search')}</span>
           </button>
 
           {/* Satellite/Street toggle button */}
@@ -365,7 +369,6 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             onClick={onSatelliteToggle}
             className="chart-sidebar-btn with-label"
             style={{
-              flex: 1,
               borderTop: separator,
             }}
             title={useSatellite ? t('chart.switch_to_street') : t('chart.switch_to_satellite')}
@@ -403,7 +406,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
                 <path d="M2 12h20" />
               </svg>
             )}
-            <span style={{ fontSize: '0.65rem', opacity: 0.7 }}>
+            <span style={{ opacity: 0.7 }}>
               {useSatellite ? t('chart.map') : t('chart.satellite')}
             </span>
           </button>
@@ -413,7 +416,6 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             onClick={onRecenter}
             className={`chart-sidebar-btn ${autoCenter ? 'active' : ''}`}
             style={{
-              flex: 1,
               borderTop: separator,
             }}
             title={autoCenter ? 'Auto-centering ON' : 'Click to recenter'}

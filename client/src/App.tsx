@@ -8,7 +8,6 @@ import { DepthView } from './components/views/DepthView';
 import { SettingsView } from './components/views/SettingsView';
 import { SpeedView } from './components/views/SpeedView';
 import { HeadingView } from './components/views/HeadingView';
-import { COGView } from './components/views/COGView';
 import { PositionView } from './components/views/PositionView';
 import { BatteryView } from './components/views/BatteryView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
@@ -508,18 +507,6 @@ function AppContent() {
     return (
       <>
         <HeadingView heading={sensorData.navigation.heading} onClose={handleGoBack} />
-        <DemoModeBanner />
-        <ConnectivityBanner />
-        <ServerUnreachableBanner />
-        <SystemUpdatingOverlay {...overlayProps} />
-      </>
-    );
-  }
-
-  if (activeView === 'cog') {
-    return (
-      <>
-        <COGView cog={sensorData.navigation.courseOverGround} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />

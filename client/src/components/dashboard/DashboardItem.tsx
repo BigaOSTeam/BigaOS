@@ -65,7 +65,7 @@ export const DashboardItem: React.FC<DashboardItemProps> = ({
       }}
     >
       {/* Content */}
-      <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1 }}>
+      <div style={{ width: '100%', height: '100%', position: 'relative', zIndex: 1, containerType: 'size' as any }}>
         {children}
       </div>
 
