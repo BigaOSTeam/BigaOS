@@ -44,6 +44,7 @@ export interface ThemeColors {
   dataHeading: string;
   dataWind: string;
   dataPosition: string;
+  dataBattery: string;
 
   border: string;
   borderHover: string;
@@ -190,6 +191,7 @@ export const darkTheme: ThemeDefinition = {
     dataHeading: '#ab47bc',
     dataWind: '#ffa726',
     dataPosition: '#4fc3f7',
+    dataBattery: '#66bb6a',
 
     border: 'rgba(255, 255, 255, 0.1)',
     borderHover: 'rgba(255, 255, 255, 0.2)',
@@ -242,6 +244,7 @@ export const lightTheme: ThemeDefinition = {
     dataHeading: '#ab47bc',
     dataWind: '#ffa726',
     dataPosition: '#4fc3f7',
+    dataBattery: '#66bb6a',
 
     border: '#bcc5cf',
     borderHover: '#8c9fae',

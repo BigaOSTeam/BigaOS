@@ -124,11 +124,13 @@ dashboard.depth=Tiefe
 dashboard.wind=Wind
 dashboard.position=Position
 dashboard.battery=Batterie
+dashboard.battery_draw=Verbrauch
 dashboard.chart=Karte
 dashboard.weather=Wetter
 
 # ==================== Dashboard Items ====================
 dashboard_item.battery=Batterie
+dashboard_item.battery_draw=Verbrauch
 dashboard_item.hdg=Kurs
 dashboard_item.awa=AWA
 dashboard_item.head=BUG
@@ -214,6 +216,16 @@ battery.discharging=Entladen
 battery.idle=Leerlauf
 battery.voltage_history=Spannungsverlauf
 battery.charge_history=Ladeverlauf
+battery.power=Leistung
+battery.power_history=Leistungsverlauf
+battery.temperature_history=Temperaturverlauf
+battery.soc_history=Ladezustandsverlauf
+battery.current_history=Stromverlauf
+battery.time_remaining=Restlaufzeit
+battery.time_remaining_history=Restlaufzeitverlauf
+battery.time_to_go=Restlaufzeit
+battery.wattage=Leistung
+battery.history=Batterieverlauf
 
 # ==================== Position ====================
 position.position=Position

@@ -4,4 +4,5 @@ export { DepthItem } from './DepthItem';
 export { WindItem } from './WindItem';
 export { PositionItem } from './PositionItem';
 export { BatteryItem } from './BatteryItem';
+export { BatteryDrawItem } from './BatteryDrawItem';
 export { WeatherForecastItem } from './WeatherForecastItem';

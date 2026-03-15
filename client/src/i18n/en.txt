@@ -124,11 +124,13 @@ dashboard.depth=Depth
 dashboard.wind=Wind
 dashboard.position=Position
 dashboard.battery=Battery
+dashboard.battery_draw=Draw
 dashboard.chart=Chart
 dashboard.weather=Weather
 
 # ==================== Dashboard Items ====================
 dashboard_item.battery=Battery
+dashboard_item.battery_draw=Draw
 dashboard_item.hdg=Heading
 dashboard_item.awa=AWA
 dashboard_item.head=HEAD
@@ -214,6 +216,16 @@ battery.discharging=Discharging
 battery.idle=Idle
 battery.voltage_history=Voltage History
 battery.charge_history=Charge History
+battery.power=Power
+battery.power_history=Power History
+battery.temperature_history=Temperature History
+battery.soc_history=State of Charge History
+battery.current_history=Current History
+battery.time_remaining=Time Remaining
+battery.time_remaining_history=Time Remaining History
+battery.time_to_go=Time to Go
+battery.wattage=Wattage
+battery.history=Battery History
 
 # ==================== Position ====================
 position.position=Position

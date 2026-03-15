@@ -124,7 +124,7 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
       <StatsRow
         stats={[
           { label: t('speed.avg'), value: stats.avg.toFixed(1), color: '#64b5f6' },
-          { label: t('speed.max'), value: stats.max.toFixed(1), color: theme.colors.dataSpeed },
+          { label: t('speed.max'), value: stats.max.toFixed(1), color: theme.colors.success },
           { label: t('speed.min'), value: stats.min.toFixed(1), color: theme.colors.dataWind },
         ]}
       />

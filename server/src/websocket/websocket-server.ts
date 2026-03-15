@@ -814,6 +814,15 @@ export class WebSocketServer {
       if (battery.stateOfCharge !== undefined) {
         readings.push({ category: 'electrical', sensorName: 'house_stateOfCharge', value: battery.stateOfCharge, unit: '%' });
       }
+      if (battery.power !== undefined) {
+        readings.push({ category: 'electrical', sensorName: 'house_power', value: battery.power, unit: 'W' });
+      }
+      if (battery.temperature !== undefined) {
+        readings.push({ category: 'electrical', sensorName: 'house_temperature', value: battery.temperature, unit: '°C' });
+      }
+      if (battery.timeRemaining !== undefined) {
+        readings.push({ category: 'electrical', sensorName: 'house_timeRemaining', value: battery.timeRemaining, unit: 's' });
+      }
     }
 
     // Propulsion data

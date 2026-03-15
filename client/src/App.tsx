@@ -535,6 +535,8 @@ function AppContent() {
           current={sensorData.electrical.battery.current}
           temperature={sensorData.electrical.battery.temperature}
           stateOfCharge={sensorData.electrical.battery.stateOfCharge}
+          timeRemaining={sensorData.electrical.battery.timeRemaining}
+          power={sensorData.electrical.battery.power}
           onClose={handleGoBack}
         />
         <DemoModeBanner />

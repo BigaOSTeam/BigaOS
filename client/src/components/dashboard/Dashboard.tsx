@@ -17,6 +17,7 @@ import {
   WindItem,
   PositionItem,
   BatteryItem,
+  BatteryDrawItem,
   WeatherForecastItem,
 } from './items';
 import { DashboardSidebar } from './DashboardSidebar';
@@ -44,6 +45,7 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'wind': { label: 'Wind', targetView: 'wind', defaultSize: { w: 1, h: 1 } },
   'position': { label: 'Position', targetView: 'position', defaultSize: { w: 1, h: 1 } },
   'battery': { label: 'Battery', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
+  'battery-draw': { label: 'Battery Draw', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
   'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 2, h: 1 } },
 };
 
@@ -82,6 +84,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'wind': 'dashboard.wind',
       'position': 'dashboard.position',
       'battery': 'dashboard.battery',
+      'battery-draw': 'dashboard.battery_draw',
       'weather-forecast': 'dashboard.weather',
     };
     return t(labelKeys[type]);
@@ -365,7 +368,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         return (
           <BatteryItem
             voltage={sensorData.electrical.battery.voltage}
+            temperature={sensorData.electrical.battery.temperature}
             stateOfCharge={sensorData.electrical.battery.stateOfCharge}
+            timeRemaining={sensorData.electrical.battery.timeRemaining}
+          />
+        );
+      case 'battery-draw':
+        return (
+          <BatteryDrawItem
+            current={sensorData.electrical.battery.current}
+            power={sensorData.electrical.battery.power}
+            temperature={sensorData.electrical.battery.temperature}
+            timeRemaining={sensorData.electrical.battery.timeRemaining}
           />
         );
       case 'weather-forecast':
@@ -421,12 +435,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       case 'battery':
         return (
           <div style={{ textAlign: 'center' }}>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#66bb6a" strokeWidth="1.5" style={iconStyle}>
-              <rect x="1" y="6" width="18" height="12" rx="2" ry="2" />
-              <line x1="23" y1="10" x2="23" y2="14" />
-              <rect x="3" y="8" width="10" height="8" fill="#66bb6a" opacity="0.3" />
+            <svg width="32" height="40" viewBox="0 0 80 90" fill="none" style={iconStyle}>
+              <rect x="20" y="12" width="14" height="8" rx="3" fill="#66bb6a" opacity="0.6" />
+              <rect x="46" y="12" width="14" height="8" rx="3" fill="#66bb6a" opacity="0.6" />
+              <rect x="6" y="18" width="68" height="62" rx="5" stroke="#66bb6a" strokeWidth="3" fill="none" />
+              <rect x="10" y="32" width="60" height="44" rx="3" fill="#66bb6a" opacity="0.3" />
             </svg>
-            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-4px' }}>85%</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-2px' }}>85%</div>
+          </div>
+        );
+      case 'battery-draw':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#4fc3f7' }}>-4.2A</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>560W</div>
           </div>
         );
       case 'weather-forecast':

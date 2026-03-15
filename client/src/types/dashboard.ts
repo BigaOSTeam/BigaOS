@@ -18,6 +18,7 @@ export type DashboardItemType =
   | 'wind'
   | 'position'
   | 'battery'
+  | 'battery-draw'
   | 'weather-forecast';
 
 export interface DashboardLayout {

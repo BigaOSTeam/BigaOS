@@ -50,6 +50,7 @@ export const theme = {
     dataHeading: '#ab47bc',
     dataWind: '#ffa726',
     dataPosition: '#4fc3f7',
+    dataBattery: '#66bb6a',
 
     // Border
     border: 'rgba(255, 255, 255, 0.1)',

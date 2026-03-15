@@ -2,10 +2,10 @@ import React from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
-interface BatteryItemProps {
-  voltage: number;
+interface BatteryDrawItemProps {
+  current: number;
+  power: number;
   temperature: number;
-  stateOfCharge: number;
   timeRemaining: number;
 }
 
@@ -17,10 +17,10 @@ const formatTimeRemaining = (seconds: number): string => {
   return `${h}:${m.toString().padStart(2, '0')}`;
 };
 
-export const BatteryItem: React.FC<BatteryItemProps> = ({
-  voltage,
+export const BatteryDrawItem: React.FC<BatteryDrawItemProps> = ({
+  current,
+  power,
   temperature,
-  stateOfCharge,
   timeRemaining,
 }) => {
   const { theme } = useTheme();
@@ -42,15 +42,15 @@ export const BatteryItem: React.FC<BatteryItemProps> = ({
         textTransform: 'uppercase',
         letterSpacing: '0.1em',
       }}>
-        {t('dashboard_item.battery')}
+        {t('dashboard_item.battery_draw')}
       </div>
       <div style={{
         fontSize: 'clamp(12px, 20cqmin, 96px)',
         fontWeight: theme.fontWeight.bold,
-        color: theme.colors.dataBattery,
+        color: theme.colors.dataSpeed,
         lineHeight: 1,
       }}>
-        {stateOfCharge.toFixed(0)}%
+        {current >= 0 ? '+' : ''}{current.toFixed(1)}A
       </div>
       <div style={{
         display: 'flex',
@@ -58,7 +58,7 @@ export const BatteryItem: React.FC<BatteryItemProps> = ({
         fontSize: 'clamp(9px, 9cqmin, 36px)',
         color: theme.colors.textMuted,
       }}>
-        <span style={{ color: theme.colors.dataWind }}>{voltage.toFixed(1)}V</span>
+        <span style={{ color: theme.colors.dataWind }}>{Math.abs(power).toFixed(0)}W</span>
         <span style={{ opacity: 0.4 }}>|</span>
         <span style={{ color: theme.colors.dataHeading }}>{formatTimeRemaining(timeRemaining)}</span>
         <span style={{ opacity: 0.4 }}>|</span>

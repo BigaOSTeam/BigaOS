@@ -35,7 +35,7 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
   yInterval,
   yHeadroom,
   yUnit = '',
-  yMinValue = 0,
+  yMinValue,
   yMaxValue,
   lineColor = '#4fc3f7',
   fillGradient = true,
@@ -101,12 +101,6 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
 
   // Responsive font size and padding based on chart dimensions
   const fontSize = Math.max(10, Math.min(13, Math.floor(Math.min(width, height) * 0.06)));
-  const padding = {
-    top: 22,
-    right: 20,
-    bottom: fontSize + 12,
-    left: fontSize * 3,
-  };
 
   if (data.length < 2) {
     return (
@@ -130,13 +124,6 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
 
   // Not yet measured
   if (width <= 0 || height <= 0) {
-    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
-  }
-
-  const chartWidth = width - padding.left - padding.right;
-  const chartHeight = height - padding.top - padding.bottom;
-
-  if (chartWidth <= 0 || chartHeight <= 0) {
     return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
   }
 
@@ -166,12 +153,34 @@ export const TimeSeriesChart: React.FC<TimeSeriesChartProps> = ({
     );
   }
 
-  // Y-axis bounds
+  // Y-axis bounds (computed before padding so we can measure label width)
   const values = filteredData.map(d => d.value);
-  const minVal = yMinValue;
+  const dataMin = Math.min(...values);
+  const minVal = yMinValue !== undefined ? yMinValue : Math.floor(Math.min(0, dataMin - yHeadroom) / yInterval) * yInterval;
   const dataMax = Math.max(...values) || yInterval;
   const maxVal = yMaxValue !== undefined ? yMaxValue : calculateNiceMax(dataMax, yInterval, yHeadroom);
   const yRange = maxVal - minVal || 1;
+
+  // Estimate left padding from widest Y label
+  const extremeLabels = [minVal, maxVal].map(v =>
+    yLabelFormatter ? yLabelFormatter(v) : `${Number.isInteger(v) ? v : v.toFixed(1)}${yUnit}`
+  );
+  const maxLabelChars = Math.max(...extremeLabels.map(l => l.length));
+  const estimatedLabelWidth = maxLabelChars * fontSize * 0.65 + 8;
+
+  const padding = {
+    top: 22,
+    right: 20,
+    bottom: fontSize + 12,
+    left: Math.max(fontSize * 3, estimatedLabelWidth),
+  };
+
+  const chartWidth = width - padding.left - padding.right;
+  const chartHeight = height - padding.top - padding.bottom;
+
+  if (chartWidth <= 0 || chartHeight <= 0) {
+    return <div ref={containerRef} style={{ width: '100%', height: '100%' }} />;
+  }
 
   // Y ticks - limit count to avoid crowding in small charts
   const maxYTicks = Math.max(2, Math.floor(chartHeight / 30));
