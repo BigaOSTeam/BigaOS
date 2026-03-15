@@ -24,7 +24,6 @@ import { AlertsTab } from '../settings/AlertsTab';
 import { PluginsTab } from '../settings/PluginsTab';
 import { TerminalPanel } from '../settings/TerminalPanel';
 import { ChartTab } from '../settings/ChartTab';
-import type { ThemeMode } from '../../styles/themes';
 import { ClientsTab } from '../settings/ClientsTab';
 
 import { wsService } from '../../services/websocket';

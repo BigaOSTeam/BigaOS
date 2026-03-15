@@ -155,14 +155,14 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
           cx={lastX * plotSize}
           cy={lastY * plotSize}
           r="6"
-          fill={theme.colors.critical}
+          fill={theme.colors.error}
         />
         <circle
           cx={lastX * plotSize}
           cy={lastY * plotSize}
           r="10"
           fill="none"
-          stroke={theme.colors.critical}
+          stroke={theme.colors.error}
           strokeWidth="2"
           opacity="0.5"
         />
