@@ -1,6 +1,6 @@
 {
   "name": "biga-os",
-  "version": "0.1.26",
+  "version": "0.1.27",
   "description": "Intelligent Boat Automation System",
   "scripts": {
     "install:all": "cd server && npm install && cd ../client && npm install",

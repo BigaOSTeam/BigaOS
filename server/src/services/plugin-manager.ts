@@ -76,9 +76,24 @@ export class PluginManager extends EventEmitter {
     // Discover installed plugins
     this.discoverPlugins(pluginStates);
 
-    // Activate enabled plugins
+    // Detect orphaned plugin states: DB says enabled but plugin files are missing
+    for (const [id, enabled] of pluginStates) {
+      if (enabled && !this.plugins.has(id)) {
+        console.warn(`[PluginManager] Plugin "${id}" was enabled but is no longer installed (files missing). It will be re-activated automatically if reinstalled.`);
+        this.plugins.set(id, {
+          manifest: { id, name: id, version: '?.?.?', description: 'Plugin files missing — reinstall from the plugin store', author: '', type: 'driver', main: '', capabilities: [] },
+          status: 'missing',
+          module: null,
+          api: null,
+          installedVersion: '',
+          enabledByUser: true,
+        });
+      }
+    }
+
+    // Activate enabled plugins (skip missing ones)
     for (const [id, plugin] of this.plugins) {
-      if (plugin.enabledByUser) {
+      if (plugin.enabledByUser && plugin.status !== 'missing') {
         await this.activatePlugin(id);
       }
     }
@@ -333,7 +348,13 @@ export class PluginManager extends EventEmitter {
 
     // If updating an existing plugin, preserve state and deactivate first
     const existingPlugin = this.plugins.get(registryEntry.id);
-    const wasEnabled = existingPlugin?.enabledByUser ?? false;
+    // Check in-memory state first, then fall back to DB state
+    // (DB state survives server restarts where plugins dir was wiped)
+    let wasEnabled = existingPlugin?.enabledByUser ?? false;
+    if (!existingPlugin) {
+      const dbStates = await this.loadPluginStates();
+      wasEnabled = dbStates.get(registryEntry.id) ?? false;
+    }
     if (existingPlugin?.module) {
       await this.deactivatePlugin(registryEntry.id);
     }
@@ -386,8 +407,13 @@ export class PluginManager extends EventEmitter {
           });
           console.log(`[PluginManager] npm install completed for ${registryEntry.id}`);
         } catch (npmErr: any) {
-          console.warn(`[PluginManager] npm install failed for ${registryEntry.id}: ${npmErr.message}`);
-          // Continue anyway - plugin may have bundled node_modules
+          const nodeModulesExists = fs.existsSync(path.join(pluginDir, 'node_modules'));
+          if (!nodeModulesExists) {
+            // No bundled node_modules and install failed — hard error
+            throw new Error(`npm install failed and no node_modules present: ${npmErr.message}`);
+          }
+          // node_modules exists (bundled) — continue with warning
+          console.warn(`[PluginManager] npm install failed for ${registryEntry.id}, using bundled node_modules: ${npmErr.message}`);
         }
       }
 

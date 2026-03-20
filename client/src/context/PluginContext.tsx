@@ -58,7 +58,7 @@ export interface PluginManifestInfo {
 export interface PluginInfo {
   id: string;
   manifest: PluginManifestInfo;
-  status: 'installed' | 'enabled' | 'disabled' | 'error' | 'loading';
+  status: 'installed' | 'enabled' | 'disabled' | 'error' | 'loading' | 'missing';
   error?: string;
   enabledByUser: boolean;
   installedVersion: string;

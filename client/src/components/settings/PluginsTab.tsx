@@ -115,6 +115,7 @@ export const PluginsTab: React.FC = () => {
       loading: theme.colors.warning,
       error: theme.colors.error,
       installed: theme.colors.textMuted,
+      missing: theme.colors.error,
     };
 
     return (
@@ -287,6 +288,29 @@ export const PluginsTab: React.FC = () => {
             {plugin.manifest.description}
           </div>
 
+          {/* Missing plugin banner */}
+          {plugin.status === 'missing' && (
+            <div style={{
+              padding: `${theme.space.sm} ${theme.space.md}`,
+              background: `${theme.colors.error}18`,
+              border: `1px solid ${theme.colors.error}44`,
+              borderRadius: theme.radius.sm,
+              marginBottom: theme.space.sm,
+              fontSize: theme.fontSize.xs,
+              color: theme.colors.error,
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.space.sm,
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ flexShrink: 0 }}>
+                <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+              {t('plugins.missing_message')}
+            </div>
+          )}
+
           {/* Setup message */}
           {plugin.setupMessage && (
             <div style={{
@@ -329,6 +353,27 @@ export const PluginsTab: React.FC = () => {
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: theme.space.sm, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+              {/* Reinstall button for missing plugins */}
+              {plugin.status === 'missing' && (() => {
+                const rp = registryPlugins.find(r => r.id === plugin.id);
+                const isInstalling = installingPlugins.has(plugin.id);
+                return rp ? (
+                  <SButton
+                    variant="primary"
+                    onClick={() => !isInstalling && installPlugin(plugin.id)}
+                    disabled={isInstalling}
+                    style={{ padding: `${theme.space.sm} ${theme.space.md}`, fontSize: theme.fontSize.xs }}
+                  >
+                    {isInstalling ? (
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                        style={{ animation: 'spin 0.6s linear infinite' }}>
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    ) : t('plugins.reinstall')}
+                  </SButton>
+                ) : null;
+              })()}
+
               {/* Update button OR Reboot button if setup requires reboot */}
               {(() => {
                 const rp = registryPlugins.find(r => r.id === plugin.id);

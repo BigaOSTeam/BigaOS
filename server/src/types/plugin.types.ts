@@ -218,7 +218,7 @@ export interface PluginRegistry {
 // Plugin Instance Types
 // ============================================================================
 
-export type PluginStatus = 'installed' | 'enabled' | 'disabled' | 'error' | 'loading';
+export type PluginStatus = 'installed' | 'enabled' | 'disabled' | 'error' | 'loading' | 'missing';
 
 export interface PluginInfo {
   id: string;

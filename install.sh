@@ -110,12 +110,15 @@ rm "$TEMP_DIR/release.tar.gz"
 step "Installing files..."
 mkdir -p "$INSTALL_DIR"
 
-# Preserve user data
+# Preserve user data and plugins
 if [ -d "$INSTALL_DIR/server/data" ]; then
   cp -r "$INSTALL_DIR/server/data" "$TEMP_DIR/_data_backup"
 fi
 if [ -d "$INSTALL_DIR/server/src/data" ]; then
   cp -r "$INSTALL_DIR/server/src/data" "$TEMP_DIR/_srcdata_backup"
+fi
+if [ -d "$INSTALL_DIR/plugins" ]; then
+  cp -r "$INSTALL_DIR/plugins" "$TEMP_DIR/_plugins_backup"
 fi
 
 # Copy release files
@@ -133,9 +136,15 @@ if [ -d "$TEMP_DIR/_srcdata_backup" ]; then
   cp -r "$TEMP_DIR/_srcdata_backup" "$INSTALL_DIR/server/src/data"
 fi
 
+# Restore plugins
+if [ -d "$TEMP_DIR/_plugins_backup" ]; then
+  cp -r "$TEMP_DIR/_plugins_backup" "$INSTALL_DIR/plugins"
+fi
+
 # Ensure data directories exist
 mkdir -p "$INSTALL_DIR/server/data"
 mkdir -p "$INSTALL_DIR/server/src/data"
+mkdir -p "$INSTALL_DIR/plugins"
 
 # ── Install server dependencies ────────────────────────────
 step "Installing dependencies..."
