@@ -454,24 +454,23 @@ export class PluginManager extends EventEmitter {
       // Load plugin i18n files if declared
       const i18n = this.loadPluginI18n(manifest.id, manifest);
 
-      // Add to plugins map (preserve enabledByUser for updates)
+      // Add to plugins map — auto-enable on install (user explicitly chose to install)
       this.plugins.set(manifest.id, {
         manifest,
         status: 'installed',
         module: null,
         api: null,
         installedVersion: manifest.version,
-        enabledByUser: wasEnabled,
+        enabledByUser: true,
         setupMessage,
         i18n,
       });
 
+      await this.savePluginState(manifest.id, true);
       console.log(`[PluginManager] Installed: ${manifest.id} v${manifest.version}`);
 
-      // Re-activate if the plugin was previously enabled
-      if (wasEnabled) {
-        await this.activatePlugin(manifest.id);
-      }
+      // Activate the plugin
+      await this.activatePlugin(manifest.id);
 
       this.emitPluginUpdate();
       return true;
