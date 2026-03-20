@@ -29,7 +29,7 @@
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",
-      "latestVersion": "1.5.0",
+      "latestVersion": "1.5.1",
       "capabilities": ["sensor-data", "settings", "alerts", "network"],
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
@@ -129,6 +129,12 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
           "releaseDate": "2026-03-15",
           "changelog": "PGN 127506 support (SOC, time remaining), battery power (V×A), IMU calibration system with gyro bias, mounting offset, magnetometer hard/soft iron, and beta warmup"
+        },
+        {
+          "version": "1.5.1",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugins/bigaos-macarthur-hat.tar.gz",
+          "releaseDate": "2026-03-20",
+          "changelog": "Filter out invalid battery temperature (0K = no sensor), fix current display at zero"
         }
       ]
     }

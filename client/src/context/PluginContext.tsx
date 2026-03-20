@@ -134,8 +134,9 @@ interface PluginContextType {
   registryLoading: boolean;
   refreshRegistry: () => void;
 
-  // Install/update progress
+  // Install/update/uninstall progress
   installingPlugins: Set<string>;
+  uninstallingPlugins: Set<string>;
 
   // Plugin actions
   installPlugin: (pluginId: string, version?: string) => void;
@@ -176,6 +177,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [registryPlugins, setRegistryPlugins] = useState<RegistryPlugin[]>([]);
   const [registryLoading, setRegistryLoading] = useState(false);
   const [installingPlugins, setInstallingPlugins] = useState<Set<string>>(new Set());
+  const [uninstallingPlugins, setUninstallingPlugins] = useState<Set<string>>(new Set());
   const [sensorMappings, setSensorMappings] = useState<SensorMappingInfo[]>([]);
   const [debugData, setDebugData] = useState<DebugDataEntry[]>([]);
   const [sourceAvailability, setSourceAvailability] = useState<SlotAvailability[]>([]);
@@ -195,14 +197,28 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       });
     };
 
+    const clearUninstallingPlugins = (plugins: PluginInfo[]) => {
+      setUninstallingPlugins(prev => {
+        if (prev.size === 0) return prev;
+        const installedIds = new Set(plugins.map(p => p.id));
+        const next = new Set(prev);
+        for (const id of prev) {
+          if (!installedIds.has(id)) next.delete(id);
+        }
+        return next.size === prev.size ? prev : next;
+      });
+    };
+
     const handlePluginSync = (data: { plugins: PluginInfo[] }) => {
       setPlugins(data.plugins);
       clearInstallingPlugins(data.plugins);
+      clearUninstallingPlugins(data.plugins);
     };
 
     const handlePluginUpdate = (data: { plugins: PluginInfo[] }) => {
       setPlugins(data.plugins);
       clearInstallingPlugins(data.plugins);
+      clearUninstallingPlugins(data.plugins);
 
       // Locally update registry entries so hasUpdate clears immediately
       const installedVersions = new Map(data.plugins.map(p => [p.id, p.installedVersion]));
@@ -302,6 +318,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const uninstallPlugin = useCallback((pluginId: string) => {
+    setUninstallingPlugins(prev => new Set(prev).add(pluginId));
     wsService.emit('plugin_uninstall', { pluginId });
   }, []);
 
@@ -373,6 +390,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     registryLoading,
     refreshRegistry,
     installingPlugins,
+    uninstallingPlugins,
     installPlugin,
     uninstallPlugin,
     enablePlugin,

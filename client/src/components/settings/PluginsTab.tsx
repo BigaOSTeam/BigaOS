@@ -41,6 +41,7 @@ export const PluginsTab: React.FC = () => {
     registryLoading,
     refreshRegistry,
     installingPlugins,
+    uninstallingPlugins,
     installPlugin,
     uninstallPlugin,
     sensorMappings,
@@ -243,7 +244,31 @@ export const PluginsTab: React.FC = () => {
           borderRadius: theme.radius.md,
           border: `1px solid ${theme.colors.border}`,
           marginBottom: theme.space.md,
+          position: 'relative',
+          overflow: 'hidden',
         }}>
+          {/* Uninstalling overlay */}
+          {uninstallingPlugins.has(plugin.id) && (
+            <div style={{
+              position: 'absolute',
+              inset: 0,
+              background: `${theme.colors.bgCard}cc`,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 2,
+              borderRadius: theme.radius.md,
+              gap: theme.space.sm,
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={theme.colors.textMuted} strokeWidth="2"
+                style={{ animation: 'spin 0.6s linear infinite' }}>
+                <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+              </svg>
+              <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+                {t('plugins.uninstalling')}
+              </span>
+            </div>
+          )}
           {/* Plugin header */}
           <div style={{
             display: 'flex',
@@ -438,6 +463,7 @@ export const PluginsTab: React.FC = () => {
               <SButton
                 variant="danger"
                 onClick={() => handleUninstall(plugin)}
+                disabled={uninstallingPlugins.has(plugin.id)}
                 style={{ padding: `${theme.space.sm} ${theme.space.md}` }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

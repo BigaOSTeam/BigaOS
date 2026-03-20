@@ -176,7 +176,16 @@ class PGNHandlers {
 
     if (voltage != null) this._push(`${prefix}_voltage`, voltage);          // Volts
     if (current != null) this._push(`${prefix}_current`, current);          // Amps
-    if (temp != null) this._push(`${prefix}_temperature`, temp);            // Kelvin
+    if (temp != null && temp > 0) {
+      let tempK = temp;
+      if (tempK < 100) {
+        // Non-compliant device: sends Celsius as raw integer value,
+        // canboatjs applies 0.01K resolution → gives e.g. 0.09 for 9°C.
+        // Undo resolution and convert Celsius → Kelvin.
+        tempK = (tempK * 100) + 273.15;
+      }
+      this._push(`${prefix}_temperature`, tempK);                            // Kelvin
+    }
 
     // Direct power from interface takes priority; otherwise calculate from V × A
     if (power != null) {

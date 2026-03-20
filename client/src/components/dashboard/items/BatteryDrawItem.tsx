@@ -50,7 +50,7 @@ export const BatteryDrawItem: React.FC<BatteryDrawItemProps> = ({
         color: theme.colors.dataSpeed,
         lineHeight: 1,
       }}>
-        {current >= 0 ? '+' : ''}{current.toFixed(1)}A
+        {Math.abs(current) < 0.05 ? '' : current > 0 ? '+' : ''}{Math.abs(current) < 0.05 ? '0.0' : current.toFixed(1)}A
       </div>
       <div style={{
         display: 'flex',
@@ -62,7 +62,7 @@ export const BatteryDrawItem: React.FC<BatteryDrawItemProps> = ({
         <span style={{ opacity: 0.4 }}>|</span>
         <span style={{ color: theme.colors.dataHeading }}>{formatTimeRemaining(timeRemaining)}</span>
         <span style={{ opacity: 0.4 }}>|</span>
-        <span style={{ color: '#ff7043' }}>{temperature.toFixed(0)}°C</span>
+        <span style={{ color: '#ff7043' }}>{temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}</span>
       </div>
     </div>
   );

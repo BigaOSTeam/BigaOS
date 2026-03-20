@@ -326,13 +326,13 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.current')}</div>
             <div style={{ ...statValueStyle, color: theme.colors.dataSpeed }}>
-              {current >= 0 ? '+' : ''}{current.toFixed(1)}A
+              {Math.abs(current) < 0.05 ? '' : current > 0 ? '+' : ''}{Math.abs(current) < 0.05 ? '0.0' : current.toFixed(1)}A
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.temperature')}</div>
             <div style={{ ...statValueStyle, color: '#ff7043' }}>
-              {temperature.toFixed(0)}°C
+              {temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>

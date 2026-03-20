@@ -670,6 +670,7 @@ plugins.status_installed=Installiert
 plugins.status_missing=Fehlend
 plugins.missing_message=Plugin-Dateien fehlen — aus dem Marktplatz neu installieren
 plugins.reinstall=Neu installieren
+plugins.uninstalling=Wird deinstalliert...
 plugins.official=Offiziell
 plugins.community=Community
 plugins.type_driver=Treiber

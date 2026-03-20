@@ -62,7 +62,7 @@ export const BatteryItem: React.FC<BatteryItemProps> = ({
         <span style={{ opacity: 0.4 }}>|</span>
         <span style={{ color: theme.colors.dataHeading }}>{formatTimeRemaining(timeRemaining)}</span>
         <span style={{ opacity: 0.4 }}>|</span>
-        <span style={{ color: '#ff7043' }}>{temperature.toFixed(0)}°C</span>
+        <span style={{ color: '#ff7043' }}>{temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}</span>
       </div>
     </div>
   );
