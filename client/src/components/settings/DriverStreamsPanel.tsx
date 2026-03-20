@@ -31,7 +31,7 @@ import { SLabel, SSection, SInput, SButton, SToggle, SInfoBox } from '../ui/Sett
 const SLOT_CATEGORIES: [string, string[]][] = [
   ['slot_cat.navigation', ['position', 'course_over_ground', 'speed_over_ground', 'heading', 'speed_through_water', 'roll', 'pitch', 'yaw', 'rudder_angle', 'chain_length']],
   ['slot_cat.environment', ['depth', 'wind_speed_apparent', 'wind_angle_apparent', 'wind_speed_true', 'wind_angle_true', 'wind_speed', 'wind_angle', 'water_temperature', 'barometric_pressure', 'humidity']],
-  ['slot_cat.electrical', ['voltage', 'current', 'temperature', 'soc', 'battery_temperature', 'battery_soc', 'battery_time_remaining', 'battery_power']],
+  ['slot_cat.electrical', ['voltage', 'current', 'battery_voltage', 'battery_current', 'temperature', 'soc', 'battery_temperature', 'battery_soc', 'battery_time_remaining', 'battery_power']],
   ['slot_cat.propulsion', ['rpm', 'fuel_level', 'tank_level']],
 ];
 

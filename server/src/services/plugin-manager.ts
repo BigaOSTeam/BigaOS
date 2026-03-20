@@ -228,9 +228,13 @@ export class PluginManager extends EventEmitter {
       // Create scoped API for this plugin
       const api = new PluginAPI(pluginId, plugin.manifest, this.dataEmitter);
 
-      // Dynamic require with cache clearing
-      const resolvedPath = require.resolve(entryPoint);
-      delete require.cache[resolvedPath];
+      // Dynamic require with full cache clearing for the plugin directory
+      const pluginDir = path.join(this.pluginsDir, pluginId);
+      for (const key of Object.keys(require.cache)) {
+        if (key.startsWith(pluginDir)) {
+          delete require.cache[key];
+        }
+      }
       const pluginModule: BigaOSPlugin = require(entryPoint);
 
       // Validate exports

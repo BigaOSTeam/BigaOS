@@ -204,7 +204,18 @@ class PGNHandlers {
     const timeRemaining = fields['Time Remaining'];
 
     if (soc != null) this._push(`${prefix}_soc`, soc);                     // Percentage
-    if (timeRemaining != null) this._push(`${prefix}_time_remaining`, timeRemaining);  // Seconds
+    if (timeRemaining != null) {
+      // canboatjs may output time as "HH:MM:SS" string or seconds number
+      let seconds = timeRemaining;
+      if (typeof timeRemaining === 'string') {
+        const parts = timeRemaining.split(':').map(Number);
+        if (parts.length === 3) seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+        else if (parts.length === 2) seconds = parts[0] * 3600 + parts[1] * 60;
+      }
+      if (typeof seconds === 'number' && !isNaN(seconds)) {
+        this._push(`${prefix}_time_remaining`, seconds);                   // Seconds
+      }
+    }
   }
 
   // PGN 127488 - Engine Parameters, Rapid Update
