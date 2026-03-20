@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
@@ -253,6 +253,155 @@ export const TimeframeSelector: React.FC<TimeframeSelectorProps> = ({
           </button>
         ))}
       </div>
+    </div>
+  );
+};
+
+/**
+ * Responsive timeframe picker — buttons on desktop, dropdown on mobile
+ */
+interface ResponsiveTimeframePickerProps {
+  title: string;
+  options: { key: string; label: string }[];
+  selected: string;
+  onSelect: (key: string) => void;
+}
+
+export const ResponsiveTimeframePicker: React.FC<ResponsiveTimeframePickerProps> = ({
+  title,
+  options,
+  selected,
+  onSelect,
+}) => {
+  const { theme } = useTheme();
+  const [isMobile, setIsMobile] = useState(window.innerWidth <= 600);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth <= 600);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const selectedLabel = options.find(o => o.key === selected)?.label || selected;
+
+  return (
+    <div style={{
+      display: 'flex',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      padding: '0 0.25rem',
+      marginBottom: 'clamp(0.25rem, 0.8vw, 0.5rem)',
+      flexShrink: 0,
+    }}>
+      <div style={{
+        fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
+        opacity: 0.6,
+        textTransform: 'uppercase',
+        letterSpacing: '0.1em',
+      }}>
+        {title}
+      </div>
+
+      {isMobile ? (
+        /* Dropdown on mobile */
+        <div style={{ position: 'relative' }}>
+          <button
+            onClick={() => setOpen(!open)}
+            className="touch-btn"
+            style={{
+              padding: '0.4rem 0.8rem',
+              background: theme.colors.primaryMedium,
+              border: `1px solid ${theme.colors.primarySolid}`,
+              borderRadius: '6px',
+              color: theme.colors.textPrimary,
+              cursor: 'pointer',
+              fontSize: 'clamp(0.85rem, 3vw, 1.1rem)',
+              fontWeight: 'bold',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.4rem',
+            }}
+          >
+            {selectedLabel}
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d={open ? 'M2 8L6 4L10 8' : 'M2 4L6 8L10 4'} />
+            </svg>
+          </button>
+          {open && (
+            <>
+              <div
+                onClick={() => setOpen(false)}
+                style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, zIndex: 99 }}
+              />
+              <div style={{
+                position: 'absolute',
+                right: 0,
+                top: '100%',
+                marginTop: '4px',
+                background: theme.colors.bgSecondary,
+                border: `1px solid ${theme.colors.borderHover}`,
+                borderRadius: '8px',
+                boxShadow: theme.shadow.lg,
+                zIndex: 100,
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '4px',
+                padding: '6px',
+                minWidth: '120px',
+              }}>
+                {options.map((option) => (
+                  <button
+                    key={option.key}
+                    onClick={() => { onSelect(option.key); setOpen(false); }}
+                    className="touch-btn"
+                    style={{
+                      padding: '0.5rem',
+                      background: selected === option.key ? theme.colors.primaryMedium : theme.colors.bgCard,
+                      border: selected === option.key ? `1px solid ${theme.colors.primarySolid}` : `1px solid ${theme.colors.border}`,
+                      borderRadius: '6px',
+                      color: theme.colors.textPrimary,
+                      cursor: 'pointer',
+                      fontSize: '0.95rem',
+                      fontWeight: selected === option.key ? 'bold' : 'normal',
+                      textAlign: 'center',
+                    }}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+      ) : (
+        /* Buttons on desktop */
+        <div style={{ display: 'flex', gap: '0.375rem' }}>
+          {options.map((option) => (
+            <button
+              key={option.key}
+              onClick={() => onSelect(option.key)}
+              className="touch-btn"
+              style={{
+                padding: 'clamp(0.3rem, 0.8vw, 0.5rem) clamp(0.5rem, 1.5vw, 1rem)',
+                background: selected === option.key ? theme.colors.primaryMedium : theme.colors.bgCard,
+                border: selected === option.key ? `1px solid ${theme.colors.primarySolid}` : `1px solid ${theme.colors.border}`,
+                borderRadius: '6px',
+                color: theme.colors.textPrimary,
+                cursor: 'pointer',
+                fontSize: 'clamp(0.8rem, 2.5vw, 1.1rem)',
+                fontWeight: selected === option.key ? 'bold' : 'normal',
+                minWidth: '2.5rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

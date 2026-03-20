@@ -16,7 +16,9 @@ export const sensorAPI = {
   getSensorHistory: (category: string, limit?: number) =>
     api.get(`/sensors/${category}/history`, { params: { limit } }),
   getSpecificSensorHistory: (category: string, sensor: string, minutes?: number) =>
-    api.get(`/sensors/history/${category}/${sensor}`, { params: { minutes } })
+    api.get(`/sensors/history/${category}/${sensor}`, { params: { minutes } }),
+  getHistoryBatch: (category: string, sensors: string[], minutes: number) =>
+    api.post<Record<string, any[]>>('/sensors/history/batch', { category, sensors, minutes }),
 };
 
 // Navigation API

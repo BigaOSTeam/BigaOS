@@ -10,6 +10,7 @@ import { SpeedView } from './components/views/SpeedView';
 import { HeadingView } from './components/views/HeadingView';
 import { PositionView } from './components/views/PositionView';
 import { BatteryView } from './components/views/BatteryView';
+import { WeatherView } from './components/views/WeatherView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
@@ -458,7 +459,13 @@ function AppContent() {
   if (activeView === 'wind') {
     return (
       <>
-        <WindView sensorData={sensorData} onClose={handleGoBack} />
+        <WindView
+          speedApparent={sensorData.environment.wind.speedApparent}
+          angleApparent={sensorData.environment.wind.angleApparent}
+          speedTrue={sensorData.environment.wind.speedTrue}
+          angleTrue={sensorData.environment.wind.angleTrue}
+          onClose={handleGoBack}
+        />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
@@ -537,6 +544,22 @@ function AppContent() {
           stateOfCharge={sensorData.electrical.battery.stateOfCharge}
           timeRemaining={sensorData.electrical.battery.timeRemaining}
           power={sensorData.electrical.battery.power}
+          onClose={handleGoBack}
+        />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
+  if (activeView === 'weather') {
+    return (
+      <>
+        <WeatherView
+          latitude={sensorData.navigation.position.latitude}
+          longitude={sensorData.navigation.position.longitude}
           onClose={handleGoBack}
         />
         <DemoModeBanner />

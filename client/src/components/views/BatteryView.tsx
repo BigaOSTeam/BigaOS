@@ -5,6 +5,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import {
   ViewLayout,
+  ResponsiveTimeframePicker,
 } from './shared';
 
 interface BatteryViewProps {
@@ -86,7 +87,18 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     return '#ef5350';                  // red
   };
 
-  const charts: ChartConfig[] = useMemo(() => [
+  // Static fetch keys — never changes, so fetchHistory stays stable
+  const FETCH_KEYS = useMemo(() => [
+    { key: 'power', sensorKey: `${batteryId}_power` },
+    { key: 'temperature', sensorKey: `${batteryId}_temperature` },
+    { key: 'stateOfCharge', sensorKey: `${batteryId}_stateOfCharge` },
+    { key: 'current', sensorKey: `${batteryId}_current` },
+    { key: 'timeRemaining', sensorKey: `${batteryId}_timeRemaining` },
+    { key: 'voltage', sensorKey: `${batteryId}_voltage` },
+  ], [batteryId]);
+
+  // Display config — can change freely without triggering fetches
+  const charts: ChartConfig[] = [
     {
       key: 'power',
       label: t('battery.power_history'),
@@ -164,20 +176,18 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
       currentValue: voltage,
       formatValue: (v: number) => `${v.toFixed(2)}V`,
     },
-  ], [t, batteryId, power, temperature, stateOfCharge, current, timeRemaining, voltage, theme.colors]);
+  ];
 
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
     try {
-      const results = await Promise.all(
-        charts.map((chart) =>
-          sensorAPI.getSpecificSensorHistory('electrical', chart.sensorKey, TIMEFRAMES[timeframe].minutes)
-        )
-      );
+      const sensorKeys = FETCH_KEYS.map(fk => fk.sensorKey);
+      const response = await sensorAPI.getHistoryBatch('electrical', sensorKeys, TIMEFRAMES[timeframe].minutes);
+      const batch = response.data;
 
       const newHistories: Record<string, TimeSeriesDataPoint[]> = {};
-      charts.forEach((chart, i) => {
-        newHistories[chart.key] = results[i].data.map((item: any) => ({
+      FETCH_KEYS.forEach((fk) => {
+        newHistories[fk.key] = (batch[fk.sensorKey] || []).map((item: any) => ({
           timestamp: new Date(item.timestamp + 'Z').getTime(),
           value: item.value,
         }));
@@ -188,7 +198,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [timeframe, charts]);
+  }, [timeframe, FETCH_KEYS]);
 
   useEffect(() => {
     fetchHistory();
@@ -347,55 +357,12 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         flexDirection: 'column',
         padding: 'clamp(0.3rem, 1vw, 0.5rem)',
       }}>
-        {/* Title + Timeframe selector row */}
-        <div style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          padding: '0 0.25rem',
-          marginBottom: 'clamp(0.25rem, 0.8vw, 0.5rem)',
-          flexShrink: 0,
-        }}>
-          <div style={{
-            fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
-            opacity: 0.6,
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-          }}>
-            {t('battery.history')}
-          </div>
-          <div style={{ display: 'flex', gap: '0.375rem' }}>
-            {timeframeOptions.map((option) => (
-              <button
-                key={option.key}
-                onClick={() => handleTimeframeChange(option.key)}
-                className="touch-btn"
-                style={{
-                  padding: 'clamp(0.3rem, 0.8vw, 0.5rem) clamp(0.5rem, 1.5vw, 1rem)',
-                  background:
-                    timeframe === option.key
-                      ? theme.colors.primaryMedium
-                      : theme.colors.bgCard,
-                  border:
-                    timeframe === option.key
-                      ? `1px solid ${theme.colors.primarySolid}`
-                      : `1px solid ${theme.colors.border}`,
-                  borderRadius: '6px',
-                  color: theme.colors.textPrimary,
-                  cursor: 'pointer',
-                  fontSize: 'clamp(0.8rem, 2.5vw, 1.1rem)',
-                  fontWeight: timeframe === option.key ? 'bold' : 'normal',
-                  minWidth: '2.5rem',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-        </div>
+        <ResponsiveTimeframePicker
+          title={t('battery.history')}
+          options={timeframeOptions}
+          selected={timeframe}
+          onSelect={handleTimeframeChange}
+        />
 
         {/* 3x2 Chart Grid */}
         <div style={{

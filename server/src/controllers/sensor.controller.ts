@@ -59,6 +59,23 @@ export class SensorController {
       res.status(500).json({ error: 'Failed to fetch sensor history' });
     }
   }
+  // POST /api/sensors/history/batch - Get multiple sensor histories in one call
+  getHistoryBatch(req: Request, res: Response) {
+    const { category, sensors, minutes: mins } = req.body;
+    const minutes = parseInt(mins) || 60;
+
+    if (!category || !sensors || !Array.isArray(sensors)) {
+      return res.status(400).json({ error: 'category and sensors[] required' });
+    }
+
+    try {
+      const result = db.getSensorHistoryBatch(category, sensors, minutes);
+      res.json(result);
+    } catch (error) {
+      console.error('Error fetching batch history:', error);
+      res.status(500).json({ error: 'Failed to fetch sensor history' });
+    }
+  }
 }
 
 export const sensorController = new SensorController();

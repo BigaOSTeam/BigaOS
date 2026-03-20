@@ -61,7 +61,8 @@ export class WeatherController {
     }
 
     try {
-      const forecast = await weatherService.getWeather(lat, lon);
+      const requiredDays = Math.ceil(hours / 24);
+      const forecast = await weatherService.getWeather(lat, lon, requiredDays);
       if (!forecast) {
         return res.status(503).json({ error: 'Weather data unavailable' });
       }

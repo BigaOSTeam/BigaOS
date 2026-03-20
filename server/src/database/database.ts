@@ -23,7 +23,7 @@ class DatabaseService {
       }
 
       // Connect to database
-      this.db = new Database(this.dbPath, { verbose: console.log });
+      this.db = new Database(this.dbPath);
 
       // Enable WAL mode for better concurrency
       this.db.pragma('journal_mode = WAL');
@@ -98,6 +98,23 @@ class DatabaseService {
       ORDER BY timestamp ASC
     `);
     return stmt.all(category, sensorName, minutes);
+  }
+
+  /**
+   * Get history for multiple sensors in one call
+   */
+  getSensorHistoryBatch(category: string, sensorNames: string[], minutes: number): Record<string, any[]> {
+    const stmt = this.getDb().prepare(`
+      SELECT * FROM sensor_data
+      WHERE category = ? AND sensor_name = ?
+        AND timestamp >= datetime('now', '-' || ? || ' minutes')
+      ORDER BY timestamp ASC
+    `);
+    const result: Record<string, any[]> = {};
+    for (const name of sensorNames) {
+      result[name] = stmt.all(category, name, minutes);
+    }
+    return result;
   }
 
   /**

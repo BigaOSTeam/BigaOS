@@ -15,10 +15,15 @@ import {
   HeadingItem,
   DepthItem,
   WindItem,
+  WindRoseItem,
   PositionItem,
   BatteryItem,
   BatteryDrawItem,
   WeatherForecastItem,
+  WaveForecastItem,
+  PressureForecastItem,
+  GustForecastItem,
+  SeaTempForecastItem,
 } from './items';
 import { DashboardSidebar } from './DashboardSidebar';
 import { useTheme } from '../../context/ThemeContext';
@@ -43,10 +48,15 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'heading': { label: 'Heading', targetView: 'heading', defaultSize: { w: 1, h: 1 } },
   'depth': { label: 'Depth', targetView: 'depth', defaultSize: { w: 1, h: 1 } },
   'wind': { label: 'Wind', targetView: 'wind', defaultSize: { w: 1, h: 1 } },
+  'wind-rose': { label: 'Wind Rose', targetView: 'wind', defaultSize: { w: 1, h: 1 } },
   'position': { label: 'Position', targetView: 'position', defaultSize: { w: 1, h: 1 } },
   'battery': { label: 'Battery', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
   'battery-draw': { label: 'Battery Draw', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
-  'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 2, h: 1 } },
+  'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'wave-forecast': { label: 'Waves', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'gust-forecast': { label: 'Gusts', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'pressure-forecast': { label: 'Pressure', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'sea-temp-forecast': { label: 'Sea Temp', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
 };
 
 // Migrate old items to use new targetView values
@@ -64,7 +74,7 @@ const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
 
 export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) => {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const { clientId } = useClient();
 
   // Dashboard sidebar position - independent from chart sidebar, saved per client
@@ -82,10 +92,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'heading': 'dashboard.heading',
       'depth': 'dashboard.depth',
       'wind': 'dashboard.wind',
+      'wind-rose': 'dashboard.wind_rose',
       'position': 'dashboard.position',
       'battery': 'dashboard.battery',
       'battery-draw': 'dashboard.battery_draw',
-      'weather-forecast': 'dashboard.weather',
+      'weather-forecast': 'dashboard.weather_wind',
+      'wave-forecast': 'dashboard.weather_waves',
+      'gust-forecast': 'dashboard.weather_gusts',
+      'pressure-forecast': 'dashboard.weather_pressure',
+      'sea-temp-forecast': 'dashboard.weather_sea_temp',
     };
     return t(labelKeys[type]);
   };
@@ -206,19 +221,27 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const sidebarSize = isMobile ? 56 : 100;
   const isHorizontal = sidebarPosition === 'top' || sidebarPosition === 'bottom';
 
+  // On mobile, swap cols/rows when orientation changes
+  // Portrait (tall): use saved config as-is. Landscape (wide): swap cols<->rows.
+  const isLandscape = isMobile && containerSize.width > containerSize.height;
+  const savedPortrait = gridCols <= gridRows; // User configured in portrait orientation
+  const shouldSwap = isMobile && (isLandscape ? savedPortrait : !savedPortrait);
+  const effectiveCols = shouldSwap ? gridRows : gridCols;
+  const effectiveRows = shouldSwap ? gridCols : gridRows;
+
   // Grid area calculations accounting for sidebar
   const margin = 2;
   const availableWidth = isHorizontal ? containerSize.width : containerSize.width - sidebarSize;
   const availableHeight = isHorizontal ? containerSize.height - sidebarSize : containerSize.height;
-  const rowHeight = Math.floor((availableHeight - margin * 2 - margin * (gridRows - 1)) / gridRows);
+  const rowHeight = Math.floor((availableHeight - margin * 2 - margin * (effectiveRows - 1)) / effectiveRows);
   const gridWidth = availableWidth;
 
   const findNextAvailablePosition = useCallback((w: number, h: number): { x: number; y: number } | null => {
-    const grid: boolean[][] = Array(gridRows).fill(null).map(() => Array(gridCols).fill(false));
+    const grid: boolean[][] = Array(effectiveRows).fill(null).map(() => Array(effectiveCols).fill(false));
 
     items.forEach((item) => {
-      for (let row = item.layout.y; row < item.layout.y + item.layout.h && row < gridRows; row++) {
-        for (let col = item.layout.x; col < item.layout.x + item.layout.w && col < gridCols; col++) {
+      for (let row = item.layout.y; row < item.layout.y + item.layout.h && row < effectiveRows; row++) {
+        for (let col = item.layout.x; col < item.layout.x + item.layout.w && col < effectiveCols; col++) {
           if (row >= 0 && col >= 0) {
             grid[row][col] = true;
           }
@@ -226,8 +249,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       }
     });
 
-    for (let y = 0; y <= gridRows - h; y++) {
-      for (let x = 0; x <= gridCols - w; x++) {
+    for (let y = 0; y <= effectiveRows - h; y++) {
+      for (let x = 0; x <= effectiveCols - w; x++) {
         let fits = true;
         for (let row = y; row < y + h && fits; row++) {
           for (let col = x; col < x + w && fits; col++) {
@@ -242,7 +265,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       }
     }
     return null;
-  }, [items, gridRows, gridCols]);
+  }, [items, effectiveRows, effectiveCols]);
 
   const hasSpaceForNewItem = useMemo(() => {
     return findNextAvailablePosition(1, 1) !== null;
@@ -252,11 +275,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     const boundedLayout = newLayout.map(layoutItem => {
       let { x, y, w, h } = layoutItem;
       if (x < 0) x = 0;
-      if (x + w > gridCols) x = gridCols - w;
+      if (x + w > effectiveCols) x = effectiveCols - w;
       if (y < 0) y = 0;
-      if (y + h > gridRows) y = gridRows - h;
-      if (w > gridCols) w = gridCols;
-      if (h > gridRows) h = gridRows;
+      if (y + h > effectiveRows) y = effectiveRows - h;
+      if (w > effectiveCols) w = effectiveCols;
+      if (h > effectiveRows) h = effectiveRows;
       return { ...layoutItem, x, y, w, h };
     });
 
@@ -362,6 +385,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             angleApparent={sensorData.environment.wind.angleApparent}
           />
         );
+      case 'wind-rose':
+        return (
+          <WindRoseItem
+            speedApparent={sensorData.environment.wind.speedApparent}
+            angleApparent={sensorData.environment.wind.angleApparent}
+            angleTrue={sensorData.environment.wind.angleTrue}
+          />
+        );
       case 'position':
         return <PositionItem position={sensorData.navigation.position} />;
       case 'battery':
@@ -385,6 +416,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       case 'weather-forecast':
         return (
           <WeatherForecastItem
+            latitude={sensorData.navigation.position.latitude}
+            longitude={sensorData.navigation.position.longitude}
+          />
+        );
+      case 'wave-forecast':
+        return (
+          <WaveForecastItem
+            latitude={sensorData.navigation.position.latitude}
+            longitude={sensorData.navigation.position.longitude}
+          />
+        );
+      case 'gust-forecast':
+        return (
+          <GustForecastItem
+            latitude={sensorData.navigation.position.latitude}
+            longitude={sensorData.navigation.position.longitude}
+          />
+        );
+      case 'pressure-forecast':
+        return (
+          <PressureForecastItem
+            latitude={sensorData.navigation.position.latitude}
+            longitude={sensorData.navigation.position.longitude}
+          />
+        );
+      case 'sea-temp-forecast':
+        return (
+          <SeaTempForecastItem
             latitude={sensorData.navigation.position.latitude}
             longitude={sensorData.navigation.position.longitude}
           />
@@ -421,8 +480,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         );
       case 'wind':
         return (
-          <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" style={iconStyle}>
-            <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" strokeLinecap="round" strokeLinejoin="round" />
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#ffa726' }}>12.5</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5 }}>kt AWA</div>
+          </div>
+        );
+      case 'wind-rose':
+        return (
+          <svg width="50" height="50" viewBox="0 0 350 350" style={iconStyle}>
+            <circle cx="175" cy="175" r="165" fill="none" stroke="currentColor" strokeWidth="6" opacity="0.3" />
+            <path d="M175 140 L165 180 L175 175 L185 180 Z" fill="currentColor" opacity="0.3" />
+            <line x1="175" y1="175" x2="175" y2="30" stroke="#ffa726" strokeWidth="10" strokeLinecap="round" />
+            <polygon points="175,18 160,52 190,52" fill="#ffa726" />
+            <line x1="175" y1="175" x2="175" y2="60" stroke="#4fc3f7" strokeWidth="6" strokeDasharray="12 6" strokeLinecap="round" />
           </svg>
         );
       case 'position':
@@ -454,10 +524,41 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       case 'weather-forecast':
         return (
           <div style={{ textAlign: 'center' }}>
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#4FC3F7" strokeWidth="1.5" style={iconStyle}>
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#ffa726" strokeWidth="1.5" style={iconStyle}>
               <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
             <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>15kt</div>
+          </div>
+        );
+      case 'wave-forecast':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <svg width="40" height="30" viewBox="0 0 24 18" fill="none" stroke="#4FC3F7" strokeWidth="1.5" style={iconStyle}>
+              <path d="M2 8c2-3 4-4 6-4s4 3 6 0 4-4 6-4" strokeLinecap="round" strokeLinejoin="round" />
+              <path d="M2 14c2-3 4-4 6-4s4 3 6 0 4-4 6-4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>1.2m</div>
+          </div>
+        );
+      case 'gust-forecast':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#FF9800' }}>18</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>kt</div>
+          </div>
+        );
+      case 'pressure-forecast':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.2rem', fontWeight: 'bold', lineHeight: 1 }}>1013</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>hPa</div>
+          </div>
+        );
+      case 'sea-temp-forecast':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#4FC3F7' }}>18.5°</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>Sea</div>
           </div>
         );
       default:
@@ -473,9 +574,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       isResizable: editMode,
       minW: 1,
       minH: 1,
-      maxH: gridRows,
+      maxH: effectiveRows,
     }));
-  }, [items, editMode, gridRows]);
+  }, [items, editMode, effectiveRows]);
 
   // Compute grid container offset based on sidebar position
   const gridContainerStyle: React.CSSProperties = {
@@ -510,7 +611,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         <GridLayout
           className="layout"
           layout={layout}
-          cols={gridCols}
+          cols={effectiveCols}
           rowHeight={rowHeight}
           width={gridWidth}
           onLayoutChange={handleLayoutChange}
@@ -522,22 +623,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           margin={[margin, margin]}
           containerPadding={[margin, margin]}
           useCSSTransforms={true}
-          maxRows={gridRows}
+          maxRows={effectiveRows}
+          style={{ minHeight: availableHeight }}
           resizeHandles={['se', 'sw', 'ne', 'nw']}
           onResize={(_layout, _oldItem, newItem, _placeholder) => {
-            if (newItem.y + newItem.h > gridRows) {
-              newItem.h = gridRows - newItem.y;
+            if (newItem.y + newItem.h > effectiveRows) {
+              newItem.h = effectiveRows - newItem.y;
             }
-            if (newItem.x + newItem.w > gridCols) {
-              newItem.w = gridCols - newItem.x;
+            if (newItem.x + newItem.w > effectiveCols) {
+              newItem.w = effectiveCols - newItem.x;
             }
           }}
           onDrag={(_layout, _oldItem, newItem) => {
-            if (newItem.y + newItem.h > gridRows) {
-              newItem.y = gridRows - newItem.h;
+            if (newItem.y + newItem.h > effectiveRows) {
+              newItem.y = effectiveRows - newItem.h;
             }
-            if (newItem.x + newItem.w > gridCols) {
-              newItem.x = gridCols - newItem.w;
+            if (newItem.x + newItem.w > effectiveCols) {
+              newItem.x = effectiveCols - newItem.w;
             }
           }}
         >
@@ -565,13 +667,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
               transform: 'translateX(-50%)',
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: isMobile ? '6px' : '12px',
               background: theme.colors.bgSecondary,
               border: `1px solid ${theme.colors.border}`,
               borderRadius: theme.radius.lg,
-              padding: `${theme.space.sm} ${theme.space.md}`,
+              padding: isMobile ? `${theme.space.xs} ${theme.space.sm}` : `${theme.space.sm} ${theme.space.md}`,
               boxShadow: theme.shadow.lg,
               zIndex: 100,
+              maxWidth: 'calc(100vw - 16px)',
             }}
           >
             {/* Add button */}
@@ -582,8 +685,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '48px',
-                height: '48px',
+                width: isMobile ? '36px' : '48px',
+                height: isMobile ? '36px' : '48px',
                 borderRadius: theme.radius.md,
                 background: hasSpaceForNewItem ? 'rgba(255, 167, 38, 0.9)' : 'rgba(100, 100, 100, 0.5)',
                 border: 'none',
@@ -609,18 +712,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 border: 'none',
                 borderRadius: theme.radius.md,
                 color: theme.colors.textPrimary,
-                padding: '0 16px',
-                height: '48px',
-                fontSize: theme.fontSize.lg,
+                padding: isMobile ? '0 8px' : '0 16px',
+                height: isMobile ? '36px' : '48px',
+                fontSize: isMobile ? theme.fontSize.md : theme.fontSize.lg,
                 fontWeight: theme.fontWeight.bold,
                 cursor: 'pointer',
-                minWidth: '50px',
+                minWidth: isMobile ? '36px' : '50px',
                 textAlign: 'center',
               }}
             >
               {gridCols}
             </button>
-            <span style={{ fontSize: theme.fontSize.lg, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.bold }}>×</span>
+            <span style={{ fontSize: isMobile ? theme.fontSize.md : theme.fontSize.lg, color: theme.colors.textSecondary, fontWeight: theme.fontWeight.bold }}>×</span>
             {/* Grid size: Rows button */}
             <button
               onClick={(e) => {
@@ -633,12 +736,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 border: 'none',
                 borderRadius: theme.radius.md,
                 color: theme.colors.textPrimary,
-                padding: '0 16px',
-                height: '48px',
-                fontSize: theme.fontSize.lg,
+                padding: isMobile ? '0 8px' : '0 16px',
+                height: isMobile ? '36px' : '48px',
+                fontSize: isMobile ? theme.fontSize.md : theme.fontSize.lg,
                 fontWeight: theme.fontWeight.bold,
                 cursor: 'pointer',
-                minWidth: '50px',
+                minWidth: isMobile ? '36px' : '50px',
                 textAlign: 'center',
               }}
             >
@@ -656,8 +759,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '48px',
-                height: '48px',
+                width: isMobile ? '36px' : '48px',
+                height: isMobile ? '36px' : '48px',
                 borderRadius: theme.radius.md,
                 background: theme.colors.primaryLight,
                 border: 'none',
@@ -701,8 +804,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                width: '48px',
-                height: '48px',
+                width: isMobile ? '36px' : '48px',
+                height: isMobile ? '36px' : '48px',
                 borderRadius: theme.radius.md,
                 background: 'rgba(102, 187, 106, 0.9)',
                 border: 'none',
@@ -748,6 +851,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
               maxWidth: '500px',
               maxHeight: '85vh',
               overflowY: 'auto',
+              overflowX: 'hidden',
             }}
           >
             <div style={{
@@ -762,7 +866,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             </div>
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(4, 1fr)',
+              gridTemplateColumns: 'repeat(3, 1fr)',
               gap: '12px',
               width: '100%',
             }}>
@@ -795,23 +899,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    transform: 'scale(0.85)',
+                    transform: isMobile ? 'scale(0.9)' : 'scale(1.1)',
                     transformOrigin: 'center center',
                   }}>
                     {renderMiniPreview(type)}
                   </div>
-                  <div style={{
-                    fontSize: theme.fontSize.sm,
-                    color: theme.colors.textSecondary,
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    fontWeight: theme.fontWeight.medium,
-                    marginTop: '4px',
-                    textAlign: 'center',
-                    wordBreak: 'break-word',
-                    lineHeight: 1.2,
-                    width: '100%',
-                  }}>
+                  <div
+                    lang={language}
+                    style={{
+                      fontSize: theme.fontSize.sm,
+                      color: theme.colors.textSecondary,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      fontWeight: theme.fontWeight.medium,
+                      marginTop: '4px',
+                      textAlign: 'center',
+                      overflowWrap: 'break-word',
+                      lineHeight: 1.2,
+                      width: '100%',
+                      hyphens: 'auto',
+                    }}>
                     {getItemTypeLabel(type)}
                   </div>
                 </button>

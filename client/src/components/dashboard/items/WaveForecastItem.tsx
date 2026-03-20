@@ -1,18 +1,17 @@
 import React, { useEffect, useState } from 'react';
 import { weatherAPI, WeatherForecastResponse } from '../../../services/api';
-import { useSettings, windConversions } from '../../../context/SettingsContext';
+import { useSettings, depthConversions } from '../../../context/SettingsContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { wsService } from '../../../services/websocket';
-import { getWindColor, formatWindDirection } from '../../../utils/weather.utils';
-import { radToDeg } from '../../../utils/angle';
+import { getWaveColor } from '../../../utils/weather.utils';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
-interface WeatherForecastItemProps {
+interface WaveForecastItemProps {
   latitude: number;
   longitude: number;
 }
 
-export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
+export const WaveForecastItem: React.FC<WaveForecastItemProps> = ({
   latitude,
   longitude,
 }) => {
@@ -21,9 +20,8 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
   const [forecast, setForecast] = useState<WeatherForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { weatherSettings, windUnit, convertWind, timeFormat } = useSettings();
-  const wLabel = windConversions[windUnit].label;
-  const fmtW = (kt: number) => windUnit === 'bft' ? convertWind(kt).toFixed(0) : Math.round(convertWind(kt)).toString();
+  const { weatherSettings, timeFormat, depthUnit, convertDepth } = useSettings();
+  const dLabel = depthConversions[depthUnit].label;
 
   useEffect(() => {
     if (!weatherSettings?.enabled) {
@@ -70,7 +68,8 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', color: theme.colors.textMuted }}>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ width: 'clamp(16px, 15cqmin, 64px)', height: 'clamp(16px, 15cqmin, 64px)' }}>
-          <path d="M9.59 4.59A2 2 0 1 1 11 8H2m10.59 11.41A2 2 0 1 0 14 16H2m15.73-8.27A2.5 2.5 0 1 1 19.5 12H2" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2 12c2-2 4-3 6-3s4 2 6 0 4-3 6-3" strokeLinecap="round" strokeLinejoin="round" />
+          <path d="M2 17c2-2 4-3 6-3s4 2 6 0 4-3 6-3" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         <div style={{ fontSize: 'clamp(8px, 7cqmin, 28px)', marginTop: 'clamp(4px, 2cqmin, 12px)' }}>{error || t('dashboard_item.no_data')}</div>
       </div>
@@ -78,7 +77,9 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
   }
 
   const current = forecast.current;
-  const windColor = getWindColor(current.wind.speed);
+  const waveHeight = current.waves?.height ?? 0;
+  const swellHeight = current.swell?.height ?? 0;
+  const waveColor = getWaveColor(waveHeight);
   const nowMs = Date.now();
   const futureHours = (forecast.hourly || []).filter(h => new Date(h.timestamp).getTime() >= nowMs - 3600000);
   const nextHours = futureHours.slice(0, 6);
@@ -90,7 +91,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
       height: '100%',
       padding: 'clamp(4px, 3cqmin, 16px)',
     }}>
-      {/* Current wind */}
+      {/* Current waves */}
       <div style={{
         display: 'flex',
         flexDirection: 'column',
@@ -107,44 +108,43 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
           textAlign: 'center',
           lineHeight: 1.2,
         }}>
-          {t('weather.forecast_label')}<br />{t('weather.wind')}
+          {t('weather.forecast_label')}<br />{t('weather.waves')}
         </div>
         <div style={{
           display: 'flex',
           alignItems: 'flex-end',
           justifyContent: 'center',
-          gap: 'clamp(4px, 3cqmin, 16px)',
+          gap: 'clamp(4px, 4cqmin, 20px)',
           marginTop: 'clamp(2px, 1cqmin, 8px)',
         }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-            <svg
-              viewBox="0 0 24 24"
-              style={{
-                width: 'clamp(20px, 20cqmin, 80px)',
-                height: 'clamp(20px, 20cqmin, 80px)',
-                transform: `rotate(${radToDeg(current.wind.direction + Math.PI)}deg)`,
-                transition: `transform ${theme.transition.slow}`,
-              }}
-            >
-              <path d="M12 2L8 10h3v10h2V10h3L12 2z" fill={windColor} stroke="#000" strokeWidth="0.5" />
-            </svg>
-            <div style={{ fontSize: 'clamp(8px, 8cqmin, 32px)', color: theme.colors.textMuted, marginTop: 'clamp(1px, 0.5cqmin, 4px)' }}>
-              {formatWindDirection(current.wind.direction)}
-            </div>
+        <div style={{ textAlign: 'center' }}>
+          <div style={{
+            fontSize: 'clamp(12px, 18cqmin, 80px)',
+            fontWeight: theme.fontWeight.bold,
+            color: waveColor,
+            lineHeight: 1,
+          }}>
+            {waveHeight > 0 ? convertDepth(waveHeight).toFixed(1) : '--'}
           </div>
+          <div style={{ fontSize: 'clamp(7px, 5cqmin, 20px)', color: theme.colors.textMuted }}>
+            {dLabel} {t('weather.waves')}
+          </div>
+        </div>
+        {swellHeight > 0 && (
           <div style={{ textAlign: 'center' }}>
             <div style={{
-              fontSize: 'clamp(14px, 22cqmin, 96px)',
+              fontSize: 'clamp(12px, 18cqmin, 80px)',
               fontWeight: theme.fontWeight.bold,
-              color: windColor,
+              color: getWaveColor(swellHeight),
               lineHeight: 1,
             }}>
-              {fmtW(current.wind.speed)}
+              {convertDepth(swellHeight).toFixed(1)}
             </div>
-            <div style={{ fontSize: 'clamp(8px, 8cqmin, 32px)', color: theme.colors.textMuted }}>
-              {wLabel}
+            <div style={{ fontSize: 'clamp(7px, 5cqmin, 20px)', color: theme.colors.textMuted }}>
+              {dLabel} {t('weather.swell')}
             </div>
           </div>
+        )}
         </div>
       </div>
 
@@ -160,6 +160,7 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
         }}>
           {nextHours.map((hour, i) => {
             const time = new Date(hour.timestamp);
+            const h = hour.waves?.height ?? 0;
             return (
               <div key={i} style={{
                 display: 'flex',
@@ -171,19 +172,8 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
                 <div style={{ color: theme.colors.textMuted }}>
                   {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' })}
                 </div>
-                <svg
-                  viewBox="0 0 24 24"
-                  style={{
-                    width: 'clamp(8px, 6cqmin, 28px)',
-                    height: 'clamp(8px, 6cqmin, 28px)',
-                    transform: `rotate(${radToDeg(hour.wind.direction + Math.PI)}deg)`,
-                    margin: '2px 0',
-                  }}
-                >
-                  <path d="M12 2L8 10h3v10h2V10h3L12 2z" fill={getWindColor(hour.wind.speed)} stroke="#000" strokeWidth="0.5" />
-                </svg>
-                <div style={{ color: getWindColor(hour.wind.speed), fontWeight: 'bold' }}>
-                  {fmtW(hour.wind.speed)} {wLabel}
+                <div style={{ color: getWaveColor(h), fontWeight: 'bold' }}>
+                  {h > 0 ? `${convertDepth(h).toFixed(1)}${dLabel}` : '--'}
                 </div>
               </div>
             );

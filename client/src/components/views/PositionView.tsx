@@ -1,44 +1,116 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
-import { useSettings, distanceConversions } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { API_BASE_URL } from '../../utils/urls';
 import { ViewLayout } from './shared';
 
-interface PositionHistoryPoint {
-  timestamp: number;
-  position: GeoPosition;
-}
+const TILE_URLS = {
+  street: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
+  satellite: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,
+  nautical: `${API_BASE_URL}/tiles/nautical/{z}/{x}/{y}`,
+};
 
 interface PositionViewProps {
   position: GeoPosition;
   onClose: () => void;
 }
 
-const POSITION_HISTORY_MAX_POINTS = 300;
+/** Keeps map centered on the current position */
+const MapFollower: React.FC<{ lat: number; lon: number }> = ({ lat, lon }) => {
+  const map = useMap();
+  React.useEffect(() => {
+    map.setView([lat, lon], map.getZoom(), { animate: true });
+  }, [lat, lon, map]);
+  return null;
+};
 
-export const PositionView: React.FC<PositionViewProps> = ({ position, onClose }) => {
-  const { distanceUnit, convertDistance } = useSettings();
-  const { theme } = useTheme();
-  const { t } = useLanguage();
-  const [positionHistory, setPositionHistory] = useState<PositionHistoryPoint[]>([]);
-  const lastReadingTime = useRef<number>(0);
+/** Radar-style pulsing marker using HTML overlay — immune to zoom distortion */
+const PulsingMarker: React.FC<{ lat: number; lon: number; color: string }> = ({ lat, lon, color }) => {
+  const map = useMap();
 
   useEffect(() => {
-    const now = Date.now();
-    if (now - lastReadingTime.current >= 1000) {
-      lastReadingTime.current = now;
-      setPositionHistory(prev => {
-        const newHistory = [...prev, { timestamp: now, position: { ...position } }];
-        if (newHistory.length > POSITION_HISTORY_MAX_POINTS) {
-          return newHistory.slice(-POSITION_HISTORY_MAX_POINTS);
+    // Create a CSS animation style once
+    const styleId = 'pulsing-marker-style';
+    if (!document.getElementById(styleId)) {
+      const style = document.createElement('style');
+      style.id = styleId;
+      style.textContent = `
+        @keyframes radar-pulse {
+          0% { transform: translate(-50%,-50%) scale(1); opacity: 0.6; }
+          100% { transform: translate(-50%,-50%) scale(5); opacity: 0; }
         }
-        return newHistory;
-      });
+        .radar-ring {
+          position: absolute; top: 50%; left: 50%;
+          width: 14px; height: 14px; border-radius: 50%;
+          transform: translate(-50%,-50%);
+          animation: radar-pulse 1.8s ease-out infinite;
+          pointer-events: none;
+        }
+        .radar-dot {
+          position: absolute; top: 50%; left: 50%;
+          width: 14px; height: 14px; border-radius: 50%;
+          transform: translate(-50%,-50%);
+          pointer-events: none;
+        }
+      `;
+      document.head.appendChild(style);
     }
-  }, [position]);
 
-  const formatCoordinate = (value: number, isLatitude: boolean): string => {
+    const container = document.createElement('div');
+    container.style.cssText = 'position:relative;width:0;height:0;';
+
+    const ring = document.createElement('div');
+    ring.className = 'radar-ring';
+    ring.style.border = `2px solid ${color}`;
+    ring.style.background = color;
+
+    const dot = document.createElement('div');
+    dot.className = 'radar-dot';
+    dot.style.background = color;
+    dot.style.border = '2px solid #000';
+
+    container.appendChild(ring);
+    container.appendChild(dot);
+
+    const icon = L.divIcon({
+      html: container.outerHTML,
+      className: '',
+      iconSize: [0, 0],
+      iconAnchor: [0, 0],
+    });
+
+    const marker = L.marker([lat, lon], { icon, interactive: false }).addTo(map);
+
+    return () => {
+      map.removeLayer(marker);
+    };
+  }, [map, lat, lon, color]);
+
+  return null;
+};
+
+export const PositionView: React.FC<PositionViewProps> = ({ position, onClose }) => {
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const [isWide, setIsWide] = useState(window.innerWidth > window.innerHeight);
+
+  // Use same map type preference as ChartView
+  const [useSatellite] = useState(() => {
+    const saved = localStorage.getItem('chartUseSatellite');
+    return saved ? JSON.parse(saved) : false;
+  });
+
+  useEffect(() => {
+    const onResize = () => setIsWide(window.innerWidth > window.innerHeight);
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
+
+  const formatCoordinate = useCallback((value: number, isLatitude: boolean): string => {
     const absolute = Math.abs(value);
     const degrees = Math.floor(absolute);
     const minutes = (absolute - degrees) * 60;
@@ -46,247 +118,71 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
       ? (value >= 0 ? 'N' : 'S')
       : (value >= 0 ? 'E' : 'W');
     return `${degrees}° ${minutes.toFixed(3)}' ${direction}`;
-  };
-
-  const calculateDistance = (p1: GeoPosition, p2: GeoPosition): number => {
-    const R = 3440.065;
-    const lat1 = p1.latitude * Math.PI / 180;
-    const lat2 = p2.latitude * Math.PI / 180;
-    const dLat = (p2.latitude - p1.latitude) * Math.PI / 180;
-    const dLon = (p2.longitude - p1.longitude) * Math.PI / 180;
-
-    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(lat1) * Math.cos(lat2) *
-      Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-
-    return R * c;
-  };
-
-  const totalDistance = React.useMemo(() => {
-    if (positionHistory.length < 2) return 0;
-    let total = 0;
-    for (let i = 1; i < positionHistory.length; i++) {
-      total += calculateDistance(positionHistory[i - 1].position, positionHistory[i].position);
-    }
-    return total;
-  }, [positionHistory]);
-
-  const renderTrackPlot = () => {
-    if (positionHistory.length < 2) {
-      return (
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: '100%',
-          aspectRatio: '1',
-          opacity: 0.5,
-          fontSize: 'clamp(0.8rem, 2vw, 0.9rem)',
-          background: theme.colors.bgCard,
-          borderRadius: '8px',
-        }}>
-          {t('position.collecting_data')}
-        </div>
-      );
-    }
-
-    const plotSize = 200;
-
-    const lats = positionHistory.map(p => p.position.latitude);
-    const lons = positionHistory.map(p => p.position.longitude);
-    const minLat = Math.min(...lats);
-    const maxLat = Math.max(...lats);
-    const minLon = Math.min(...lons);
-    const maxLon = Math.max(...lons);
-
-    const latRange = (maxLat - minLat) || 0.001;
-    const lonRange = (maxLon - minLon) || 0.001;
-    const padding = 0.1;
-
-    const points = positionHistory.map((point) => {
-      const x = ((point.position.longitude - minLon) / lonRange) * (1 - 2 * padding) + padding;
-      const y = 1 - (((point.position.latitude - minLat) / latRange) * (1 - 2 * padding) + padding);
-      return `${x * plotSize},${y * plotSize}`;
-    });
-
-    const lastPoint = positionHistory[positionHistory.length - 1];
-    const lastX = ((lastPoint.position.longitude - minLon) / lonRange) * (1 - 2 * padding) + padding;
-    const lastY = 1 - (((lastPoint.position.latitude - minLat) / latRange) * (1 - 2 * padding) + padding);
-
-    return (
-      <svg
-        viewBox={`0 0 ${plotSize} ${plotSize}`}
-        style={{ width: '100%', height: 'auto' }}
-      >
-        <rect x="0" y="0" width={plotSize} height={plotSize} fill={theme.colors.bgCard} rx="8" />
-
-        {[0.25, 0.5, 0.75].map((ratio, i) => (
-          <g key={i}>
-            <line
-              x1={ratio * plotSize}
-              y1="0"
-              x2={ratio * plotSize}
-              y2={plotSize}
-              stroke={theme.colors.border}
-              strokeWidth="1"
-            />
-            <line
-              x1="0"
-              y1={ratio * plotSize}
-              x2={plotSize}
-              y2={ratio * plotSize}
-              stroke={theme.colors.border}
-              strokeWidth="1"
-            />
-          </g>
-        ))}
-
-        <polyline
-          points={points.join(' ')}
-          fill="none"
-          stroke={theme.colors.dataPosition}
-          strokeWidth="2"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-
-        <circle
-          cx={lastX * plotSize}
-          cy={lastY * plotSize}
-          r="6"
-          fill={theme.colors.error}
-        />
-        <circle
-          cx={lastX * plotSize}
-          cy={lastY * plotSize}
-          r="10"
-          fill="none"
-          stroke={theme.colors.error}
-          strokeWidth="2"
-          opacity="0.5"
-        />
-      </svg>
-    );
-  };
+  }, []);
 
   return (
     <ViewLayout title={t('position.position')} onClose={onClose}>
-      {/* Main position display */}
       <div style={{
-        flex: '0 0 auto',
-        padding: 'clamp(1rem, 3vw, 2rem)',
-        textAlign: 'center',
-      }}>
-        <div style={{
-          fontSize: 'clamp(1.25rem, 4vw, 1.75rem)',
-          fontWeight: 'bold',
-          color: theme.colors.dataPosition,
-          marginBottom: '0.5rem',
-          fontFamily: 'monospace',
-        }}>
-          {formatCoordinate(position.latitude, true)}
-        </div>
-        <div style={{
-          fontSize: 'clamp(1.25rem, 4vw, 1.75rem)',
-          fontWeight: 'bold',
-          color: theme.colors.dataPosition,
-          fontFamily: 'monospace',
-        }}>
-          {formatCoordinate(position.longitude, false)}
-        </div>
-      </div>
-
-      {/* Track plot and stats */}
-      <div style={{
+        flex: 1,
         display: 'flex',
-        flexWrap: 'wrap',
-        padding: '1rem',
-        gap: '1rem',
-        borderTop: `1px solid ${theme.colors.border}`,
+        flexDirection: isWide ? 'row' : 'column',
+        minHeight: 0,
+        overflow: 'auto',
       }}>
-        {/* Track plot */}
+        {/* Coordinates panel */}
         <div style={{
-          flex: '1 1 180px',
-          minWidth: '150px',
-          maxWidth: 'min(50vw, 50vh, 250px)',
+          flex: '0 0 auto',
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-        }}>
-          <div style={{
-            fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
-            opacity: 0.6,
-            marginBottom: '0.5rem',
-            textTransform: 'uppercase',
-            letterSpacing: '0.1em',
-          }}>
-            {t('position.recent_track')}
-          </div>
-          {renderTrackPlot()}
-        </div>
-
-        {/* Stats */}
-        <div style={{
-          flex: '1 1 180px',
-          display: 'flex',
-          flexDirection: 'column',
           justifyContent: 'center',
-          gap: '1rem',
+          padding: 'clamp(1rem, 3vw, 2rem)',
+          gap: 'clamp(0.3rem, 0.8vw, 0.5rem)',
+          ...(isWide
+            ? { borderRight: `1px solid ${theme.colors.border}`, minWidth: '280px' }
+            : { borderBottom: `1px solid ${theme.colors.border}` }
+          ),
         }}>
           <div style={{
-            background: theme.colors.bgCard,
-            borderRadius: '8px',
-            padding: '1rem',
+            fontSize: 'clamp(1.5rem, 5vw, 2.5rem)',
+            fontWeight: theme.fontWeight.bold,
+            color: theme.colors.dataPosition,
+            fontFamily: 'monospace',
           }}>
-            <div style={{ fontSize: 'clamp(0.7rem, 2vw, 0.85rem)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
-              {t('position.distance_traveled')}
-            </div>
-            <div style={{ fontSize: 'clamp(1.1rem, 4vw, 1.5rem)', fontWeight: 'bold', color: theme.colors.dataSpeed }}>
-              {convertDistance(totalDistance).toFixed(2)} {distanceConversions[distanceUnit].label}
-            </div>
+            {formatCoordinate(position.latitude, true)}
           </div>
-
           <div style={{
-            background: theme.colors.bgCard,
-            borderRadius: '8px',
-            padding: '1rem',
+            fontSize: 'clamp(1.5rem, 5vw, 2.5rem)',
+            fontWeight: theme.fontWeight.bold,
+            color: theme.colors.dataPosition,
+            fontFamily: 'monospace',
           }}>
-            <div style={{ fontSize: 'clamp(0.7rem, 2vw, 0.85rem)', opacity: 0.5, textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: '0.25rem' }}>
-              {t('position.track_points')}
-            </div>
-            <div style={{ fontSize: 'clamp(1.1rem, 4vw, 1.5rem)', fontWeight: 'bold', color: '#64b5f6' }}>
-              {positionHistory.length}
-            </div>
+            {formatCoordinate(position.longitude, false)}
           </div>
         </div>
-      </div>
 
-      {/* Decimal coordinates */}
-      <div style={{
-        padding: '1rem',
-        borderTop: `1px solid ${theme.colors.border}`,
-        marginTop: 'auto',
-      }}>
+        {/* Map */}
         <div style={{
-          fontSize: 'clamp(0.7rem, 2vw, 0.85rem)',
-          opacity: 0.6,
-          marginBottom: '0.5rem',
-          textTransform: 'uppercase',
-          letterSpacing: '0.1em',
+          flex: 1,
+          minHeight: isWide ? 0 : 'min(80vw, 500px)',
+          position: 'relative',
         }}>
-          {t('position.decimal_coordinates')}
-        </div>
-        <div style={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          gap: 'clamp(1rem, 3vw, 2rem)',
-          fontFamily: 'monospace',
-          fontSize: 'clamp(0.85rem, 2.5vw, 1rem)',
-          opacity: 0.7,
-        }}>
-          <span>Lat: {position.latitude.toFixed(6)}</span>
-          <span>Lon: {position.longitude.toFixed(6)}</span>
+          <MapContainer
+            center={[position.latitude, position.longitude]}
+            zoom={14}
+            style={{ width: '100%', height: '100%' }}
+            zoomControl={false}
+            attributionControl={false}
+          >
+            {useSatellite ? (
+              <TileLayer url={TILE_URLS.satellite} />
+            ) : (
+              <TileLayer url={TILE_URLS.street} />
+            )}
+            <TileLayer url={TILE_URLS.nautical} zIndex={10} />
+            <MapFollower lat={position.latitude} lon={position.longitude} />
+            <PulsingMarker lat={position.latitude} lon={position.longitude} color={'#d32f2f'} />
+          </MapContainer>
         </div>
       </div>
     </ViewLayout>

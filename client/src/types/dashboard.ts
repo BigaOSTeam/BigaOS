@@ -16,10 +16,15 @@ export type DashboardItemType =
   | 'heading'
   | 'depth'
   | 'wind'
+  | 'wind-rose'
   | 'position'
   | 'battery'
   | 'battery-draw'
-  | 'weather-forecast';
+  | 'weather-forecast'
+  | 'wave-forecast'
+  | 'pressure-forecast'
+  | 'gust-forecast'
+  | 'sea-temp-forecast';
 
 export interface DashboardLayout {
   items: DashboardItemConfig[];

@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS sensor_data (
 CREATE INDEX IF NOT EXISTS idx_sensor_timestamp ON sensor_data(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_sensor_category ON sensor_data(category);
 CREATE INDEX IF NOT EXISTS idx_sensor_name ON sensor_data(sensor_name);
+CREATE INDEX IF NOT EXISTS idx_sensor_lookup ON sensor_data(category, sensor_name, timestamp);
 
 -- Events/Notifications
 -- System events and notifications

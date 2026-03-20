@@ -800,6 +800,12 @@ export class WebSocketServer {
       if (env.wind?.angleApparent !== undefined) {
         readings.push({ category: 'environment', sensorName: 'windDirection', value: env.wind.angleApparent, unit: 'deg' });
       }
+      if (env.wind?.speedTrue !== undefined) {
+        readings.push({ category: 'environment', sensorName: 'windSpeedTrue', value: env.wind.speedTrue, unit: 'kt' });
+      }
+      if (env.wind?.angleTrue !== undefined) {
+        readings.push({ category: 'environment', sensorName: 'windDirectionTrue', value: env.wind.angleTrue, unit: 'deg' });
+      }
     }
 
     // Electrical data
