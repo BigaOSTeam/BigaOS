@@ -11,6 +11,8 @@ import { HeadingView } from './components/views/HeadingView';
 import { PositionView } from './components/views/PositionView';
 import { BatteryView } from './components/views/BatteryView';
 import { WeatherView } from './components/views/WeatherView';
+import { RollView } from './components/views/RollView';
+import { PitchView } from './components/views/PitchView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
@@ -92,8 +94,10 @@ function AppContent() {
   const [systemUpdating, setSystemUpdating] = useState(false);
   const [systemRebooting, setSystemRebooting] = useState(false);
   const [systemShuttingDown, setSystemShuttingDown] = useState(false);
+  const [clientSettingsLoaded, setClientSettingsLoaded] = useState(false);
   const systemUpdatingRef = useRef(false);
   const wasOfflineRef = useRef<boolean | null>(null);
+  const startPageAppliedRef = useRef(false);
   const { setCurrentDepth, setSidebarPosition } = useSettings();
   const { installingPlugins } = usePlugins();
 
@@ -172,24 +176,30 @@ function AppContent() {
       if (data.settings.chartOnly !== undefined) {
         const val = !!data.settings.chartOnly;
         setChartOnly(val);
-        localStorage.setItem('bigaos-chart-only', val ? '1' : '0');
+        try { localStorage.setItem('bigaos-chart-only', val ? '1' : '0'); } catch {}
         window.dispatchEvent(new Event('bigaos-chart-only-changed'));
       }
       if (data.settings.sidebarPosition) {
         setSidebarPosition(data.settings.sidebarPosition);
       }
       if (data.settings.dashboardLayout) {
-        localStorage.setItem('bigaos-dashboard-layout', JSON.stringify(data.settings.dashboardLayout));
+        try { localStorage.setItem('bigaos-dashboard-layout', JSON.stringify(data.settings.dashboardLayout)); } catch {}
         window.dispatchEvent(new Event('bigaos-dashboard-changed'));
       }
       if (data.settings.dashboardGridConfig) {
-        localStorage.setItem('bigaos-grid-config', JSON.stringify(data.settings.dashboardGridConfig));
+        try { localStorage.setItem('bigaos-grid-config', JSON.stringify(data.settings.dashboardGridConfig)); } catch {}
         window.dispatchEvent(new Event('bigaos-dashboard-changed'));
       }
       if (data.settings.dashboardSidebarPosition) {
-        localStorage.setItem('bigaos-dashboard-sidebar-position', data.settings.dashboardSidebarPosition);
+        try { localStorage.setItem('bigaos-dashboard-sidebar-position', data.settings.dashboardSidebarPosition); } catch {}
         window.dispatchEvent(new Event('bigaos-dashboard-changed'));
       }
+      // Startup page: navigate on first sync (boot) only
+      if (data.settings.startPage && !startPageAppliedRef.current) {
+        startPageAppliedRef.current = true;
+        navigate(data.settings.startPage);
+      }
+      setClientSettingsLoaded(true);
     });
 
     wsService.on('sensor_update', (data: any) => {
@@ -301,7 +311,7 @@ function AppContent() {
   const t = langContext.t;
   const { pushNotification } = useAlerts();
 
-  if (loading || !sensorData) {
+  if (loading || !sensorData || !clientSettingsLoaded) {
     return (
       <div style={{
         display: 'flex',
@@ -562,6 +572,30 @@ function AppContent() {
           longitude={sensorData.navigation.position.longitude}
           onClose={handleGoBack}
         />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
+  if (activeView === 'roll') {
+    return (
+      <>
+        <RollView roll={sensorData.navigation.attitude.roll} onClose={handleGoBack} />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
+  if (activeView === 'pitch') {
+    return (
+      <>
+        <PitchView pitch={sensorData.navigation.attitude.pitch} onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />

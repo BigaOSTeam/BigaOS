@@ -24,6 +24,9 @@ import {
   PressureForecastItem,
   GustForecastItem,
   SeaTempForecastItem,
+  TempForecastItem,
+  RollItem,
+  PitchItem,
 } from './items';
 import { DashboardSidebar } from './DashboardSidebar';
 import { useTheme } from '../../context/ThemeContext';
@@ -57,6 +60,9 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'gust-forecast': { label: 'Gusts', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
   'pressure-forecast': { label: 'Pressure', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
   'sea-temp-forecast': { label: 'Sea Temp', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'temp-forecast': { label: 'Air Temp', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'roll': { label: 'Roll', targetView: 'roll', defaultSize: { w: 1, h: 1 } },
+  'pitch': { label: 'Pitch', targetView: 'pitch', defaultSize: { w: 1, h: 1 } },
 };
 
 // Migrate old items to use new targetView values
@@ -101,6 +107,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'gust-forecast': 'dashboard.weather_gusts',
       'pressure-forecast': 'dashboard.weather_pressure',
       'sea-temp-forecast': 'dashboard.weather_sea_temp',
+      'temp-forecast': 'dashboard.weather_air_temp',
+      'roll': 'dashboard.roll',
+      'pitch': 'dashboard.pitch',
     };
     return t(labelKeys[type]);
   };
@@ -448,6 +457,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             longitude={sensorData.navigation.position.longitude}
           />
         );
+      case 'temp-forecast':
+        return (
+          <TempForecastItem
+            latitude={sensorData.navigation.position.latitude}
+            longitude={sensorData.navigation.position.longitude}
+          />
+        );
+      case 'roll':
+        return <RollItem roll={sensorData.navigation.attitude.roll} />;
+      case 'pitch':
+        return <PitchItem pitch={sensorData.navigation.attitude.pitch} />;
       default:
         return null;
     }
@@ -559,6 +579,35 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#4FC3F7' }}>18.5°</div>
             <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>Sea</div>
+          </div>
+        );
+      case 'temp-forecast':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#FFB74D' }}>22.3°</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>Air</div>
+          </div>
+        );
+      case 'roll':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <svg width="40" height="30" viewBox="0 0 100 40" style={iconStyle}>
+              <path d="M10 35 Q50 0 90 35" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+              <line x1="50" y1="35" x2="62" y2="12" stroke="#81C784" strokeWidth="3" strokeLinecap="round" />
+              <circle cx="50" cy="35" r="3" fill="#81C784" />
+            </svg>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-2px' }}>3.2°</div>
+          </div>
+        );
+      case 'pitch':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <svg width="40" height="30" viewBox="0 0 100 40" style={iconStyle}>
+              <line x1="10" y1="20" x2="90" y2="20" stroke="currentColor" strokeWidth="2" opacity="0.3" />
+              <line x1="25" y1="24" x2="75" y2="16" stroke="#81C784" strokeWidth="3" strokeLinecap="round" />
+              <circle cx="50" cy="20" r="3" fill="#81C784" />
+            </svg>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-2px' }}>1.5°</div>
           </div>
         );
       default:

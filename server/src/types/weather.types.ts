@@ -29,6 +29,7 @@ export interface WeatherPoint {
   current?: CurrentData; // ocean current
   pressure?: number; // hPa
   seaTemperature?: number; // celsius
+  airTemperature?: number; // celsius
 }
 
 export interface WeatherForecast {
@@ -91,6 +92,7 @@ export interface OpenMeteoWeatherResponse {
     wind_direction_10m: string;
     wind_gusts_10m: string;
     pressure_msl?: string;
+    temperature_2m?: string;
   };
   hourly: {
     time: string[];
@@ -98,6 +100,7 @@ export interface OpenMeteoWeatherResponse {
     wind_direction_10m: (number | null)[];
     wind_gusts_10m: (number | null)[];
     pressure_msl?: (number | null)[];
+    temperature_2m?: (number | null)[];
   };
 }
 

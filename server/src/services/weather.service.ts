@@ -354,6 +354,7 @@ class WeatherService {
             gusts: weatherData.hourly.wind_gusts_10m[i] ?? 0,
           },
           pressure: weatherData.hourly.pressure_msl?.[i] ?? undefined,
+          airTemperature: weatherData.hourly.temperature_2m?.[i] ?? undefined,
         };
 
         // Add wave data if available
@@ -493,7 +494,7 @@ class WeatherService {
     const params = new URLSearchParams({
       latitude: lat.toString(),
       longitude: lon.toString(),
-      hourly: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl',
+      hourly: 'wind_speed_10m,wind_direction_10m,wind_gusts_10m,pressure_msl,temperature_2m',
       wind_speed_unit: 'kn',
       forecast_days: days.toString(),
     });

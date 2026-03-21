@@ -35,7 +35,8 @@ class DummyDataService {
       speed = this.demoSpeed;
       heading = this.demoHeading;
       position = this.demoPosition;
-      heelAngle = speed > 5 ? this.randomVariation(speed * 2, 2) : this.randomVariation(2, 1);
+      const t = Date.now() / 1000;
+      heelAngle = Math.sin(t * 0.4) * 3 + Math.sin(t * 1.1) * 1.5 + this.randomVariation(0, 0.3);
       windSpeed = this.randomVariation(8, 2);
       motorRunning = speed > 0;
       throttle = speed > 0 ? Math.min(speed * 10, 100) : 0;
@@ -43,7 +44,8 @@ class DummyDataService {
       // Default random behavior when not in demo mode
       speed = this.randomVariation(1.2, 0.4);
       heading = this.randomVariation(200, 15);
-      heelAngle = this.randomVariation(5, 2);
+      const t2 = Date.now() / 1000;
+      heelAngle = Math.sin(t2 * 0.4) * 3 + Math.sin(t2 * 1.1) * 1.5 + this.randomVariation(0, 0.3);
       windSpeed = this.randomVariation(8, 2);
 
       // Update position based on speed and heading

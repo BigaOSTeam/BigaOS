@@ -480,13 +480,20 @@ class WeatherCanvasLayer extends L.Layer {
     const topLeft = this._map.containerPointToLayerPoint([0, 0]);
     L.DomUtil.setPosition(this.canvas, topLeft);
 
-    this.canvas.width = size.x;
-    this.canvas.height = size.y;
-    this.canvas.style.width = `${size.x}px`;
-    this.canvas.style.height = `${size.y}px`;
-    this.ctx = this.canvas.getContext('2d', { alpha: true });
+    // Only resize if dimensions changed (resizing clears the canvas)
+    const needsResize = this.canvas.width !== size.x || this.canvas.height !== size.y;
+    if (needsResize) {
+      this.canvas.width = size.x;
+      this.canvas.height = size.y;
+      this.canvas.style.width = `${size.x}px`;
+      this.canvas.style.height = `${size.y}px`;
+      this.ctx = this.canvas.getContext('2d', { alpha: true });
+    }
 
-    this.redraw();
+    // Render synchronously to avoid blank frame between clear and draw
+    if (this.frame) cancelAnimationFrame(this.frame);
+    this.ctx?.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    this.render();
   }
 
   redraw(): void {
@@ -517,11 +524,12 @@ class WeatherCanvasLayer extends L.Layer {
     // Use the calculated spacing directly (no snapping for consistency)
     const finalSpacing = spacing;
 
-    // Snap to grid boundaries
-    const startLat = Math.floor(bounds.getSouth() / finalSpacing) * finalSpacing;
-    const endLat = Math.ceil(bounds.getNorth() / finalSpacing) * finalSpacing;
-    const startLon = Math.floor(bounds.getWest() / finalSpacing) * finalSpacing;
-    const endLon = Math.ceil(bounds.getEast() / finalSpacing) * finalSpacing;
+    // Add buffer beyond visible bounds so arrows don't pop in at edges
+    const buffer = finalSpacing * 2;
+    const startLat = Math.floor((bounds.getSouth() - buffer) / finalSpacing) * finalSpacing;
+    const endLat = Math.ceil((bounds.getNorth() + buffer) / finalSpacing) * finalSpacing;
+    const startLon = Math.floor((bounds.getWest() - buffer) / finalSpacing) * finalSpacing;
+    const endLon = Math.ceil((bounds.getEast() + buffer) / finalSpacing) * finalSpacing;
 
     // Draw arrows at fixed geographic positions with interpolated data
     for (let lat = startLat; lat <= endLat; lat += finalSpacing) {

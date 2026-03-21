@@ -1,11 +1,12 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useClient } from '../../context/ClientContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { wsService } from '../../services/websocket';
-import { SButton, SCard, SInput, SLabel, SSection } from '../ui/SettingsUI';
+import { SButton, SCard, SLabel, SSection } from '../ui/SettingsUI';
 import { AddPhoneDialog } from './AddPhoneDialog';
+import { ClientSettingsDialog } from './ClientSettingsDialog';
 
 // Raw client data from server (snake_case fields)
 interface RawClient {
@@ -26,9 +27,7 @@ export const ClientsTab: React.FC = () => {
   const [onlineIds, setOnlineIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [showAddPhone, setShowAddPhone] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editName, setEditName] = useState('');
-  const editInputRef = useRef<HTMLInputElement>(null);
+  const [settingsClient, setSettingsClient] = useState<RawClient | null>(null);
 
   const fetchClients = useCallback(() => {
     wsService.emit('get_clients');
@@ -56,24 +55,6 @@ export const ClientsTab: React.FC = () => {
     };
   }, [fetchClients]);
 
-  const startEdit = (client: RawClient) => {
-    setEditingId(client.id);
-    setEditName(client.name);
-    setTimeout(() => editInputRef.current?.focus(), 50);
-  };
-
-  const saveEdit = () => {
-    if (editingId && editName.trim()) {
-      wsService.emit('client_update_name', { id: editingId, name: editName.trim() });
-      setEditingId(null);
-    }
-  };
-
-  const cancelEdit = () => {
-    setEditingId(null);
-    setEditName('');
-  };
-
   const handleDelete = async (client: RawClient) => {
     const isSelf = client.id === clientId;
     const confirmed = await confirm({
@@ -83,10 +64,12 @@ export const ClientsTab: React.FC = () => {
     if (confirmed) {
       wsService.emit('client_delete', { id: client.id });
       if (isSelf) {
-        localStorage.removeItem('bigaos-client-id');
-        localStorage.removeItem('bigaos-client-name');
-        localStorage.removeItem('bigaos-active-view');
-        localStorage.removeItem('bigaos-nav-params');
+        try {
+          localStorage.removeItem('bigaos-client-id');
+          localStorage.removeItem('bigaos-client-name');
+          localStorage.removeItem('bigaos-active-view');
+          localStorage.removeItem('bigaos-nav-params');
+        } catch { /* read-only */ }
         window.location.reload();
       }
     }
@@ -141,7 +124,6 @@ export const ClientsTab: React.FC = () => {
             {clients.map((client) => {
               const isSelf = client.id === clientId;
               const isOnline = onlineIds.has(client.id);
-              const isEditing = editingId === client.id;
 
               return (
                 <SCard
@@ -151,74 +133,47 @@ export const ClientsTab: React.FC = () => {
                 >
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                     <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignSelf: 'stretch' }}>
-                      {isEditing ? (
-                        <div style={{ display: 'flex', gap: theme.space.sm, alignItems: 'center', marginBottom: theme.space.xs }}>
-                          <div style={{ flex: 1 }}>
-                            <SInput
-                              ref={editInputRef}
-                              value={editName}
-                              onChange={(e) => setEditName(e.target.value)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') saveEdit();
-                                if (e.key === 'Escape') cancelEdit();
-                              }}
-                            />
-                          </div>
-                          <SButton variant="primary" onClick={saveEdit} style={{ padding: `${theme.space.sm} ${theme.space.md}` }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          </SButton>
-                          <SButton variant="secondary" onClick={cancelEdit} style={{ padding: `${theme.space.sm} ${theme.space.md}` }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                              <line x1="18" y1="6" x2="6" y2="18" />
-                              <line x1="6" y1="6" x2="18" y2="18" />
-                            </svg>
-                          </SButton>
-                        </div>
-                      ) : (
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: theme.space.sm,
-                          marginBottom: theme.space.xs,
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: theme.space.sm,
+                        marginBottom: theme.space.xs,
+                      }}>
+                        <span style={{
+                          fontSize: theme.fontSize.base,
+                          fontWeight: theme.fontWeight.medium,
+                          color: theme.colors.textPrimary,
                         }}>
+                          {client.name}
+                        </span>
+                        {isSelf && (
                           <span style={{
-                            fontSize: theme.fontSize.base,
+                            fontSize: theme.fontSize.xs,
+                            color: theme.colors.success,
+                            background: theme.colors.successLight,
+                            padding: `2px ${theme.space.sm}`,
+                            borderRadius: theme.radius.sm,
                             fontWeight: theme.fontWeight.medium,
-                            color: theme.colors.textPrimary,
                           }}>
-                            {client.name}
+                            {t('clients.this_client')}
                           </span>
-                          {isSelf && (
-                            <span style={{
-                              fontSize: theme.fontSize.xs,
-                              color: theme.colors.success,
-                              background: theme.colors.successLight,
-                              padding: `2px ${theme.space.sm}`,
-                              borderRadius: theme.radius.sm,
-                              fontWeight: theme.fontWeight.medium,
-                            }}>
-                              {t('clients.this_client')}
-                            </span>
-                          )}
-                          {client.client_type === 'remote' && (
-                            <span style={{
-                              display: 'inline-flex',
-                              alignItems: 'center',
-                              justifyContent: 'center',
-                              background: theme.colors.primaryLight,
-                              padding: `2px ${theme.space.sm}`,
-                              borderRadius: theme.radius.sm,
-                            }}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.colors.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
-                                <line x1="12" y1="18" x2="12.01" y2="18" />
-                              </svg>
-                            </span>
-                          )}
-                        </div>
-                      )}
+                        )}
+                        {client.client_type === 'remote' && (
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            background: theme.colors.primaryLight,
+                            padding: `2px ${theme.space.sm}`,
+                            borderRadius: theme.radius.sm,
+                          }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={theme.colors.primary} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                              <line x1="12" y1="18" x2="12.01" y2="18" />
+                            </svg>
+                          </span>
+                        )}
+                      </div>
 
                       <div style={{
                         fontSize: theme.fontSize.xs,
@@ -237,30 +192,29 @@ export const ClientsTab: React.FC = () => {
                       </div>
                     </div>
 
-                    {!isEditing && (
-                      <div style={{ display: 'flex', gap: theme.space.sm, flexShrink: 0 }}>
-                        <SButton
-                          variant="outline"
-                          onClick={() => startEdit(client)}
-                          style={{ padding: `${theme.space.sm} ${theme.space.md}` }}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </SButton>
-                        <SButton
-                          variant="danger"
-                          onClick={() => handleDelete(client)}
-                          style={{ padding: `${theme.space.sm} ${theme.space.md}` }}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                            <polyline points="3 6 5 6 21 6" />
-                            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
-                          </svg>
-                        </SButton>
-                      </div>
-                    )}
+                    <div style={{ display: 'flex', gap: theme.space.sm, flexShrink: 0 }}>
+                      <SButton
+                        variant="outline"
+                        onClick={() => setSettingsClient(client)}
+                        style={{ padding: `${theme.space.sm} ${theme.space.md}` }}
+                      >
+                        {/* Gear / settings icon */}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="3" />
+                          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+                        </svg>
+                      </SButton>
+                      <SButton
+                        variant="danger"
+                        onClick={() => handleDelete(client)}
+                        style={{ padding: `${theme.space.sm} ${theme.space.md}` }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <polyline points="3 6 5 6 21 6" />
+                          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+                        </svg>
+                      </SButton>
+                    </div>
                   </div>
                 </SCard>
               );
@@ -270,6 +224,7 @@ export const ClientsTab: React.FC = () => {
       </SSection>
 
       {showAddPhone && <AddPhoneDialog onClose={() => setShowAddPhone(false)} />}
+      {settingsClient && <ClientSettingsDialog client={settingsClient} onClose={() => setSettingsClient(null)} />}
     </div>
   );
 };

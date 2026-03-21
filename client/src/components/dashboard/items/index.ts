@@ -11,3 +11,6 @@ export { WaveForecastItem } from './WaveForecastItem';
 export { PressureForecastItem } from './PressureForecastItem';
 export { GustForecastItem } from './GustForecastItem';
 export { SeaTempForecastItem } from './SeaTempForecastItem';
+export { TempForecastItem } from './TempForecastItem';
+export { RollItem } from './RollItem';
+export { PitchItem } from './PitchItem';

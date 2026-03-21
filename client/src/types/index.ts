@@ -105,6 +105,7 @@ export interface WeatherPoint {
   current?: CurrentData; // ocean current
   pressure?: number; // hPa
   seaTemperature?: number; // celsius
+  airTemperature?: number; // celsius
 }
 
 export interface WeatherForecast {

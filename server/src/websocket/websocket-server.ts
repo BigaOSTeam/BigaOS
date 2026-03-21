@@ -490,6 +490,15 @@ export class WebSocketServer {
         }
       });
 
+      socket.on('client_update', async (data: { id: string; name?: string; clientType?: string }) => {
+        try {
+          await dbWorker.updateClient(data.id, { name: data.name, clientType: data.clientType });
+          this.io.emit('clients_changed', { timestamp: new Date() });
+        } catch (error) {
+          console.error('[WebSocket] Failed to update client:', error);
+        }
+      });
+
       socket.on('client_delete', async (data: { id: string }) => {
         try {
           // Notify the deleted client before removing it
@@ -785,6 +794,12 @@ export class WebSocketServer {
       }
       if (nav.heading !== undefined) {
         readings.push({ category: 'navigation', sensorName: 'heading', value: nav.heading, unit: 'deg' });
+      }
+      if (nav.attitude?.roll !== undefined) {
+        readings.push({ category: 'navigation', sensorName: 'roll', value: nav.attitude.roll, unit: 'rad' });
+      }
+      if (nav.attitude?.pitch !== undefined) {
+        readings.push({ category: 'navigation', sensorName: 'pitch', value: nav.attitude.pitch, unit: 'rad' });
       }
     }
 

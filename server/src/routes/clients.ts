@@ -68,6 +68,25 @@ router.put('/:id', async (req: Request, res: Response) => {
   }
 });
 
+// GET /api/clients/:id/settings - get all settings for a client
+router.get('/:id/settings', async (req: Request, res: Response) => {
+  try {
+    const existing = await dbWorker.getClient(req.params.id);
+    if (!existing) {
+      return res.status(404).json({ error: 'Client not found' });
+    }
+    const rows = await dbWorker.getAllClientSettings(req.params.id);
+    const settings: Record<string, any> = {};
+    for (const r of rows) {
+      try { settings[r.key] = JSON.parse(r.value); } catch { settings[r.key] = r.value; }
+    }
+    res.json({ settings });
+  } catch (error) {
+    console.error('[Clients API] Failed to get client settings:', error);
+    res.status(500).json({ error: 'Failed to get client settings' });
+  }
+});
+
 // DELETE /api/clients/:id - delete client and its settings
 router.delete('/:id', async (req: Request, res: Response) => {
   try {

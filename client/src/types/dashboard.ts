@@ -2,7 +2,7 @@ import { Layout } from 'react-grid-layout';
 
 export type DashboardSidebarPosition = 'left' | 'right' | 'top' | 'bottom';
 
-export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather';
+export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch';
 
 export interface DashboardItemConfig {
   id: string;
@@ -24,7 +24,10 @@ export type DashboardItemType =
   | 'wave-forecast'
   | 'pressure-forecast'
   | 'gust-forecast'
-  | 'sea-temp-forecast';
+  | 'sea-temp-forecast'
+  | 'temp-forecast'
+  | 'roll'
+  | 'pitch';
 
 export interface DashboardLayout {
   items: DashboardItemConfig[];

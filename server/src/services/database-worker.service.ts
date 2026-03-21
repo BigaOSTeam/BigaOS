@@ -278,6 +278,19 @@ class DatabaseWorkerService {
     });
   }
 
+  async updateClient(id: string, fields: { name?: string; clientType?: string }): Promise<void> {
+    const sets: string[] = [];
+    const params: any[] = [];
+    if (fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name); }
+    if (fields.clientType !== undefined) { sets.push('client_type = ?'); params.push(fields.clientType); }
+    if (sets.length === 0) return;
+    params.push(id);
+    await this.send('execute', {
+      sql: `UPDATE clients SET ${sets.join(', ')} WHERE id = ?`,
+      params,
+    });
+  }
+
   async deleteClient(id: string): Promise<void> {
     await this.send('execute', {
       sql: `DELETE FROM clients WHERE id = ?`,

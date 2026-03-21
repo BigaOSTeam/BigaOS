@@ -1,18 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { weatherAPI, WeatherForecastResponse } from '../../../services/api';
-import { useSettings, windConversions } from '../../../context/SettingsContext';
+import { useSettings } from '../../../context/SettingsContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { wsService } from '../../../services/websocket';
-import { getWindColor, formatWindDirection } from '../../../utils/weather.utils';
-import { radToDeg } from '../../../utils/angle';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
-interface GustForecastItemProps {
+interface TempForecastItemProps {
   latitude: number;
   longitude: number;
 }
 
-export const GustForecastItem: React.FC<GustForecastItemProps> = ({
+const getTempColor = (temp: number): string => {
+  if (temp <= 0) return '#90CAF9';
+  if (temp <= 10) return '#4FC3F7';
+  if (temp <= 20) return '#81C784';
+  if (temp <= 30) return '#FFB74D';
+  return '#EF5350';
+};
+
+export const TempForecastItem: React.FC<TempForecastItemProps> = ({
   latitude,
   longitude,
 }) => {
@@ -21,9 +27,7 @@ export const GustForecastItem: React.FC<GustForecastItemProps> = ({
   const [forecast, setForecast] = useState<WeatherForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { weatherSettings, windUnit, convertWind, timeFormat } = useSettings();
-  const wLabel = windConversions[windUnit].label;
-  const fmtW = (kt: number) => windUnit === 'bft' ? convertWind(kt).toFixed(0) : Math.round(convertWind(kt)).toString();
+  const { weatherSettings, timeFormat } = useSettings();
 
   useEffect(() => {
     if (!weatherSettings?.enabled) { setLoading(false); setError('Weather disabled'); return; }
@@ -47,7 +51,9 @@ export const GustForecastItem: React.FC<GustForecastItemProps> = ({
   }
 
   const current = forecast.current;
-  const gustColor = getWindColor(current.wind.gusts);
+  const temp = current.airTemperature;
+  const hasTemp = temp !== undefined && temp !== null;
+  const tempColor = hasTemp ? getTempColor(temp) : theme.colors.textMuted;
   const nowMs = Date.now();
   const nextHours = (forecast.hourly || []).filter(h => new Date(h.timestamp).getTime() >= nowMs - 3600000).slice(0, 6);
 
@@ -55,39 +61,13 @@ export const GustForecastItem: React.FC<GustForecastItemProps> = ({
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', padding: 'clamp(4px, 3cqmin, 16px)' }}>
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', flex: 1, minHeight: 0 }}>
         <div style={{ fontSize: 'clamp(8px, 7cqmin, 28px)', color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: '0.1em', textAlign: 'center', lineHeight: 1.2 }}>
-          {t('weather.forecast_label')}<br />{t('weather.gusts')}
+          {t('weather.forecast_label')}<br />{t('weather.air_temperature')}
         </div>
-        <div style={{
-          display: 'flex',
-          alignItems: 'flex-end',
-          justifyContent: 'center',
-          gap: 'clamp(4px, 3cqmin, 16px)',
-          marginTop: 'clamp(2px, 1cqmin, 8px)',
-        }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flexShrink: 0 }}>
-            <svg
-              viewBox="0 0 24 24"
-              style={{
-                width: 'clamp(20px, 20cqmin, 80px)',
-                height: 'clamp(20px, 20cqmin, 80px)',
-                transform: `rotate(${radToDeg(current.wind.direction + Math.PI)}deg)`,
-                transition: 'transform 0.6s ease',
-              }}
-            >
-              <path d="M12 2L8 10h3v10h2V10h3L12 2z" fill={gustColor} stroke="#000" strokeWidth="0.5" />
-            </svg>
-            <div style={{ fontSize: 'clamp(8px, 8cqmin, 32px)', color: theme.colors.textMuted, marginTop: 'clamp(1px, 0.5cqmin, 4px)' }}>
-              {formatWindDirection(current.wind.direction)}
-            </div>
-          </div>
-          <div style={{ textAlign: 'center' }}>
-            <div style={{ fontSize: 'clamp(14px, 22cqmin, 96px)', fontWeight: theme.fontWeight.bold, color: gustColor, lineHeight: 1 }}>
-              {fmtW(current.wind.gusts)}
-            </div>
-            <div style={{ fontSize: 'clamp(8px, 8cqmin, 32px)', color: theme.colors.textMuted }}>
-              {wLabel}
-            </div>
-          </div>
+        <div style={{ fontSize: 'clamp(14px, 22cqmin, 96px)', fontWeight: theme.fontWeight.bold, color: tempColor, lineHeight: 1, marginTop: 'clamp(2px, 1cqmin, 8px)' }}>
+          {hasTemp ? temp.toFixed(1) : '--'}
+        </div>
+        <div style={{ fontSize: 'clamp(8px, 8cqmin, 32px)', color: theme.colors.textMuted }}>
+          °C
         </div>
       </div>
 
@@ -95,24 +75,15 @@ export const GustForecastItem: React.FC<GustForecastItemProps> = ({
         <div style={{ display: 'flex', justifyContent: 'space-between', gap: 'clamp(2px, 1cqmin, 6px)', borderTop: `1px solid ${theme.colors.border}`, paddingTop: 'clamp(4px, 2cqmin, 12px)', marginTop: 'clamp(4px, 2cqmin, 12px)' }}>
           {nextHours.map((hour, i) => {
             const time = new Date(hour.timestamp);
+            const t2 = hour.airTemperature;
+            const has = t2 !== undefined && t2 !== null;
             return (
               <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: 'clamp(7px, 5cqmin, 20px)', flex: 1 }}>
                 <div style={{ color: theme.colors.textMuted }}>
                   {time.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' })}
                 </div>
-                <svg
-                  viewBox="0 0 24 24"
-                  style={{
-                    width: 'clamp(8px, 6cqmin, 28px)',
-                    height: 'clamp(8px, 6cqmin, 28px)',
-                    transform: `rotate(${radToDeg(hour.wind.direction + Math.PI)}deg)`,
-                    margin: '2px 0',
-                  }}
-                >
-                  <path d="M12 2L8 10h3v10h2V10h3L12 2z" fill={getWindColor(hour.wind.gusts)} stroke="#000" strokeWidth="0.5" />
-                </svg>
-                <div style={{ color: getWindColor(hour.wind.gusts), fontWeight: 'bold' }}>
-                  {fmtW(hour.wind.gusts)} {wLabel}
+                <div style={{ color: has ? getTempColor(t2) : theme.colors.textDisabled, fontWeight: 'bold' }}>
+                  {has ? `${t2.toFixed(1)}°` : '--'}
                 </div>
               </div>
             );

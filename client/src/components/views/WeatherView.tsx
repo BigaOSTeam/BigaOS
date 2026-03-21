@@ -28,6 +28,9 @@ interface DaySummary {
   maxSwell: number;
   avgPressure: number;
   avgSeaTemp: number;
+  avgAirTemp: number;
+  maxAirTemp: number;
+  minAirTemp: number;
   dominantDirection: number;
 }
 
@@ -38,6 +41,7 @@ const computeDaySummary = (label: string, shortLabel: string, date: string, hour
   const swells = hours.filter(h => h.swell).map(h => h.swell!.height);
   const pressures = hours.filter(h => h.pressure).map(h => h.pressure!);
   const temps = hours.filter(h => h.seaTemperature !== undefined).map(h => h.seaTemperature!);
+  const airTemps = hours.filter(h => h.airTemperature !== undefined).map(h => h.airTemperature!);
 
   // Dominant direction: circular mean
   let sinSum = 0, cosSum = 0;
@@ -60,6 +64,9 @@ const computeDaySummary = (label: string, shortLabel: string, date: string, hour
     maxSwell: swells.length ? Math.max(...swells) : 0,
     avgPressure: pressures.length ? Math.round(pressures.reduce((a, b) => a + b, 0) / pressures.length) : 0,
     avgSeaTemp: temps.length ? temps.reduce((a, b) => a + b, 0) / temps.length : 0,
+    avgAirTemp: airTemps.length ? airTemps.reduce((a, b) => a + b, 0) / airTemps.length : 0,
+    maxAirTemp: airTemps.length ? Math.max(...airTemps) : 0,
+    minAirTemp: airTemps.length ? Math.min(...airTemps) : 0,
     dominantDirection,
   };
 };
@@ -234,16 +241,18 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
             </div>
             <div style={{ textAlign: 'center' }}>
               <div style={statLabelStyle}>{t('speed.max')} {t('weather.wind')}</div>
-              <div style={{ ...statValueStyle, color: getWindColor(selected.maxWind) }}>
-                {fmtWind(selected.maxWind)} <span style={{ fontSize: '0.6em', opacity: 0.7 }}>{wLabel}</span>
+              <div style={{ ...statValueStyle, color: getWindColor(Math.max(selected.maxWind, selected.maxGusts)) }}>
+                {fmtWind(Math.max(selected.maxWind, selected.maxGusts))} <span style={{ fontSize: '0.6em', opacity: 0.7 }}>{wLabel}</span>
               </div>
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={statLabelStyle}>{t('speed.max')} {t('weather.gusts')}</div>
-              <div style={{ ...statValueStyle, color: selected.maxGusts > 30 ? '#FF9800' : theme.colors.textSecondary }}>
-                {fmtWind(selected.maxGusts)} <span style={{ fontSize: '0.6em', opacity: 0.7 }}>{wLabel}</span>
+            {selected.avgAirTemp !== 0 && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={statLabelStyle}>{t('speed.max')} {t('weather.air_temperature')}</div>
+                <div style={{ ...statValueStyle, color: '#FFB74D' }}>
+                  {selected.maxAirTemp.toFixed(1)}<span style={{ fontSize: '0.6em', opacity: 0.7 }}>°C</span>
+                </div>
               </div>
-            </div>
+            )}
             <div style={{ textAlign: 'center' }}>
               <div style={statLabelStyle}>{t('speed.max')} {t('weather.waves')}</div>
               <div style={{ ...statValueStyle, color: selected.maxWaves > 0 ? getWaveColor(selected.maxWaves) : theme.colors.textMuted }}>
@@ -260,8 +269,8 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
             </div>
             {selected.avgSeaTemp > 0 && (
               <div style={{ textAlign: 'center' }}>
-                <div style={statLabelStyle}>{t('weather.sea_temperature')}</div>
-                <div style={{ ...statValueStyle, color: theme.colors.dataSpeed }}>
+                <div style={statLabelStyle}>{t('speed.max')} {t('weather.sea_temperature')}</div>
+                <div style={{ ...statValueStyle, color: '#4FC3F7' }}>
                   {selected.avgSeaTemp.toFixed(1)}<span style={{ fontSize: '0.6em', opacity: 0.7 }}>°C</span>
                 </div>
               </div>
@@ -344,6 +353,15 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
                   {day.avgWaves.toFixed(1)}m
                 </div>
               )}
+              {/* Avg air temp */}
+              {day.avgAirTemp !== 0 && (
+                <div style={{
+                  fontSize: 'clamp(0.55rem, 1.5vw, 0.7rem)',
+                  color: '#FFB74D',
+                }}>
+                  {day.avgAirTemp.toFixed(0)}°C
+                </div>
+              )}
             </button>
           );
         })}
@@ -369,11 +387,14 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
               <div style={{ width: 'clamp(16px, 4vw, 24px)' }} />
               <div style={{ width: 'clamp(3rem, 8vw, 4rem)', textAlign: 'right' }}>{t('weather.wind')}</div>
               <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right' }}>{t('weather.gusts')}</div>
-              <div style={{ flex: 1, textAlign: 'right' }}>{t('weather.waves')}</div>
-              <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right' }}>{t('weather.period')}</div>
-              <div style={{ flex: 1, textAlign: 'right' }}>{t('weather.swell')}</div>
-              <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right' }}>{t('weather.period')}</div>
               <div style={{ width: 'clamp(3.5rem, 8vw, 4.5rem)', textAlign: 'right' }}>{t('weather.pressure')}</div>
+              <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right' }}>{t('weather.air_temperature')}</div>
+              <div style={{ flex: 1 }} />
+              <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right' }}>{t('weather.waves')}</div>
+              <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right' }}>{t('weather.period')}</div>
+              <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right' }}>{t('weather.swell')}</div>
+              <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right' }}>{t('weather.period')}</div>
+              <div style={{ width: 'clamp(4rem, 12vw, 7rem)', textAlign: 'center' }}>{t('weather.sea_temperature')}</div>
             </div>
 
             {selected.hours.map((hour, hi) => {
@@ -411,20 +432,27 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
                   <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', color: gustsSignificant ? '#FF9800' : theme.colors.textDisabled, flexShrink: 0, textAlign: 'right' }}>
                     {gustsSignificant ? `${fmtWind(hour.wind.gusts)} ${wLabel}` : ''}
                   </div>
-                  <div style={{ flex: 1, textAlign: 'right', color: hour.waves ? getWaveColor(hour.waves.height) : theme.colors.textDisabled }}>
+                  <div style={{ width: 'clamp(3.5rem, 8vw, 4.5rem)', textAlign: 'right', color: theme.colors.textDisabled }}>
+                    {hour.pressure ? `${hour.pressure} hPa` : ''}
+                  </div>
+                  <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right', color: hour.airTemperature !== undefined ? '#FFB74D' : theme.colors.textDisabled }}>
+                    {hour.airTemperature !== undefined ? `${hour.airTemperature.toFixed(1)}°C` : ''}
+                  </div>
+                  <div style={{ flex: 1 }} />
+                  <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right', color: hour.waves ? getWaveColor(hour.waves.height) : theme.colors.textDisabled }}>
                     {hour.waves ? `${hour.waves.height.toFixed(1)}m` : ''}
                   </div>
                   <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right', color: theme.colors.textDisabled, fontSize: '0.85em' }}>
                     {hour.waves?.period ? `${hour.waves.period.toFixed(0)}s` : ''}
                   </div>
-                  <div style={{ flex: 1, textAlign: 'right', color: hour.swell ? getWaveColor(hour.swell.height) : theme.colors.textDisabled }}>
+                  <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right', color: hour.swell ? getWaveColor(hour.swell.height) : theme.colors.textDisabled }}>
                     {hour.swell ? `${hour.swell.height.toFixed(1)}m` : ''}
                   </div>
                   <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right', color: theme.colors.textDisabled, fontSize: '0.85em' }}>
                     {hour.swell?.period ? `${hour.swell.period.toFixed(0)}s` : ''}
                   </div>
-                  <div style={{ width: 'clamp(3.5rem, 8vw, 4.5rem)', textAlign: 'right', color: theme.colors.textDisabled }}>
-                    {hour.pressure ? `${hour.pressure} hPa` : ''}
+                  <div style={{ width: 'clamp(4rem, 12vw, 7rem)', textAlign: 'center', color: hour.seaTemperature !== undefined ? '#4FC3F7' : theme.colors.textDisabled }}>
+                    {hour.seaTemperature !== undefined ? `${hour.seaTemperature.toFixed(1)}°C` : ''}
                   </div>
                 </div>
               );
