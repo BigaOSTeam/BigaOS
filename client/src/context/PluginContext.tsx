@@ -25,6 +25,15 @@ export interface PluginManifestInfo {
   main: string;
   flag?: 'official' | 'community';
   capabilities: string[];
+  configSchema?: Array<{
+    key: string;
+    label: string;
+    type: string;
+    default: any;
+    description?: string;
+    options?: Array<{ value: string; label: string }>;
+    required?: boolean;
+  }>;
   driver?: {
     protocol: string;
     dataStreams: Array<{

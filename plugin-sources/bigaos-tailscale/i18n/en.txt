@@ -1,0 +1,10 @@
+tailscale.setup_title=Setup Instructions
+tailscale.setup_instructions=1. Create a free Tailscale account at tailscale.com\n2. In the admin console, go to Settings > Keys\n3. Generate an Auth Key (enable "Reusable" for headless devices)\n4. Paste the key below and save\n5. If using subnet routing, approve the routes in the Tailscale admin console under the machine's route settings
+tailscale.auth_key=Auth Key
+tailscale.auth_key_desc=Your Tailscale auth key (starts with "tskey-auth-")
+tailscale.hostname=Hostname
+tailscale.hostname_desc=Name for this device on the Tailscale network
+tailscale.subnet_routes=Subnet Routes
+tailscale.subnet_routes_desc=Advertise local network routes (auto-detected if empty). Example: 192.168.1.0/24
+tailscale.accept_routes=Accept Routes
+tailscale.accept_routes_desc=Accept routes advertised by other Tailscale nodes

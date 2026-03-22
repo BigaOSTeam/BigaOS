@@ -1,0 +1,53 @@
+{
+  "id": "bigaos-tailscale",
+  "name": "Tailscale VPN",
+  "version": "1.0.0",
+  "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere.",
+  "author": "BigaOS Team",
+  "type": "service",
+  "main": "index.js",
+  "flag": "official",
+  "capabilities": ["settings", "network"],
+  "configSchema": [
+    {
+      "key": "_setup_instructions",
+      "label": "tailscale.setup_title",
+      "type": "info",
+      "default": "",
+      "description": "tailscale.setup_instructions"
+    },
+    {
+      "key": "authKey",
+      "label": "tailscale.auth_key",
+      "type": "password",
+      "default": "",
+      "description": "tailscale.auth_key_desc",
+      "required": true
+    },
+    {
+      "key": "hostname",
+      "label": "tailscale.hostname",
+      "type": "string",
+      "default": "bigaos",
+      "description": "tailscale.hostname_desc"
+    },
+    {
+      "key": "advertiseRoutes",
+      "label": "tailscale.subnet_routes",
+      "type": "string",
+      "default": "",
+      "description": "tailscale.subnet_routes_desc"
+    },
+    {
+      "key": "acceptRoutes",
+      "label": "tailscale.accept_routes",
+      "type": "boolean",
+      "default": true,
+      "description": "tailscale.accept_routes_desc"
+    }
+  ],
+  "i18n": {
+    "languages": ["en", "de"],
+    "directory": "i18n/"
+  }
+}

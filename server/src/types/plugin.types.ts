@@ -41,11 +41,14 @@ export interface PluginManifest {
   flag?: PluginFlag;                  // Official or community
   minBigaOSVersion?: string;          // Minimum compatible BigaOS version
 
+  // User-configurable options (for any plugin type)
+  configSchema?: ConfigField[];
+
   // Driver-specific
   driver?: {
     protocol: string;                 // e.g. "nmea2000", "signalk", "serial", "demo"
     dataStreams: DataStreamDeclaration[];
-    configSchema?: ConfigField[];     // User-configurable options
+    configSchema?: ConfigField[];     // Driver config (legacy location, prefer top-level)
   };
 
   // Client-side dashboard items this plugin provides
@@ -133,7 +136,7 @@ export interface DataStreamDeclaration {
 export interface ConfigField {
   key: string;                        // Setting key
   label: string;                      // Display label
-  type: 'string' | 'number' | 'boolean' | 'select' | 'port';
+  type: 'string' | 'number' | 'boolean' | 'select' | 'port' | 'info' | 'password';
   default: any;                       // Default value
   description?: string;               // Help text
   options?: { value: string; label: string }[];  // For 'select' type

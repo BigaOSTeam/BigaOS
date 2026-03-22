@@ -92,7 +92,8 @@ export const PluginsTab: React.FC = () => {
   // Load config when settings dialog opens
   useEffect(() => {
     if (settingsPlugin) {
-      const keys = settingsPlugin.manifest.driver?.configSchema?.map(f => f.key) || [];
+      const schema = settingsPlugin.manifest.configSchema || settingsPlugin.manifest.driver?.configSchema || [];
+      const keys = schema.filter(f => f.type !== 'info').map(f => f.key);
       if (keys.length > 0) {
         loadPluginConfig(settingsPlugin.id, keys);
       }
@@ -446,8 +447,8 @@ export const PluginsTab: React.FC = () => {
                 );
               })()}
 
-              {/* Settings button for drivers with configSchema */}
-              {plugin.manifest.type === 'driver' && plugin.manifest.driver?.configSchema && plugin.manifest.driver.configSchema.length > 0 && (
+              {/* Settings button for plugins with configSchema */}
+              {((plugin.manifest.configSchema && plugin.manifest.configSchema.length > 0) || (plugin.manifest.type === 'driver' && plugin.manifest.driver?.configSchema && plugin.manifest.driver.configSchema.length > 0)) && (
                 <SButton
                   variant="outline"
                   onClick={() => setSettingsPlugin(plugin)}

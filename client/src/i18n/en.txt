@@ -704,6 +704,13 @@ plugins.no_data=No data
 plugins.data_sources=Data Sources
 plugins.advanced_settings=Advanced Settings
 plugins.not_yet_supported=Not yet supported:
+plugins.status_connected=Connected
+plugins.status_disconnected=Disconnected
+plugins.connect=Connect
+plugins.disconnect=Disconnect
+plugins.tailscale_ip=Tailscale IP
+plugins.tailscale_hostname=Hostname
+plugins.tailscale_subnet=Local Subnet
 
 # ==================== Slot Type Labels ====================
 slot.position=GPS Position

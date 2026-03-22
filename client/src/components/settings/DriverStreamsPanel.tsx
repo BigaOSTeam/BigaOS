@@ -1,12 +1,14 @@
 /**
- * DriverSettingsDialog - Per-driver settings dialog
+ * DriverSettingsDialog - Plugin settings dialog
  *
- * Opens as a full-screen dialog from a settings button on driver plugin cards.
+ * Opens as a full-screen dialog from a settings button on plugin cards.
  * Features:
- * - Plugin config fields rendered from configSchema
- * - Data source selection: per-slot dropdowns showing available sources
- * - Sources dynamically detected based on live data flow
- * - Collapsible debug section showing ALL raw data from all interfaces
+ * - Plugin config fields rendered from configSchema (top-level or driver-level)
+ * - Data source selection: per-slot dropdowns showing available sources (drivers only)
+ * - Sources dynamically detected based on live data flow (drivers only)
+ * - Collapsible debug section showing ALL raw data from all interfaces (drivers only)
+ * - Status display via getStatus RPC polling (service/integration plugins)
+ * - Info and password config field types
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -74,9 +76,21 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
   const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [magCalActive, setMagCalActive] = useState(false);
 
-  const configSchema = plugin.manifest.driver?.configSchema || [];
+  const configSchema = plugin.manifest.configSchema || plugin.manifest.driver?.configSchema || [];
+  const isDriver = plugin.manifest.type === 'driver';
   const isMacArthur = plugin.id === 'bigaos-macarthur-hat';
   const imuCalStatus = pluginActionResults['bigaos-macarthur-hat:imu_calibration_status'];
+  const pluginStatus = pluginActionResults[`${plugin.id}:getStatus`];
+
+  // Poll plugin status via getStatus RPC (non-driver plugins)
+  useEffect(() => {
+    if (isDriver) return;
+    executePluginAction(plugin.id, 'getStatus');
+    const interval = setInterval(() => {
+      executePluginAction(plugin.id, 'getStatus');
+    }, 5000);
+    return () => clearInterval(interval);
+  }, [isDriver, plugin.id, executePluginAction]);
 
   // Poll IMU calibration status when advanced settings are open (MacArthur HAT only)
   useEffect(() => {
@@ -88,18 +102,19 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
     return () => clearInterval(interval);
   }, [isMacArthur, advancedExpanded, executePluginAction]);
 
-  // Auto-refresh debug data when debug is expanded
+  // Auto-refresh debug data when debug is expanded (drivers only)
   useEffect(() => {
-    if (!debugExpanded) return;
+    if (!isDriver || !debugExpanded) return;
     const interval = setInterval(onRefreshMappings, 2000);
     return () => clearInterval(interval);
-  }, [debugExpanded, onRefreshMappings]);
+  }, [isDriver, debugExpanded, onRefreshMappings]);
 
-  // Auto-refresh source availability every 3 seconds when dialog is open
+  // Auto-refresh source availability every 3 seconds (drivers only)
   useEffect(() => {
+    if (!isDriver) return;
     const interval = setInterval(onRefreshMappings, 3000);
     return () => clearInterval(interval);
-  }, [onRefreshMappings]);
+  }, [isDriver, onRefreshMappings]);
 
   // Build a lookup: slotType -> SlotAvailability
   const availabilityBySlot = new Map<string, SlotAvailability>();
@@ -269,6 +284,80 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
     );
   };
 
+  // Render config fields from configSchema (shared between driver and non-driver views)
+  const renderConfigFields = () =>
+    configSchema.map((field) => {
+      const value = pluginConfig[field.key] ?? field.default;
+      const fieldLabel = t(field.label) !== field.label ? t(field.label) : field.label;
+      const fieldDesc = field.description
+        ? (t(field.description) !== field.description ? t(field.description) : field.description)
+        : undefined;
+
+      // Info type: render as instructional text block
+      if (field.type === 'info') {
+        return (
+          <SInfoBox key={field.key} style={{ marginTop: 0 }}>
+            <div style={{ whiteSpace: 'pre-line' }}>
+              {fieldDesc || fieldLabel}
+            </div>
+          </SInfoBox>
+        );
+      }
+
+      return (
+        <div key={field.key}>
+          <SLabel style={{ color: theme.colors.textPrimary, fontWeight: theme.fontWeight.medium }}>
+            {fieldLabel}
+          </SLabel>
+
+          {field.type === 'boolean' ? (
+            <SToggle
+              checked={!!value}
+              onChange={(checked) => onSetConfig(field.key, checked)}
+            />
+          ) : field.type === 'select' && field.options ? (
+            <CustomSelect
+              value={String(value)}
+              options={field.options.map(o => ({
+                value: o.value,
+                label: t(o.label) !== o.label ? t(o.label) : o.label,
+              }))}
+              onChange={(v) => onSetConfig(field.key, v)}
+            />
+          ) : field.type === 'number' ? (
+            <SInput
+              type="number"
+              value={value ?? ''}
+              onChange={(e) => onSetConfig(field.key, e.target.value === '' ? field.default : Number(e.target.value))}
+            />
+          ) : field.type === 'password' ? (
+            <SInput
+              type="password"
+              value={value ?? ''}
+              placeholder="••••••••"
+              onChange={(e) => onSetConfig(field.key, e.target.value)}
+            />
+          ) : (
+            <SInput
+              type="text"
+              value={value ?? ''}
+              onChange={(e) => onSetConfig(field.key, e.target.value)}
+            />
+          )}
+
+          {fieldDesc && field.type !== 'info' && (
+            <div style={{
+              fontSize: theme.fontSize.xs,
+              color: theme.colors.textMuted,
+              marginTop: theme.space.xs,
+            }}>
+              {fieldDesc}
+            </div>
+          )}
+        </div>
+      );
+    });
+
   return (
     <div
       style={{
@@ -339,265 +428,315 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
           </SButton>
         </div>
 
-        {/* Data Sources Section */}
-        <SSection style={{ marginBottom: theme.space.sm }}>
-          {t('plugins.data_sources') || 'Data Sources'}
-        </SSection>
-
-        {sourceAvailability.length === 0 ? (
+        {/* Plugin Status Section (non-driver plugins with getStatus action) */}
+        {!isDriver && pluginStatus && !pluginStatus.error && (
           <div style={{
-            padding: theme.space.lg,
-            color: theme.colors.textMuted,
-            fontSize: theme.fontSize.sm,
-            fontStyle: 'italic',
-            textAlign: 'center',
+            padding: theme.space.md,
             background: theme.colors.bgCard,
             borderRadius: theme.radius.md,
             border: `1px solid ${theme.colors.border}`,
+            marginBottom: theme.space.md,
           }}>
-            {t('plugins.no_streams') || 'No data sources detected'}
-          </div>
-        ) : (
-          <div style={{
-            background: theme.colors.bgCard,
-            borderRadius: theme.radius.md,
-            border: `1px solid ${theme.colors.border}`,
-            overflow: 'hidden',
-          }}>
-            {SLOT_CATEGORIES.map(([categoryKey, slotTypes]) => {
-              const visibleSlots = slotTypes.filter(st => availableSlotTypes.has(st));
-              if (visibleSlots.length === 0) return null;
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: theme.space.sm,
+              marginBottom: theme.space.sm,
+            }}>
+              <div style={{
+                width: '10px',
+                height: '10px',
+                borderRadius: '50%',
+                background: pluginStatus.connected ? '#22c55e' : theme.colors.error,
+                flexShrink: 0,
+              }} />
+              <span style={{
+                fontSize: theme.fontSize.md,
+                fontWeight: theme.fontWeight.semibold,
+                color: theme.colors.textPrimary,
+              }}>
+                {pluginStatus.connected
+                  ? (t('plugins.status_connected') || 'Connected')
+                  : (t('plugins.status_disconnected') || 'Disconnected')}
+              </span>
+            </div>
 
-              return (
-                <div key={categoryKey}>
-                  <div style={{
-                    padding: `${theme.space.sm} ${theme.space.md}`,
-                    background: theme.colors.bgCardActive,
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: theme.fontWeight.semibold,
-                    color: theme.colors.textSecondary,
-                    borderBottom: `1px solid ${theme.colors.border}`,
-                  }}>
-                    {t(categoryKey)}
-                  </div>
-                  {visibleSlots.map((slotType, idx) => renderSlotRow(slotType, idx, visibleSlots.length))}
-                </div>
-              );
-            })}
+            {pluginStatus.tailscaleIP && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: `${theme.space.xs} 0` }}>
+                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+                  {t('plugins.tailscale_ip') || 'Tailscale IP'}
+                </span>
+                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary, fontFamily: 'monospace' }}>
+                  {pluginStatus.tailscaleIP}
+                </span>
+              </div>
+            )}
+            {pluginStatus.hostname && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: `${theme.space.xs} 0` }}>
+                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+                  {t('plugins.tailscale_hostname') || 'Hostname'}
+                </span>
+                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary, fontFamily: 'monospace' }}>
+                  {pluginStatus.hostname}
+                </span>
+              </div>
+            )}
+            {pluginStatus.detectedSubnet && (
+              <div style={{ display: 'flex', justifyContent: 'space-between', padding: `${theme.space.xs} 0` }}>
+                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>
+                  {t('plugins.tailscale_subnet') || 'Local Subnet'}
+                </span>
+                <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary, fontFamily: 'monospace' }}>
+                  {pluginStatus.detectedSubnet}
+                </span>
+              </div>
+            )}
 
-            {/* Uncategorized slots */}
-            {(() => {
-              const categorizedSlots = new Set(SLOT_CATEGORIES.flatMap(([, slots]) => slots));
-              const uncategorized = [...availableSlotTypes].filter(st => !categorizedSlots.has(st));
-              if (uncategorized.length === 0) return null;
-
-              return (
-                <div>
-                  <div style={{
-                    padding: `${theme.space.sm} ${theme.space.md}`,
-                    background: theme.colors.bgCardActive,
-                    fontSize: theme.fontSize.sm,
-                    fontWeight: theme.fontWeight.semibold,
-                    color: theme.colors.textSecondary,
-                    borderBottom: `1px solid ${theme.colors.border}`,
-                  }}>
-                    {t('common.other') || 'Other'}
-                  </div>
-                  {uncategorized.map((slotType, idx) => renderSlotRow(slotType, idx, uncategorized.length))}
-                </div>
-              );
-            })()}
+            {/* Connect / Disconnect buttons */}
+            <div style={{ display: 'flex', gap: theme.space.sm, marginTop: theme.space.md }}>
+              {pluginStatus.connected ? (
+                <SButton
+                  variant="danger"
+                  fullWidth
+                  onClick={() => executePluginAction(plugin.id, 'disconnect')}
+                >
+                  {t('plugins.disconnect') || 'Disconnect'}
+                </SButton>
+              ) : (
+                <SButton
+                  variant="primary"
+                  fullWidth
+                  onClick={() => executePluginAction(plugin.id, 'connect')}
+                >
+                  {t('plugins.connect') || 'Connect'}
+                </SButton>
+              )}
+            </div>
           </div>
         )}
 
-        {/* Debug Section */}
-        <div style={{ marginTop: theme.space.lg }}>
-          <SButton
-            variant="secondary"
-            fullWidth
-            onClick={() => setDebugExpanded(!debugExpanded)}
-            style={{
-              justifyContent: 'space-between',
-              borderRadius: debugExpanded ? `${theme.radius.md} ${theme.radius.md} 0 0` : theme.radius.md,
-            }}
-          >
-            <span>{t('plugins.debug') || 'Debug'}</span>
-            <svg
-              width="14" height="14" viewBox="0 0 24 24" fill="none"
-              stroke="currentColor" strokeWidth="2"
-              style={{
-                transform: debugExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: `transform ${theme.transition.fast}`,
-              }}
-            >
-              <polyline points="6 9 12 15 18 9" />
-            </svg>
-          </SButton>
+        {/* Data Sources Section (drivers only) */}
+        {isDriver && (
+          <>
+            <SSection style={{ marginBottom: theme.space.sm }}>
+              {t('plugins.data_sources') || 'Data Sources'}
+            </SSection>
 
-          {debugExpanded && (
-            <div style={{
-              padding: theme.space.md,
-              background: theme.colors.bgCard,
-              border: `1px solid ${theme.colors.border}`,
-              borderTop: 'none',
-              borderRadius: `0 0 ${theme.radius.md} ${theme.radius.md}`,
-            }}>
-              {debugData.length === 0 ? (
-                <div style={{
-                  fontSize: theme.fontSize.xs,
-                  color: theme.colors.textMuted,
-                  fontStyle: 'italic',
-                  textAlign: 'center',
-                  padding: theme.space.md,
-                }}>
-                  {t('plugins.debug_no_data') || 'No data received yet'}
-                </div>
-              ) : (
-                <div
-                  className="settings-scroll"
-                  style={{
-                    fontSize: theme.fontSize.xs,
-                    fontFamily: 'monospace',
-                    maxHeight: '60vh',
-                    overflowY: 'auto',
-                  }}
-                >
-                  {[...debugByPlugin.entries()].map(([pluginId, entries]) => (
-                    <div key={pluginId}>
-                      <div style={{
-                        padding: `${theme.space.xs} 0`,
-                        fontSize: theme.fontSize.xs,
-                        fontWeight: theme.fontWeight.semibold,
-                        color: theme.colors.textMuted,
-                        borderBottom: `1px solid ${theme.colors.border}40`,
-                        marginTop: theme.space.xs,
-                      }}>
-                        {getPluginName(pluginId)}
-                      </div>
-
-                      {entries.map((entry, idx) => {
-                        const ifaceLabel = getDebugInterfaceLabel(entry);
-                        return (
-                          <div key={`${pluginId}-${idx}`} style={{
-                            display: 'flex',
-                            gap: theme.space.sm,
-                            padding: `${theme.space.xs} 0`,
-                            borderBottom: idx < entries.length - 1 ? `1px solid ${theme.colors.border}20` : 'none',
-                          }}>
-                            <span style={{ color: theme.colors.primary, minWidth: '130px' }}>
-                              {entry.streamId}
-                              {ifaceLabel ? ` (${ifaceLabel})` : ''}
-                            </span>
-                            <span style={{ color: theme.colors.textPrimary, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                              {formatValue(entry.value)}
-                            </span>
-                            <span style={{ color: theme.colors.textMuted, flexShrink: 0 }}>
-                              {new Date(entry.timestamp).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: timeFormat === '12h' })}
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        {/* Advanced Settings (collapsible, contains config fields) */}
-        {configSchema.length > 0 && (
-          <div style={{ marginTop: theme.space.md }}>
-            <SButton
-              variant="secondary"
-              fullWidth
-              onClick={() => setAdvancedExpanded(!advancedExpanded)}
-              style={{
-                justifyContent: 'space-between',
-                borderRadius: advancedExpanded ? `${theme.radius.md} ${theme.radius.md} 0 0` : theme.radius.md,
-              }}
-            >
-              <span>{t('plugins.advanced_settings') || 'Advanced Settings'}</span>
-              <svg
-                width="14" height="14" viewBox="0 0 24 24" fill="none"
-                stroke="currentColor" strokeWidth="2"
-                style={{
-                  transform: advancedExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: `transform ${theme.transition.fast}`,
-                }}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </SButton>
-
-            {advancedExpanded && (
+            {sourceAvailability.length === 0 ? (
               <div style={{
-                padding: theme.space.md,
+                padding: theme.space.lg,
+                color: theme.colors.textMuted,
+                fontSize: theme.fontSize.sm,
+                fontStyle: 'italic',
+                textAlign: 'center',
                 background: theme.colors.bgCard,
+                borderRadius: theme.radius.md,
                 border: `1px solid ${theme.colors.border}`,
-                borderTop: 'none',
-                borderRadius: `0 0 ${theme.radius.md} ${theme.radius.md}`,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: theme.space.md,
               }}>
-                {configSchema.map((field) => {
-                  const value = pluginConfig[field.key] ?? field.default;
-                  // Try translating the label as an i18n key; fall back to raw string
-                  const fieldLabel = t(field.label) !== field.label ? t(field.label) : field.label;
-                  const fieldDesc = field.description
-                    ? (t(field.description) !== field.description ? t(field.description) : field.description)
-                    : undefined;
+                {t('plugins.no_streams') || 'No data sources detected'}
+              </div>
+            ) : (
+              <div style={{
+                background: theme.colors.bgCard,
+                borderRadius: theme.radius.md,
+                border: `1px solid ${theme.colors.border}`,
+                overflow: 'hidden',
+              }}>
+                {SLOT_CATEGORIES.map(([categoryKey, slotTypes]) => {
+                  const visibleSlots = slotTypes.filter(st => availableSlotTypes.has(st));
+                  if (visibleSlots.length === 0) return null;
 
                   return (
-                    <div key={field.key}>
-                      <SLabel style={{ color: theme.colors.textPrimary, fontWeight: theme.fontWeight.medium }}>
-                        {fieldLabel}
-                      </SLabel>
-
-                      {field.type === 'boolean' ? (
-                        <SToggle
-                          checked={!!value}
-                          onChange={(checked) => onSetConfig(field.key, checked)}
-                        />
-                      ) : field.type === 'select' && field.options ? (
-                        <CustomSelect
-                          value={String(value)}
-                          options={field.options.map(o => ({
-                            value: o.value,
-                            label: t(o.label) !== o.label ? t(o.label) : o.label,
-                          }))}
-                          onChange={(v) => onSetConfig(field.key, v)}
-                        />
-                      ) : field.type === 'number' ? (
-                        <SInput
-                          type="number"
-                          value={value ?? ''}
-                          onChange={(e) => onSetConfig(field.key, e.target.value === '' ? field.default : Number(e.target.value))}
-                        />
-                      ) : (
-                        <SInput
-                          type="text"
-                          value={value ?? ''}
-                          onChange={(e) => onSetConfig(field.key, e.target.value)}
-                        />
-                      )}
-
-                      {fieldDesc && (
-                        <div style={{
-                          fontSize: theme.fontSize.xs,
-                          color: theme.colors.textMuted,
-                          marginTop: theme.space.xs,
-                        }}>
-                          {fieldDesc}
-                        </div>
-                      )}
+                    <div key={categoryKey}>
+                      <div style={{
+                        padding: `${theme.space.sm} ${theme.space.md}`,
+                        background: theme.colors.bgCardActive,
+                        fontSize: theme.fontSize.sm,
+                        fontWeight: theme.fontWeight.semibold,
+                        color: theme.colors.textSecondary,
+                        borderBottom: `1px solid ${theme.colors.border}`,
+                      }}>
+                        {t(categoryKey)}
+                      </div>
+                      {visibleSlots.map((slotType, idx) => renderSlotRow(slotType, idx, visibleSlots.length))}
                     </div>
                   );
                 })}
+
+                {/* Uncategorized slots */}
+                {(() => {
+                  const categorizedSlots = new Set(SLOT_CATEGORIES.flatMap(([, slots]) => slots));
+                  const uncategorized = [...availableSlotTypes].filter(st => !categorizedSlots.has(st));
+                  if (uncategorized.length === 0) return null;
+
+                  return (
+                    <div>
+                      <div style={{
+                        padding: `${theme.space.sm} ${theme.space.md}`,
+                        background: theme.colors.bgCardActive,
+                        fontSize: theme.fontSize.sm,
+                        fontWeight: theme.fontWeight.semibold,
+                        color: theme.colors.textSecondary,
+                        borderBottom: `1px solid ${theme.colors.border}`,
+                      }}>
+                        {t('common.other') || 'Other'}
+                      </div>
+                      {uncategorized.map((slotType, idx) => renderSlotRow(slotType, idx, uncategorized.length))}
+                    </div>
+                  );
+                })()}
               </div>
             )}
-          </div>
+
+            {/* Debug Section */}
+            <div style={{ marginTop: theme.space.lg }}>
+              <SButton
+                variant="secondary"
+                fullWidth
+                onClick={() => setDebugExpanded(!debugExpanded)}
+                style={{
+                  justifyContent: 'space-between',
+                  borderRadius: debugExpanded ? `${theme.radius.md} ${theme.radius.md} 0 0` : theme.radius.md,
+                }}
+              >
+                <span>{t('plugins.debug') || 'Debug'}</span>
+                <svg
+                  width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2"
+                  style={{
+                    transform: debugExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: `transform ${theme.transition.fast}`,
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </SButton>
+
+              {debugExpanded && (
+                <div style={{
+                  padding: theme.space.md,
+                  background: theme.colors.bgCard,
+                  border: `1px solid ${theme.colors.border}`,
+                  borderTop: 'none',
+                  borderRadius: `0 0 ${theme.radius.md} ${theme.radius.md}`,
+                }}>
+                  {debugData.length === 0 ? (
+                    <div style={{
+                      fontSize: theme.fontSize.xs,
+                      color: theme.colors.textMuted,
+                      fontStyle: 'italic',
+                      textAlign: 'center',
+                      padding: theme.space.md,
+                    }}>
+                      {t('plugins.debug_no_data') || 'No data received yet'}
+                    </div>
+                  ) : (
+                    <div
+                      className="settings-scroll"
+                      style={{
+                        fontSize: theme.fontSize.xs,
+                        fontFamily: 'monospace',
+                        maxHeight: '60vh',
+                        overflowY: 'auto',
+                      }}
+                    >
+                      {[...debugByPlugin.entries()].map(([pluginId, entries]) => (
+                        <div key={pluginId}>
+                          <div style={{
+                            padding: `${theme.space.xs} 0`,
+                            fontSize: theme.fontSize.xs,
+                            fontWeight: theme.fontWeight.semibold,
+                            color: theme.colors.textMuted,
+                            borderBottom: `1px solid ${theme.colors.border}40`,
+                            marginTop: theme.space.xs,
+                          }}>
+                            {getPluginName(pluginId)}
+                          </div>
+
+                          {entries.map((entry, idx) => {
+                            const ifaceLabel = getDebugInterfaceLabel(entry);
+                            return (
+                              <div key={`${pluginId}-${idx}`} style={{
+                                display: 'flex',
+                                gap: theme.space.sm,
+                                padding: `${theme.space.xs} 0`,
+                                borderBottom: idx < entries.length - 1 ? `1px solid ${theme.colors.border}20` : 'none',
+                              }}>
+                                <span style={{ color: theme.colors.primary, minWidth: '130px' }}>
+                                  {entry.streamId}
+                                  {ifaceLabel ? ` (${ifaceLabel})` : ''}
+                                </span>
+                                <span style={{ color: theme.colors.textPrimary, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                  {formatValue(entry.value)}
+                                </span>
+                                <span style={{ color: theme.colors.textMuted, flexShrink: 0 }}>
+                                  {new Date(entry.timestamp).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: timeFormat === '12h' })}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Config fields: collapsible "Advanced Settings" for drivers, direct for non-drivers */}
+        {configSchema.length > 0 && (
+          isDriver ? (
+            /* Driver: collapsible Advanced Settings */
+            <div style={{ marginTop: theme.space.md }}>
+              <SButton
+                variant="secondary"
+                fullWidth
+                onClick={() => setAdvancedExpanded(!advancedExpanded)}
+                style={{
+                  justifyContent: 'space-between',
+                  borderRadius: advancedExpanded ? `${theme.radius.md} ${theme.radius.md} 0 0` : theme.radius.md,
+                }}
+              >
+                <span>{t('plugins.advanced_settings') || 'Advanced Settings'}</span>
+                <svg
+                  width="14" height="14" viewBox="0 0 24 24" fill="none"
+                  stroke="currentColor" strokeWidth="2"
+                  style={{
+                    transform: advancedExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    transition: `transform ${theme.transition.fast}`,
+                  }}
+                >
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </SButton>
+
+              {advancedExpanded && (
+                <div style={{
+                  padding: theme.space.md,
+                  background: theme.colors.bgCard,
+                  border: `1px solid ${theme.colors.border}`,
+                  borderTop: 'none',
+                  borderRadius: `0 0 ${theme.radius.md} ${theme.radius.md}`,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: theme.space.md,
+                }}>
+                  {renderConfigFields()}
+                </div>
+              )}
+            </div>
+          ) : (
+            /* Non-driver: config fields shown directly as main content */
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: theme.space.md,
+            }}>
+              {renderConfigFields()}
+            </div>
+          )
         )}
 
         {/* IMU Calibration (MacArthur HAT only) */}
