@@ -360,23 +360,25 @@ The user controls enable/disable through the Settings > Plugins UI. Plugin state
 
 ```
 BigaOS/
-  plugins/                      <- Runtime directory (discovered by server)
-    bigaos-demo-driver/         <- Built-in plugin (shipped with BigaOS)
+  plugins/                      <- Runtime directory (not in git)
+    bigaos-demo-driver/         <- Installed at runtime from marketplace
       plugin.json
       index.js
-    registry.json               <- Plugin marketplace registry
-    bigaos-nmea2000.tar.gz      <- Downloaded plugin tarballs
-  plugin-sources/               <- Source code for non-builtin plugins
-    bigaos-nmea2000/
-      plugin.json
-      index.js
-      can-connection.js
-      pgn-handlers.js
-      package.json
+  plugin-sources/               <- Source code for plugins (git-tracked)
+    bigaos-demo-driver/
+    bigaos-macarthur-hat/
+    bigaos-tailscale/
+    dist/                       <- Built tarballs + registry (git-tracked)
+      registry.json
+      bigaos-demo-driver.tar.gz
+      bigaos-macarthur-hat.tar.gz
+  tools/
+    build-plugins.js            <- Builds tarballs from plugin-sources/
 ```
 
-- **`plugins/`** - Runtime directory. The server discovers plugins here. Builtin plugins (like the demo driver) live here permanently. Non-builtin plugins are installed here from the marketplace and deleted on uninstall.
-- **`plugin-sources/`** - Git-tracked source code for non-builtin plugins. A GitHub Action builds tarballs from here and commits them to `plugins/*.tar.gz` for marketplace distribution.
+- **`plugins/`** - Runtime directory where plugins are extracted after install. Fully gitignored.
+- **`plugin-sources/`** - Git-tracked source code for all plugins.
+- **`plugin-sources/dist/`** - Built tarballs and the marketplace registry. A GitHub Action builds tarballs from plugin sources and commits them here.
 
 ---
 
@@ -398,22 +400,22 @@ my-plugin.tar.gz
 For official plugins with source in `plugin-sources/`, run:
 
 ```
-npm run build:plugins
+node tools/build-plugins.js
 ```
 
-This installs production dependencies and creates `plugins/<plugin-id>.tar.gz`.
+This creates `plugin-sources/dist/<plugin-id>.tar.gz`.
 
 ### 2. Host the tarball
 
 Upload the `.tar.gz` to a URL accessible by the target BigaOS instance. GitHub raw URLs work well:
 
 ```
-https://github.com/your-org/your-repo/raw/main/plugins/my-plugin.tar.gz
+https://github.com/your-org/your-repo/raw/main/plugin-sources/dist/my-plugin.tar.gz
 ```
 
 ### 3. Add to the registry
 
-Add an entry to `plugins/registry.json`:
+Add an entry to `plugin-sources/dist/registry.json`:
 
 ```json
 {

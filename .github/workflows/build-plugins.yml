@@ -25,11 +25,11 @@ jobs:
         working-directory: server
 
       - name: Build plugin tarballs
-        run: node plugin-sources/build-plugins.js
+        run: node tools/build-plugins.js
 
       - name: Commit tarballs
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add plugins/*.tar.gz
+          git add -f plugin-sources/dist/*.tar.gz
           git diff --cached --quiet || (git commit -m "Build plugin tarballs" && git push)

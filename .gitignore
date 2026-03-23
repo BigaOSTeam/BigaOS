@@ -10,6 +10,7 @@ coverage/
 
 # Production builds
 dist/
+!plugin-sources/dist/
 build/
 *.tsbuildinfo
 
@@ -84,8 +85,10 @@ data/
 *.sqlite3
 
 # Runtime plugins (extracted at install, not source-controlled)
-# Plugin sources live in plugin-sources/ (git-tracked)
-plugins/*/
+plugins/
+
+# Plugin tarballs (built by CI bot, not committed locally)
+plugin-sources/dist/*.tar.gz
 
 # Optional: If you want to ignore package-lock files (uncomment if needed)
 # package-lock.json

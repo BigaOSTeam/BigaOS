@@ -44,7 +44,7 @@ export class PluginManager extends EventEmitter {
   private pluginsDir: string;
   private dataEmitter: EventEmitter;
   private sensorMapping: SensorMappingService;
-  private registryUrl: string = 'https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/plugins/registry.json';
+  private registryUrl: string = 'https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/plugin-sources/dist/registry.json';
   private cachedRegistry: PluginRegistry | null = null;
 
   constructor(dataEmitter: EventEmitter, sensorMapping: SensorMappingService, pluginsDir?: string) {

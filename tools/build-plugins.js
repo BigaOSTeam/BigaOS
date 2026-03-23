@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 /**
  * Build plugin tarballs from plugin-sources/ for distribution.
- * Usage: node plugin-sources/build-plugins.js [plugin-id]
- * Output: plugins/<plugin-id>.tar.gz
+ * Usage: node tools/build-plugins.js [plugin-id]
+ * Output: plugin-sources/dist/<plugin-id>.tar.gz
  */
 
 const fs = require('fs');
@@ -10,8 +10,8 @@ const path = require('path');
 const { execSync } = require('child_process');
 const tar = require(path.join(__dirname, '..', 'server', 'node_modules', 'tar'));
 
-const SOURCES_DIR = path.join(__dirname);
-const OUTPUT_DIR = path.join(__dirname, '..', 'plugins');
+const SOURCES_DIR = path.join(__dirname, '..', 'plugin-sources');
+const OUTPUT_DIR = path.join(__dirname, '..', 'plugin-sources', 'dist');
 
 async function buildPlugin(pluginId) {
   const srcDir = path.join(SOURCES_DIR, pluginId);
@@ -80,7 +80,7 @@ async function main() {
     await buildPlugin(targetId);
   } else {
     const dirs = fs.readdirSync(SOURCES_DIR, { withFileTypes: true })
-      .filter(d => d.isDirectory());
+      .filter(d => d.isDirectory() && d.name !== 'dist');
     for (const dir of dirs) {
       await buildPlugin(dir.name);
     }
