@@ -8,6 +8,26 @@
   "main": "index.js",
   "flag": "official",
   "capabilities": ["sensor-data", "settings", "alerts", "network"],
+  "versions": [
+    { "version": "1.0.0", "date": "2026-02-12", "changelog": "Initial release with NMEA 2000 support (15 PGNs)" },
+    { "version": "1.1.4", "date": "2026-02-13", "changelog": "CAN bus parsing fixes, setup automation, debug improvements" },
+    { "version": "1.2.0", "date": "2026-02-13", "changelog": "Add ICM-20948 IMU support (roll, pitch, yaw, magnetic heading)" },
+    { "version": "1.2.1", "date": "2026-02-14", "changelog": "Fix ahrs dependency version" },
+    { "version": "1.3.0", "date": "2026-02-14", "changelog": "Redesign data source selection with per-slot dropdowns, interface labels, source liveness detection" },
+    { "version": "1.3.1", "date": "2026-02-14", "changelog": "Fix native module compilation — exclude node_modules from tarball" },
+    { "version": "1.3.2", "date": "2026-02-14", "changelog": "Clean plugin directory before install to force native module rebuild" },
+    { "version": "1.3.3", "date": "2026-02-14", "changelog": "Install build-essential in setup.sh and rebuild i2c-bus native module for IMU support" },
+    { "version": "1.3.4", "date": "2026-02-14", "changelog": "Auto-load i2c-dev kernel module, persist reboot message, redesign terminal panel" },
+    { "version": "1.4.0", "date": "2026-02-14", "changelog": "Unified heading with auto magnetic declination, remove imu_yaw, fix auto-map liveness, uninstall script, advanced settings UI" },
+    { "version": "1.4.1", "date": "2026-02-14", "changelog": "Safe shutdown via power module (GPIO 21/16), plugin install error handling, unsupported interfaces info" },
+    { "version": "1.4.2", "date": "2026-02-14", "changelog": "Fix gpio-poweroff pin (GPIO 16→26) and add active_low for correct power latch behavior" },
+    { "version": "1.4.3", "date": "2026-02-14", "changelog": "Fix package.json version sync, remove unused code" },
+    { "version": "1.4.4", "date": "2026-02-14", "changelog": "Fix CRLF line endings in shell scripts" },
+    { "version": "1.4.5", "date": "2026-02-15", "changelog": "Add plugin i18n support with EN/DE translations for config labels" },
+    { "version": "1.5.0", "date": "2026-03-15", "changelog": "PGN 127506 support (SOC, time remaining), battery power (V×A), IMU calibration system with gyro bias, mounting offset, magnetometer hard/soft iron, and beta warmup" },
+    { "version": "1.5.1", "date": "2026-03-20", "changelog": "Filter out invalid battery temperature (0K = no sensor), fix current display at zero" },
+    { "version": "1.5.2", "date": "2026-03-20", "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping" }
+  ],
   "driver": {
     "protocol": "nmea2000",
     "dataStreams": [

@@ -1,17 +1,18 @@
 #!/usr/bin/env node
 /**
- * Build plugin tarballs from plugin-sources/ for distribution.
+ * Build plugin tarballs and registry from plugin-sources/ for distribution.
  * Usage: node tools/build-plugins.js [plugin-id]
- * Output: plugin-sources/dist/<plugin-id>.tar.gz
+ * Output: plugin-sources/dist/<plugin-id>.tar.gz + registry.json
  */
 
 const fs = require('fs');
 const path = require('path');
-const { execSync } = require('child_process');
 const tar = require(path.join(__dirname, '..', 'server', 'node_modules', 'tar'));
 
 const SOURCES_DIR = path.join(__dirname, '..', 'plugin-sources');
 const OUTPUT_DIR = path.join(__dirname, '..', 'plugin-sources', 'dist');
+const GITHUB_BASE = 'https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist';
+const REPO_BASE = 'https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources';
 
 async function buildPlugin(pluginId) {
   const srcDir = path.join(SOURCES_DIR, pluginId);
@@ -58,6 +59,52 @@ async function buildPlugin(pluginId) {
   console.log(`[+] Built ${tarball} (${sizeKB} KB)`);
 }
 
+/**
+ * Generate registry.json from all plugin.json manifests.
+ */
+function buildRegistry(pluginDirs) {
+  const plugins = [];
+
+  for (const dir of pluginDirs) {
+    const manifestPath = path.join(SOURCES_DIR, dir, 'plugin.json');
+    if (!fs.existsSync(manifestPath)) continue;
+
+    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+    const downloadUrl = `${GITHUB_BASE}/${manifest.id}.tar.gz`;
+
+    const versions = (manifest.versions || []).map(v => ({
+      version: v.version,
+      downloadUrl,
+      releaseDate: v.date,
+      changelog: v.changelog,
+    }));
+
+    plugins.push({
+      id: manifest.id,
+      name: manifest.name,
+      description: manifest.description,
+      author: manifest.author,
+      type: manifest.type,
+      flag: manifest.flag || 'community',
+      latestVersion: manifest.version,
+      capabilities: manifest.capabilities || [],
+      downloadUrl,
+      repository: `${REPO_BASE}/${manifest.id}`,
+      versions,
+    });
+  }
+
+  const registry = {
+    schemaVersion: 1,
+    updatedAt: new Date().toISOString().split('T')[0] + 'T00:00:00Z',
+    plugins,
+  };
+
+  const registryPath = path.join(OUTPUT_DIR, 'registry.json');
+  fs.writeFileSync(registryPath, JSON.stringify(registry, null, 2) + '\n');
+  console.log(`[+] Generated ${registryPath} (${plugins.length} plugins)`);
+}
+
 function copyDirSync(src, dest, exclude = []) {
   const entries = fs.readdirSync(src, { withFileTypes: true });
   for (const entry of entries) {
@@ -74,17 +121,24 @@ function copyDirSync(src, dest, exclude = []) {
 }
 
 async function main() {
-  const targetId = process.argv[2];
+  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
 
-  if (targetId) {
-    await buildPlugin(targetId);
-  } else {
-    const dirs = fs.readdirSync(SOURCES_DIR, { withFileTypes: true })
-      .filter(d => d.isDirectory() && d.name !== 'dist');
-    for (const dir of dirs) {
-      await buildPlugin(dir.name);
-    }
+  const targetId = process.argv[2];
+  const pluginDirs = targetId
+    ? [targetId]
+    : fs.readdirSync(SOURCES_DIR, { withFileTypes: true })
+        .filter(d => d.isDirectory() && d.name !== 'dist')
+        .map(d => d.name);
+
+  for (const dir of pluginDirs) {
+    await buildPlugin(dir);
   }
+
+  // Always regenerate registry from all plugins
+  const allDirs = fs.readdirSync(SOURCES_DIR, { withFileTypes: true })
+    .filter(d => d.isDirectory() && d.name !== 'dist')
+    .map(d => d.name);
+  buildRegistry(allDirs);
 
   console.log('\nDone.');
 }

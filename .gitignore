@@ -10,7 +10,6 @@ coverage/
 
 # Production builds
 dist/
-!plugin-sources/dist/
 build/
 *.tsbuildinfo
 
@@ -87,8 +86,8 @@ data/
 # Runtime plugins (extracted at install, not source-controlled)
 plugins/
 
-# Plugin tarballs (built by CI bot, not committed locally)
-plugin-sources/dist/*.tar.gz
+# Plugin dist (tarballs + registry — built by CI bot)
+plugin-sources/dist/
 
 # Optional: If you want to ignore package-lock files (uncomment if needed)
 # package-lock.json
