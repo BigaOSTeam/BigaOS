@@ -137,17 +137,9 @@ else
   info "gpiod already installed"
 fi
 
-# Install unclutter (hides mouse cursor)
-if ! command -v unclutter &> /dev/null; then
-  step "Installing unclutter..."
-  sudo apt-get install -y unclutter
-fi
-
 # Install Plymouth boot splash
-if ! command -v plymouth &> /dev/null; then
-  step "Installing boot splash..."
-  sudo apt-get install -y plymouth plymouth-themes plymouth-label-pango
-fi
+step "Installing boot splash..."
+sudo apt-get install -y plymouth plymouth-themes plymouth-label-pango
 
 # Install BigaOS Plymouth theme
 step "Installing BigaOS boot animation..."
@@ -161,7 +153,7 @@ sudo curl -sSL -o "$PLYMOUTH_THEME_DIR/bigaos.script" "$THEME_BASE/bigaos.script
 sudo curl -sSL -o "$PLYMOUTH_THEME_DIR/logo.png" "$THEME_BASE/logo.png"
 
 # Generate spinner dot asset
-curl -sSL "$THEME_BASE/generate-assets.sh" | sudo bash
+curl -sSfL "$THEME_BASE/generate-assets.sh" | sudo bash
 
 # Set as default Plymouth theme and rebuild initramfs
 sudo plymouth-set-default-theme bigaos
@@ -203,7 +195,7 @@ if [ -f "$AGENT_DIR/package.json" ]; then
   step "Installing GPIO Agent dependencies..."
   cd "$AGENT_DIR"
   npm install --production --silent
-  cd -
+  cd - > /dev/null
   info "GPIO Agent installed at $AGENT_DIR"
 else
   error "GPIO Agent package.json not found at $AGENT_DIR"
@@ -359,10 +351,9 @@ if [ -n "$SCREEN_RESOLUTION" ]; then
   fi
 fi
 
-# Hide cursor and launch Chromium kiosk
-AUTOSTART_CONTENT+="unclutter -idle 0.5 -root &\n"
+# Launch Chromium kiosk (native Wayland)
 AUTOSTART_CONTENT+="sleep 2\n"
-AUTOSTART_CONTENT+="${CHROMIUM_BIN} --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --password-store=basic \"${KIOSK_URL}\" &\n"
+AUTOSTART_CONTENT+="${CHROMIUM_BIN} --kiosk --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --password-store=basic \"${KIOSK_URL}\" &\n"
 
 echo -e "$AUTOSTART_CONTENT" > "$HOME/.config/labwc/autostart"
 chmod +x "$HOME/.config/labwc/autostart"
