@@ -1,0 +1,59 @@
+// BigaOS Plymouth boot animation
+// Centered logo on white background with dot spinner
+
+// ── Background ──────────────────────────────────────────
+Window.SetBackgroundTopColor(1.0, 1.0, 1.0);
+Window.SetBackgroundBottomColor(1.0, 1.0, 1.0);
+
+// ── Logo ────────────────────────────────────────────────
+logo.image = Image("logo.png");
+logo.sprite = Sprite(logo.image);
+logo.sprite.SetX(Window.GetWidth() / 2 - logo.image.GetWidth() / 2);
+logo.sprite.SetY(Window.GetHeight() / 2 - logo.image.GetHeight() / 2 - 40);
+logo.sprite.SetZ(10);
+
+// ── Spinner dots ────────────────────────────────────────
+NUM_DOTS = 8;
+DOT_RADIUS = 40;
+dot_x = Window.GetWidth() / 2;
+dot_y = Window.GetHeight() / 2 + logo.image.GetHeight() / 2 + 20;
+
+for (i = 0; i < NUM_DOTS; i++) {
+  dots[i].image = Image("dot.png");
+  dots[i].sprite = Sprite(dots[i].image);
+  dots[i].sprite.SetZ(10);
+}
+
+progress = 0;
+
+fun refresh_callback() {
+  progress++;
+
+  for (i = 0; i < NUM_DOTS; i++) {
+    angle = (i * 2 * 3.14159 / NUM_DOTS) + (progress * 0.05);
+    x = dot_x + Math.Int(DOT_RADIUS * Math.Cos(angle)) - dots[i].image.GetWidth() / 2;
+    y = dot_y + Math.Int(DOT_RADIUS * Math.Sin(angle)) - dots[i].image.GetHeight() / 2;
+    dots[i].sprite.SetX(x);
+    dots[i].sprite.SetY(y);
+
+    // Fade dots based on position in rotation
+    fade = (Math.Cos(angle - (progress * 0.05)) + 1) / 2;
+    opacity = 0.2 + fade * 0.8;
+    dots[i].sprite.SetOpacity(opacity);
+  }
+}
+
+Plymouth.SetRefreshFunction(refresh_callback);
+
+// ── Hide messages/password prompts ──────────────────────
+fun display_normal_callback() { }
+fun display_password_callback(prompt, bullets) { }
+fun display_question_callback(prompt, entry) { }
+fun display_message_callback(text) { }
+fun hide_message_callback(text) { }
+
+Plymouth.SetDisplayNormalFunction(display_normal_callback);
+Plymouth.SetDisplayPasswordFunction(display_password_callback);
+Plymouth.SetDisplayQuestionFunction(display_question_callback);
+Plymouth.SetMessageFunction(display_message_callback);
+Plymouth.SetHideMessageFunction(hide_message_callback);

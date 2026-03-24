@@ -1,0 +1,8 @@
+[Plymouth Theme]
+Name=BigaOS
+Description=BigaOS boot splash with animated spinner
+ModuleName=script
+
+[script]
+ImageDir=/usr/share/plymouth/themes/bigaos
+ScriptFile=/usr/share/plymouth/themes/bigaos/bigaos.script
