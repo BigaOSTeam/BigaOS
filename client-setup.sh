@@ -24,6 +24,8 @@ warn()  { echo -e "${YELLOW}[!]${NC} $1"; }
 error() { echo -e "${RED}[x]${NC} $1"; }
 step()  { echo -e "${CYAN}[>]${NC} $1"; }
 
+GITHUB_REPO="BigaOSTeam/BigaOS"
+
 # ── Header ─────────────────────────────────────────────────
 echo ""
 echo "  BigaOS Client Setup"
@@ -175,7 +177,6 @@ fi
 
 # ── Install GPIO Agent ────────────────────────────────────
 AGENT_DIR="$HOME/bigaos-gpio-agent"
-GITHUB_REPO="BigaOSTeam/BigaOS"
 
 step "Downloading GPIO Agent..."
 RELEASE_JSON=$(curl -sSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
