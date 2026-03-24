@@ -100,6 +100,16 @@ echo ""
 step "Updating package lists..."
 sudo apt-get update -qq
 
+# Install desktop environment if not present
+if ! command -v lightdm &> /dev/null; then
+  step "Installing desktop environment (this may take a few minutes)..."
+  sudo apt-get install -y --no-install-recommends raspberrypi-ui-mods 2>/dev/null || \
+    sudo apt-get install -y --no-install-recommends xserver-xorg xinit lightdm lxde-core
+  info "Desktop environment installed"
+else
+  info "Desktop environment found"
+fi
+
 # Install Node.js if missing
 if ! command -v node &> /dev/null; then
   step "Installing Node.js 20 LTS..."
@@ -132,6 +142,12 @@ fi
 if ! command -v unclutter &> /dev/null; then
   step "Installing unclutter..."
   sudo apt-get install -y unclutter
+fi
+
+# Install wlr-randr for Wayland screen configuration
+if dpkg -l labwc &>/dev/null 2>&1 && ! command -v wlr-randr &>/dev/null; then
+  step "Installing wlr-randr..."
+  sudo apt-get install -y wlr-randr
 fi
 
 # ── Install GPIO Agent ────────────────────────────────────
@@ -203,6 +219,79 @@ sudo systemctl enable bigaos-gpio
 sudo systemctl start bigaos-gpio
 info "GPIO Agent service created and started"
 
+# ── Enable desktop autologin ──────────────────────────────
+step "Enabling desktop autologin..."
+sudo raspi-config nonint do_boot_behaviour B4
+info "Desktop autologin enabled"
+
+# ── Screen configuration ─────────────────────────────────
+echo ""
+echo "  Screen Settings"
+echo "  ───────────────"
+echo ""
+echo "  Screen rotation:"
+echo "    0) Normal (landscape)"
+echo "    1) 90° clockwise (portrait)"
+echo "    2) 180° (inverted landscape)"
+echo "    3) 270° clockwise (portrait inverted)"
+echo ""
+read -p "  Rotation [0]: " -n 1 -r SCREEN_ROTATION < /dev/tty
+echo
+SCREEN_ROTATION=${SCREEN_ROTATION:-0}
+
+if [[ ! "$SCREEN_ROTATION" =~ ^[0-3]$ ]]; then
+  warn "Invalid rotation, using 0 (normal)"
+  SCREEN_ROTATION=0
+fi
+
+echo ""
+echo "  Screen resolution (leave blank for auto-detect):"
+echo "    Examples: 1920x1080, 1024x600, 800x480"
+echo ""
+read -p "  Resolution [auto]: " SCREEN_RESOLUTION < /dev/tty
+echo
+
+# Apply rotation via config.txt (works for both KMS/Wayland and legacy)
+if [ "$SCREEN_ROTATION" != "0" ]; then
+  step "Setting screen rotation to ${SCREEN_ROTATION}..."
+  # Remove any existing rotation setting
+  sudo sed -i '/^display_rotate=/d' /boot/firmware/config.txt 2>/dev/null || \
+  sudo sed -i '/^display_rotate=/d' /boot/config.txt 2>/dev/null
+  # Add rotation via DRM/KMS (Bookworm+/Trixie)
+  if grep -q 'dtoverlay=vc4' /boot/firmware/config.txt 2>/dev/null; then
+    BOOT_CONFIG="/boot/firmware/config.txt"
+  else
+    BOOT_CONFIG="/boot/config.txt"
+  fi
+  # Map rotation to display_hdmi_rotate for KMS
+  sudo sed -i '/^dtoverlay=vc4/s/$/ display_lcd_rotate='"${SCREEN_ROTATION}"'/' "$BOOT_CONFIG" 2>/dev/null
+  # Also set via wlr-randr for Wayland at runtime
+  ROTATE_MAP=("0" "90" "180" "270")
+  WLR_TRANSFORM="${ROTATE_MAP[$SCREEN_ROTATION]}"
+  info "Rotation set to ${WLR_TRANSFORM}°"
+fi
+
+# Apply resolution if specified
+if [ -n "$SCREEN_RESOLUTION" ]; then
+  step "Setting screen resolution to ${SCREEN_RESOLUTION}..."
+  SCREEN_W=$(echo "$SCREEN_RESOLUTION" | cut -dx -f1)
+  SCREEN_H=$(echo "$SCREEN_RESOLUTION" | cut -dx -f2)
+  if [ -n "$SCREEN_W" ] && [ -n "$SCREEN_H" ]; then
+    if grep -q 'dtoverlay=vc4' /boot/firmware/config.txt 2>/dev/null; then
+      BOOT_CONFIG="/boot/firmware/config.txt"
+    else
+      BOOT_CONFIG="/boot/config.txt"
+    fi
+    # Set framebuffer size
+    sudo sed -i '/^framebuffer_width=/d; /^framebuffer_height=/d' "$BOOT_CONFIG"
+    echo "framebuffer_width=${SCREEN_W}" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+    echo "framebuffer_height=${SCREEN_H}" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+    info "Resolution set to ${SCREEN_W}x${SCREEN_H}"
+  else
+    warn "Could not parse resolution, using auto-detect"
+  fi
+fi
+
 # ── Set up Chromium kiosk mode ────────────────────────────
 step "Setting up kiosk mode..."
 
@@ -213,22 +302,53 @@ fi
 
 KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
 
-# Create autostart directory
+# Create XDG autostart for kiosk browser (works with both labwc and LXDE)
 mkdir -p "$HOME/.config/autostart"
 
-# Create kiosk autostart entry
+# Build screen setup commands for autostart
+SCREEN_CMDS=""
+if dpkg -l labwc &>/dev/null 2>&1; then
+  # Wayland (labwc) — use wlr-randr for rotation/resolution
+  if [ "$SCREEN_ROTATION" != "0" ]; then
+    ROTATE_MAP=("normal" "90" "180" "270")
+    SCREEN_CMDS="wlr-randr --transform ${ROTATE_MAP[$SCREEN_ROTATION]}; "
+  fi
+  if [ -n "$SCREEN_RESOLUTION" ] && [ -n "$SCREEN_W" ] && [ -n "$SCREEN_H" ]; then
+    SCREEN_CMDS="${SCREEN_CMDS}wlr-randr --mode ${SCREEN_W}x${SCREEN_H}; "
+  fi
+fi
+
+# Kiosk browser autostart
 cat > "$HOME/.config/autostart/bigaos-kiosk.desktop" << EOF
 [Desktop Entry]
 Type=Application
 Name=BigaOS Kiosk
-Exec=bash -c 'sleep 5 && $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 "$KIOSK_URL"'
+Exec=bash -c '${SCREEN_CMDS}sleep 5 && $CHROMIUM_BIN --kiosk --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 "$KIOSK_URL"'
 Hidden=false
 X-GNOME-Autostart-enabled=true
 EOF
 
+# Hide cursor via autostart
+cat > "$HOME/.config/autostart/bigaos-unclutter.desktop" << 'EOF'
+[Desktop Entry]
+Type=Application
+Name=Hide Cursor
+Exec=unclutter -idle 0.5 -root
+Hidden=false
+EOF
+
 # Disable screen blanking
-mkdir -p "$HOME/.config/lxsession/LXDE-pi"
-cat > "$HOME/.config/lxsession/LXDE-pi/autostart" << 'EOF2'
+sudo raspi-config nonint do_blanking 1
+if dpkg -l labwc &>/dev/null 2>&1; then
+  # Wayland: disable idle timeout in labwc
+  mkdir -p "$HOME/.config/labwc"
+  if [ -f "$HOME/.config/labwc/rc.xml" ]; then
+    sed -i 's|<screenBlankTimeout>.*</screenBlankTimeout>|<screenBlankTimeout>0</screenBlankTimeout>|' "$HOME/.config/labwc/rc.xml" 2>/dev/null
+  fi
+else
+  # X11/LXDE: disable via xset
+  mkdir -p "$HOME/.config/lxsession/LXDE-pi"
+  cat > "$HOME/.config/lxsession/LXDE-pi/autostart" << 'EOF2'
 @lxpanel --profile LXDE-pi
 @pcmanfm --desktop --profile LXDE-pi
 @xset s off
@@ -236,6 +356,7 @@ cat > "$HOME/.config/lxsession/LXDE-pi/autostart" << 'EOF2'
 @xset s noblank
 @unclutter -idle 0.5 -root
 EOF2
+fi
 
 info "Kiosk mode configured"
 echo "    URL: ${KIOSK_URL}"
