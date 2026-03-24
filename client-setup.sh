@@ -146,7 +146,7 @@ fi
 # Install Plymouth boot splash
 if ! command -v plymouth &> /dev/null; then
   step "Installing boot splash..."
-  sudo apt-get install -y plymouth plymouth-themes
+  sudo apt-get install -y plymouth plymouth-themes plymouth-label-pango
 fi
 
 # Install BigaOS Plymouth theme
@@ -253,6 +253,10 @@ vt = 7
 command = "/usr/bin/labwc"
 user = "$USER"
 EOF
+
+# Disable LightDM if present (conflicts with greetd)
+sudo systemctl disable lightdm 2>/dev/null || true
+sudo rm -f /etc/systemd/system/display-manager.service
 
 sudo systemctl enable greetd
 sudo systemctl set-default graphical.target
