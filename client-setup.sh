@@ -41,7 +41,7 @@ fi
 ARCH=$(uname -m)
 if [[ "$ARCH" != "aarch64" && "$ARCH" != "armv7l" ]]; then
   warn "This script is designed for Raspberry Pi (ARM). Detected: $ARCH"
-  read -p "  Continue anyway? [y/N] " -n 1 -r
+  read -p "  Continue anyway? [y/N] " -n 1 -r < /dev/tty
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     exit 1
@@ -56,7 +56,7 @@ echo "  This will give you the Client ID and Server Address."
 echo ""
 
 # Server address
-read -p "  BigaOS Server Address (e.g., 192.168.1.100:3000): " SERVER_ADDRESS
+read -p "  BigaOS Server Address (e.g., 192.168.1.100:3000): " SERVER_ADDRESS < /dev/tty
 SERVER_ADDRESS=$(echo "$SERVER_ADDRESS" | sed 's|^https\?://||' | sed 's|/$||')
 
 if [ -z "$SERVER_ADDRESS" ]; then
@@ -76,7 +76,7 @@ else
 fi
 
 # Client ID
-read -p "  Client ID (from BigaOS Settings → Clients): " CLIENT_ID
+read -p "  Client ID (from BigaOS Settings → Clients): " CLIENT_ID < /dev/tty
 
 if [ -z "$CLIENT_ID" ]; then
   error "Client ID cannot be empty."
@@ -88,7 +88,7 @@ info "Configuration:"
 echo "    Server:    ${SERVER_URL}"
 echo "    Client ID: ${CLIENT_ID}"
 echo ""
-read -p "  Is this correct? [Y/n] " -n 1 -r
+read -p "  Is this correct? [Y/n] " -n 1 -r < /dev/tty
 echo
 if [[ $REPLY =~ ^[Nn]$ ]]; then
   echo "  Setup cancelled."
@@ -269,7 +269,7 @@ echo "  │    sudo raspi-config nonint enable_overlayfs     │"
 echo "  │    sudo reboot                                   │"
 echo "  └──────────────────────────────────────────────────┘"
 echo ""
-read -p "  Enable read-only filesystem now? [Y/n] " -n 1 -r
+read -p "  Enable read-only filesystem now? [Y/n] " -n 1 -r < /dev/tty
 echo
 
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
@@ -296,7 +296,7 @@ echo "  │  • journalctl -u bigaos-gpio -f   (agent logs)  │"
 echo "  │  • systemctl status bigaos-gpio   (agent status) │"
 echo "  └──────────────────────────────────────────────────┘"
 echo ""
-read -p "  Reboot now? [Y/n] " -n 1 -r
+read -p "  Reboot now? [Y/n] " -n 1 -r < /dev/tty
 echo
 if [[ ! $REPLY =~ ^[Nn]$ ]]; then
   sudo reboot
