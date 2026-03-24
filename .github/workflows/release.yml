@@ -47,6 +47,7 @@ jobs:
           cp -r server/dist release/server/
           cp server/package.json server/package-lock.json release/server/
           cp -r client/dist release/client/
+          cp -r gpio-agent release/
           cp package.json release/
           cp install.sh release/
           cd release
