@@ -139,7 +139,7 @@ fi
 
 # Install Plymouth boot splash
 step "Installing boot splash..."
-sudo apt-get install -y plymouth plymouth-themes plymouth-label-pango
+sudo apt-get install -y plymouth plymouth-themes plymouth-label
 
 # Install BigaOS Plymouth theme
 step "Installing BigaOS boot animation..."
