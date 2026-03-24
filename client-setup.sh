@@ -245,6 +245,14 @@ info "GPIO Agent service created and started"
 
 # ── Configure greetd (auto-login into labwc) ─────────────
 step "Configuring auto-login..."
+
+# Add user to GPU/seat groups required by labwc
+sudo usermod -aG video,render,seat "$USER"
+
+# Enable seatd (seat management for Wayland)
+sudo systemctl enable seatd
+sudo systemctl start seatd 2>/dev/null || true
+
 sudo tee /etc/greetd/config.toml > /dev/null << EOF
 [terminal]
 vt = 7
