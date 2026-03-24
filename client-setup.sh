@@ -239,7 +239,7 @@ info "GPIO Agent service created and started"
 step "Configuring auto-login..."
 
 # Add user to GPU/seat groups required by labwc
-sudo usermod -aG video,render,seat "$USER"
+sudo usermod -aG video,render "$USER"
 
 # Enable seatd (seat management for Wayland)
 sudo systemctl enable seatd
