@@ -150,6 +150,12 @@ if dpkg -l labwc &>/dev/null 2>&1 && ! command -v wlr-randr &>/dev/null; then
   sudo apt-get install -y wlr-randr
 fi
 
+# Install Plymouth boot splash
+if ! command -v plymouth &> /dev/null; then
+  step "Installing boot splash..."
+  sudo apt-get install -y plymouth
+fi
+
 # ── Install GPIO Agent ────────────────────────────────────
 AGENT_DIR="$HOME/bigaos-gpio-agent"
 GITHUB_REPO="BigaOSTeam/BigaOS"
@@ -222,7 +228,42 @@ info "GPIO Agent service created and started"
 # ── Enable desktop autologin ──────────────────────────────
 step "Enabling desktop autologin..."
 sudo raspi-config nonint do_boot_behaviour B4
+sudo systemctl set-default graphical.target
+sudo systemctl enable lightdm
 info "Desktop autologin enabled"
+
+# ── Boot splash screen ───────────────────────────────────
+step "Configuring boot splash..."
+
+# Find the correct cmdline.txt
+if [ -f /boot/firmware/cmdline.txt ]; then
+  CMDLINE_FILE="/boot/firmware/cmdline.txt"
+elif [ -f /boot/cmdline.txt ]; then
+  CMDLINE_FILE="/boot/cmdline.txt"
+fi
+
+if [ -n "$CMDLINE_FILE" ]; then
+  # Add quiet splash if not already present
+  if ! grep -q 'quiet' "$CMDLINE_FILE"; then
+    sudo sed -i 's/$/ quiet/' "$CMDLINE_FILE"
+  fi
+  if ! grep -q 'splash' "$CMDLINE_FILE"; then
+    sudo sed -i 's/$/ splash/' "$CMDLINE_FILE"
+  fi
+  # Hide kernel messages and blinking cursor
+  if ! grep -q 'loglevel=' "$CMDLINE_FILE"; then
+    sudo sed -i 's/$/ loglevel=3/' "$CMDLINE_FILE"
+  fi
+  if ! grep -q 'vt.global_cursor_default=' "$CMDLINE_FILE"; then
+    sudo sed -i 's/$/ vt.global_cursor_default=0/' "$CMDLINE_FILE"
+  fi
+  info "Boot splash configured"
+else
+  warn "Could not find cmdline.txt — boot splash not configured"
+fi
+
+# Disable login prompt on tty1 (replaced by LightDM)
+sudo systemctl disable getty@tty1.service 2>/dev/null || true
 
 # ── Screen configuration ─────────────────────────────────
 echo ""
