@@ -112,81 +112,81 @@ export const DisplayTab: React.FC = () => {
 
   return (
     <div>
-      <SSection title={t('clients.display')} description={t('clients.display_hint')}>
-        {loading ? (
-          <div style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm, padding: `${theme.space.lg} 0` }}>
-            {t('common.loading')}
-          </div>
-        ) : error && !displayInfo ? (
-          <div style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm, padding: `${theme.space.lg} 0` }}>
-            {error}
-          </div>
-        ) : (
-          <>
-            {/* Resolution */}
-            {displayInfo && displayInfo.availableModes.length > 0 && (
-              <div style={{ marginBottom: theme.space.lg }}>
-                <SLabel>{t('clients.resolution')}</SLabel>
-                <CustomSelect
-                  value={selectedResolution}
-                  options={displayInfo.availableModes.map(m => ({ value: m, label: m }))}
-                  onChange={setSelectedResolution}
-                  placeholder="Auto"
-                />
-                {displayInfo.currentMode && (
-                  <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginTop: theme.space.xs }}>
-                    {t('clients.display_current')}: {displayInfo.currentMode}
-                  </div>
-                )}
-              </div>
-            )}
+      <SSection description={t('clients.display_hint')}>{t('clients.display')}</SSection>
 
-            {/* Rotation */}
+      {loading ? (
+        <div style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm, padding: `${theme.space.lg} 0` }}>
+          {t('common.loading')}
+        </div>
+      ) : error && !displayInfo ? (
+        <div style={{ color: theme.colors.textMuted, fontSize: theme.fontSize.sm, padding: `${theme.space.lg} 0` }}>
+          {error}
+        </div>
+      ) : (
+        <>
+          {/* Resolution */}
+          {displayInfo && displayInfo.availableModes.length > 0 && (
             <div style={{ marginBottom: theme.space.lg }}>
-              <SLabel>{t('clients.rotation')}</SLabel>
+              <SLabel>{t('clients.resolution')}</SLabel>
               <CustomSelect
-                value={selectedRotation}
-                options={rotationOptions}
-                onChange={setSelectedRotation}
+                value={selectedResolution}
+                options={displayInfo.availableModes.map(m => ({ value: m, label: m }))}
+                onChange={setSelectedResolution}
+                placeholder="Auto"
               />
+              {displayInfo.currentMode && (
+                <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginTop: theme.space.xs }}>
+                  {t('clients.display_current')}: {displayInfo.currentMode}
+                </div>
+              )}
             </div>
+          )}
 
-            {/* Scale / Zoom */}
-            <div style={{ marginBottom: theme.space.lg }}>
-              <SLabel>{t('clients.zoom')}: {selectedScale.toFixed(1)}x</SLabel>
-              <input
-                type="range"
-                min="0.5"
-                max="3.0"
-                step="0.1"
-                value={selectedScale}
-                onChange={(e) => setSelectedScale(parseFloat(e.target.value))}
-                style={{ width: '100%', accentColor: theme.colors.primary }}
-              />
+          {/* Rotation */}
+          <div style={{ marginBottom: theme.space.lg }}>
+            <SLabel>{t('clients.rotation')}</SLabel>
+            <CustomSelect
+              value={selectedRotation}
+              options={rotationOptions}
+              onChange={setSelectedRotation}
+            />
+          </div>
+
+          {/* Scale / Zoom */}
+          <div style={{ marginBottom: theme.space.lg }}>
+            <SLabel>{t('clients.zoom')}: {selectedScale.toFixed(1)}x</SLabel>
+            <input
+              type="range"
+              min="0.5"
+              max="3.0"
+              step="0.1"
+              value={selectedScale}
+              onChange={(e) => setSelectedScale(parseFloat(e.target.value))}
+              style={{ width: '100%', accentColor: theme.colors.primary }}
+            />
+          </div>
+
+          {/* Apply button */}
+          <SButton
+            variant="primary"
+            onClick={handleApply}
+            disabled={applying}
+            style={{ width: '100%' }}
+          >
+            {applying ? t('clients.display_applying') : t('clients.display_apply')}
+          </SButton>
+          {error && (
+            <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.error, marginTop: theme.space.sm }}>
+              {error}
             </div>
-
-            {/* Apply button */}
-            <SButton
-              variant="primary"
-              onClick={handleApply}
-              disabled={applying}
-              style={{ width: '100%' }}
-            >
-              {applying ? t('clients.display_applying') : t('clients.display_apply')}
-            </SButton>
-            {error && (
-              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.critical, marginTop: theme.space.sm }}>
-                {error}
-              </div>
-            )}
-            {success && (
-              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.success, marginTop: theme.space.sm }}>
-                {success}
-              </div>
-            )}
-          </>
-        )}
-      </SSection>
+          )}
+          {success && (
+            <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.success, marginTop: theme.space.sm }}>
+              {success}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 };
