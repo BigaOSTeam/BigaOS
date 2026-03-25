@@ -2,11 +2,13 @@
 # BigaOS Client Setup Script for Raspberry Pi
 #
 # Sets up a Raspberry Pi as a BigaOS client with:
-#   - Chromium kiosk mode (browser auto-starts on boot)
-#   - GPIO Agent (controls relay boards via gpiod)
+#   - Cage kiosk mode (Wayland, boots straight into Chromium)
+#   - GPU-accelerated Chromium with touch support
+#   - Client Agent (GPIO relay control + display settings via wlr-randr)
+#   - Plymouth boot animation (BigaOS branded)
 #   - Read-only filesystem (overlay FS for SD card protection)
 #
-# Tested on: Raspberry Pi OS Lite (Trixie/Bookworm, 64-bit)
+# Tested on: Raspberry Pi OS Lite (Bookworm/Trixie, 64-bit)
 #
 # Install: curl -sSL https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/client-setup.sh | bash
 
@@ -52,7 +54,15 @@ if [[ "$ARCH" != "aarch64" && "$ARCH" != "armv7l" ]]; then
   fi
 fi
 
+# ── Detect Debian version ──────────────────────────────────
+DEBIAN_VERSION=""
+if [ -f /etc/os-release ]; then
+  DEBIAN_VERSION=$(. /etc/os-release && echo "$VERSION_CODENAME")
+fi
+info "Detected OS: ${DEBIAN_VERSION:-unknown}"
+
 # ── Gather configuration ──────────────────────────────────
+echo ""
 echo "  Before you begin, open BigaOS on another device and go to:"
 echo "    Settings → Clients → Create Client"
 echo ""
@@ -87,10 +97,23 @@ if [ -z "$CLIENT_ID" ]; then
   exit 1
 fi
 
+# Screen resolution
+echo ""
+echo "  Screen Settings"
+echo "  ───────────────"
+echo ""
+echo "  Screen resolution (leave blank for auto-detect):"
+echo "    Examples: 1920x1080, 1024x800, 800x480"
+echo "    Set this if your display shows the wrong resolution."
+echo ""
+read -p "  Resolution [auto]: " SCREEN_RESOLUTION < /dev/tty
+echo
+
 echo ""
 info "Configuration:"
-echo "    Server:    ${SERVER_URL}"
-echo "    Client ID: ${CLIENT_ID}"
+echo "    Server:     ${SERVER_URL}"
+echo "    Client ID:  ${CLIENT_ID}"
+echo "    Resolution: ${SCREEN_RESOLUTION:-auto}"
 echo ""
 read -p "  Is this correct? [Y/n] " -n 1 -r < /dev/tty
 echo
@@ -100,14 +123,23 @@ if [[ $REPLY =~ ^[Nn]$ ]]; then
 fi
 echo ""
 
+# ── Find boot config paths ────────────────────────────────
+if [ -f /boot/firmware/config.txt ]; then
+  BOOT_CONFIG="/boot/firmware/config.txt"
+  CMDLINE_FILE="/boot/firmware/cmdline.txt"
+else
+  BOOT_CONFIG="/boot/config.txt"
+  CMDLINE_FILE="/boot/cmdline.txt"
+fi
+
 # ── Install system packages ───────────────────────────────
 step "Updating package lists..."
 sudo apt-get update -qq
 
-# Install Wayland kiosk packages (labwc + greetd)
+# Install kiosk packages: cage (Wayland kiosk compositor) + greetd + seatd
 step "Installing kiosk display packages..."
-sudo apt-get install -y --no-install-recommends labwc seatd greetd wlr-randr
-info "Wayland kiosk packages installed"
+sudo apt-get install -y --no-install-recommends cage seatd greetd wlr-randr
+info "Kiosk packages installed (cage + greetd + seatd)"
 
 # Install Chromium
 if ! command -v chromium-browser &> /dev/null && ! command -v chromium &> /dev/null; then
@@ -137,28 +169,54 @@ else
   info "gpiod already installed"
 fi
 
-# Install Plymouth boot splash
-step "Installing boot splash..."
-sudo apt-get install -y plymouth plymouth-themes plymouth-label
+# ── Install Plymouth boot animation ──────────────────────
+step "Installing Plymouth boot animation..."
 
-# Install BigaOS Plymouth theme
-step "Installing BigaOS boot animation..."
-PLYMOUTH_THEME_DIR="/usr/share/plymouth/themes/bigaos"
-sudo mkdir -p "$PLYMOUTH_THEME_DIR"
+# Handle package name differences between Bookworm and Trixie
+if apt-cache show plymouth-label &> /dev/null; then
+  PLYMOUTH_LABEL_PKG="plymouth-label"
+elif apt-cache show plymouth-label-pango &> /dev/null; then
+  PLYMOUTH_LABEL_PKG="plymouth-label-pango"
+else
+  PLYMOUTH_LABEL_PKG=""
+fi
 
-# Download theme files from repo
-THEME_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/main/boot-theme"
-sudo curl -sSL -o "$PLYMOUTH_THEME_DIR/bigaos.plymouth" "$THEME_BASE/bigaos.plymouth"
-sudo curl -sSL -o "$PLYMOUTH_THEME_DIR/bigaos.script" "$THEME_BASE/bigaos.script"
-sudo curl -sSL -o "$PLYMOUTH_THEME_DIR/logo.png" "$THEME_BASE/logo.png"
+sudo apt-get install -y plymouth plymouth-themes $PLYMOUTH_LABEL_PKG || warn "Plymouth install had warnings (non-fatal)"
 
-# Generate spinner dot asset
-curl -sSfL "$THEME_BASE/generate-assets.sh" | sudo bash
+# Copy BigaOS Plymouth theme
+THEME_DIR="/usr/share/plymouth/themes/bigaos"
+sudo mkdir -p "$THEME_DIR"
 
-# Set as default Plymouth theme and rebuild initramfs
-sudo plymouth-set-default-theme bigaos
-sudo update-initramfs -u
-info "BigaOS boot animation installed"
+# Download theme assets from release
+RELEASE_JSON=$(curl -sSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null || echo "")
+ASSET_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": "[^"]*\.tar\.gz"' | head -1 | sed 's/.*: "//;s/"//')
+
+THEME_INSTALLED=false
+if [ -n "$ASSET_URL" ]; then
+  TEMP_DIR=$(mktemp -d)
+  if curl -sSfL -o "$TEMP_DIR/release.tar.gz" "$ASSET_URL"; then
+    tar xz -C "$TEMP_DIR" -f "$TEMP_DIR/release.tar.gz"
+    if [ -d "$TEMP_DIR/boot-theme" ]; then
+      sudo cp "$TEMP_DIR/boot-theme/bigaos.plymouth" "$THEME_DIR/"
+      sudo cp "$TEMP_DIR/boot-theme/bigaos.script" "$THEME_DIR/"
+      sudo cp "$TEMP_DIR/boot-theme/logo.png" "$THEME_DIR/"
+      # Generate dot.png spinner asset
+      if [ -f "$TEMP_DIR/boot-theme/generate-assets.sh" ]; then
+        sudo bash "$TEMP_DIR/boot-theme/generate-assets.sh"
+      fi
+      THEME_INSTALLED=true
+    fi
+  fi
+  rm -rf "$TEMP_DIR"
+fi
+
+if [ "$THEME_INSTALLED" = true ]; then
+  sudo plymouth-set-default-theme bigaos 2>/dev/null || true
+  sudo update-initramfs -u 2>/dev/null || warn "update-initramfs failed (may need manual run)"
+  info "Plymouth BigaOS theme installed"
+else
+  warn "Could not download boot theme — Plymouth will use default theme"
+fi
 
 # ── Disable cloud-init (causes boot hang on Trixie) ──────
 if [ -d /etc/cloud ] && [ ! -f /etc/cloud/cloud-init.disabled ]; then
@@ -167,49 +225,56 @@ if [ -d /etc/cloud ] && [ ! -f /etc/cloud/cloud-init.disabled ]; then
   info "cloud-init disabled"
 fi
 
-# ── Install GPIO Agent ────────────────────────────────────
-AGENT_DIR="$HOME/bigaos-gpio-agent"
+# ── Install Client Agent ─────────────────────────────────
+AGENT_DIR="$HOME/bigaos-agent"
 
-step "Downloading GPIO Agent..."
-RELEASE_JSON=$(curl -sSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
-ASSET_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": "[^"]*\.tar\.gz"' | head -1 | sed 's/.*: "//;s/"//')
+step "Downloading Client Agent..."
 
+# Try to get agent from latest release
+AGENT_INSTALLED=false
 if [ -n "$ASSET_URL" ]; then
   TEMP_DIR=$(mktemp -d)
-  curl -sSL -o "$TEMP_DIR/release.tar.gz" "$ASSET_URL"
-  tar xz -C "$TEMP_DIR" -f "$TEMP_DIR/release.tar.gz"
-
-  # Copy gpio-agent from release
-  if [ -d "$TEMP_DIR/gpio-agent" ]; then
-    rm -rf "$AGENT_DIR"
-    cp -r "$TEMP_DIR/gpio-agent" "$AGENT_DIR"
+  if curl -sSfL -o "$TEMP_DIR/release.tar.gz" "$ASSET_URL"; then
+    tar xz -C "$TEMP_DIR" -f "$TEMP_DIR/release.tar.gz"
+    # Try new client-agent directory first, fall back to gpio-agent
+    if [ -d "$TEMP_DIR/client-agent" ]; then
+      rm -rf "$AGENT_DIR"
+      cp -r "$TEMP_DIR/client-agent" "$AGENT_DIR"
+      AGENT_INSTALLED=true
+    elif [ -d "$TEMP_DIR/gpio-agent" ]; then
+      rm -rf "$AGENT_DIR"
+      cp -r "$TEMP_DIR/gpio-agent" "$AGENT_DIR"
+      AGENT_INSTALLED=true
+    fi
   fi
   rm -rf "$TEMP_DIR"
-else
-  warn "Could not fetch release. Creating GPIO agent from scratch..."
+fi
+
+if [ "$AGENT_INSTALLED" = false ]; then
+  warn "Could not fetch release. Creating agent directory..."
   mkdir -p "$AGENT_DIR"
 fi
 
 # Install agent dependencies
 if [ -f "$AGENT_DIR/package.json" ]; then
-  step "Installing GPIO Agent dependencies..."
+  step "Installing Client Agent dependencies..."
   cd "$AGENT_DIR"
   npm install --production --silent
   cd - > /dev/null
-  info "GPIO Agent installed at $AGENT_DIR"
+  info "Client Agent installed at $AGENT_DIR"
 else
-  error "GPIO Agent package.json not found at $AGENT_DIR"
-  error "You may need to copy the gpio-agent folder from the BigaOS release manually."
+  error "Agent package.json not found at $AGENT_DIR"
+  error "You may need to copy the client-agent folder from the BigaOS release manually."
   exit 1
 fi
 
-# ── Create GPIO Agent systemd service ─────────────────────
-step "Setting up GPIO Agent service..."
+# ── Create Client Agent systemd service ──────────────────
+step "Setting up Client Agent service..."
 NODE_BIN=$(which node)
 
-sudo tee /etc/systemd/system/bigaos-gpio.service > /dev/null << EOF
+sudo tee /etc/systemd/system/bigaos-agent.service > /dev/null << EOF
 [Unit]
-Description=BigaOS GPIO Agent
+Description=BigaOS Client Agent
 After=network-online.target
 Wants=network-online.target
 
@@ -224,33 +289,152 @@ Restart=always
 RestartSec=5
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=bigaos-gpio
+SyslogIdentifier=bigaos-agent
 
 [Install]
 WantedBy=multi-user.target
 EOF
 
+# Clean up old gpio-agent service if it exists
+if systemctl list-unit-files bigaos-gpio.service &>/dev/null; then
+  sudo systemctl stop bigaos-gpio 2>/dev/null || true
+  sudo systemctl disable bigaos-gpio 2>/dev/null || true
+  sudo rm -f /etc/systemd/system/bigaos-gpio.service
+fi
+
 sudo systemctl daemon-reload
-sudo systemctl enable bigaos-gpio
-sudo systemctl start bigaos-gpio
-info "GPIO Agent service created and started"
+sudo systemctl enable bigaos-agent
+sudo systemctl start bigaos-agent
+info "Client Agent service created and started"
 
-# ── Configure greetd (auto-login into labwc) ─────────────
-step "Configuring auto-login..."
+# ── Configure GPU and display ────────────────────────────
+step "Configuring GPU acceleration..."
 
-# Add user to GPU/seat groups required by labwc
+# Ensure KMS driver is enabled
+if ! grep -q '^dtoverlay=vc4-kms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
+  echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+fi
+
+# Allocate GPU memory for hardware-accelerated rendering
+if grep -q '^gpu_mem=' "$BOOT_CONFIG" 2>/dev/null; then
+  sudo sed -i 's/^gpu_mem=.*/gpu_mem=256/' "$BOOT_CONFIG"
+else
+  echo "gpu_mem=256" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+fi
+
+# Disable Pi firmware rainbow splash
+if ! grep -q '^disable_splash' "$BOOT_CONFIG" 2>/dev/null; then
+  echo "disable_splash=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+fi
+
+# Enable both HDMI ports
+if ! grep -q 'hdmi_force_hotplug:0' "$BOOT_CONFIG"; then
+  echo "hdmi_force_hotplug:0=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+  echo "hdmi_force_hotplug:1=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+fi
+
+# Remove legacy resolution settings (don't work with KMS driver)
+sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^framebuffer_width/d; /^framebuffer_height/d' "$BOOT_CONFIG"
+
+info "GPU configured (vc4-kms-v3d, 256MB GPU memory)"
+
+# ── Set custom resolution via KMS ────────────────────────
+if [ -n "$SCREEN_RESOLUTION" ]; then
+  step "Setting display resolution to ${SCREEN_RESOLUTION}..."
+  CMDLINE=$(cat "$CMDLINE_FILE" | tr -d '\n')
+
+  # Remove any existing video= parameter
+  CMDLINE=$(echo "$CMDLINE" | sed 's/ video=[^ ]*//')
+
+  # Add KMS-compatible resolution parameter
+  CMDLINE="$CMDLINE video=HDMI-A-1:${SCREEN_RESOLUTION}@60"
+
+  echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
+  info "Resolution set to ${SCREEN_RESOLUTION} via KMS (cmdline.txt)"
+fi
+
+# ── Silent boot ──────────────────────────────────────────
+step "Configuring silent boot..."
+
+CMDLINE=$(cat "$CMDLINE_FILE" | tr -d '\n')
+for PARAM in quiet splash "loglevel=3" "vt.global_cursor_default=0"; do
+  if ! echo "$CMDLINE" | grep -q "$PARAM"; then
+    CMDLINE="$CMDLINE $PARAM"
+  fi
+done
+echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
+info "Silent boot configured (quiet + splash)"
+
+# ── Configure greetd + cage (kiosk mode) ─────────────────
+step "Configuring kiosk mode..."
+
+# Add user to GPU/seat groups required by cage
 sudo usermod -aG video,render "$USER"
 
 # Enable seatd (seat management for Wayland)
 sudo systemctl enable seatd
 sudo systemctl start seatd 2>/dev/null || true
 
+# Detect Chromium binary
+CHROMIUM_BIN="chromium-browser"
+if ! command -v chromium-browser &> /dev/null; then
+  CHROMIUM_BIN="chromium"
+fi
+
+KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
+
+# Create kiosk launch script
+cat > "$HOME/bigaos-kiosk.sh" << KIOSKEOF
+#!/bin/bash
+# BigaOS Kiosk Launcher — launched by greetd via cage
+
+# Source display config if saved by client-agent
+. "\$HOME/bigaos-display.conf" 2>/dev/null
+
+# Apply saved display settings (after cage starts)
+(
+  sleep 2
+  if [ -n "\$DISPLAY_RESOLUTION" ]; then
+    wlr-randr --output HDMI-A-1 --mode "\$DISPLAY_RESOLUTION" 2>/dev/null || true
+  fi
+  if [ "\$DISPLAY_ROTATION" != "normal" ] && [ -n "\$DISPLAY_ROTATION" ]; then
+    wlr-randr --output HDMI-A-1 --transform "\$DISPLAY_ROTATION" 2>/dev/null || true
+  fi
+  if [ -n "\$DISPLAY_SCALE" ] && [ "\$DISPLAY_SCALE" != "1.0" ] && [ "\$DISPLAY_SCALE" != "1" ]; then
+    wlr-randr --output HDMI-A-1 --scale "\$DISPLAY_SCALE" 2>/dev/null || true
+  fi
+) &
+
+# Launch Chromium with GPU acceleration and touch support
+exec ${CHROMIUM_BIN} \\
+  --kiosk \\
+  --ozone-platform=wayland \\
+  --enable-gpu-rasterization \\
+  --enable-zero-copy \\
+  --ignore-gpu-blocklist \\
+  --enable-features=VaapiVideoDecoder,CanvasOopRasterization \\
+  --disable-software-rasterizer \\
+  --num-raster-threads=2 \\
+  --enable-gpu-compositing \\
+  --touch-events=enabled \\
+  --noerrdialogs \\
+  --disable-infobars \\
+  --no-first-run \\
+  --disable-session-crashed-bubble \\
+  --disable-translate \\
+  --check-for-update-interval=31536000 \\
+  --password-store=basic \\
+  "${KIOSK_URL}"
+KIOSKEOF
+chmod +x "$HOME/bigaos-kiosk.sh"
+
+# Configure greetd to launch cage with the kiosk script
 sudo tee /etc/greetd/config.toml > /dev/null << EOF
 [terminal]
 vt = 7
 
 [default_session]
-command = "/usr/bin/labwc"
+command = "cage -s -- $HOME/bigaos-kiosk.sh"
 user = "$USER"
 EOF
 
@@ -260,114 +444,14 @@ sudo rm -f /etc/systemd/system/display-manager.service
 
 sudo systemctl enable greetd
 sudo systemctl set-default graphical.target
-info "Auto-login configured (greetd -> labwc)"
-
-# ── Boot splash screen ───────────────────────────────────
-step "Configuring boot splash..."
-
-# Find the correct cmdline.txt
-if [ -f /boot/firmware/cmdline.txt ]; then
-  CMDLINE_FILE="/boot/firmware/cmdline.txt"
-elif [ -f /boot/cmdline.txt ]; then
-  CMDLINE_FILE="/boot/cmdline.txt"
-fi
-
-if [ -n "$CMDLINE_FILE" ]; then
-  # Add quiet splash if not already present
-  if ! grep -q 'quiet' "$CMDLINE_FILE"; then
-    sudo sed -i 's/$/ quiet/' "$CMDLINE_FILE"
-  fi
-  if ! grep -q 'splash' "$CMDLINE_FILE"; then
-    sudo sed -i 's/$/ splash/' "$CMDLINE_FILE"
-  fi
-  # Hide kernel messages and blinking cursor
-  if ! grep -q 'loglevel=' "$CMDLINE_FILE"; then
-    sudo sed -i 's/$/ loglevel=3/' "$CMDLINE_FILE"
-  fi
-  if ! grep -q 'vt.global_cursor_default=' "$CMDLINE_FILE"; then
-    sudo sed -i 's/$/ vt.global_cursor_default=0/' "$CMDLINE_FILE"
-  fi
-  info "Boot splash configured"
-else
-  warn "Could not find cmdline.txt — boot splash not configured"
-fi
-
-# ── Screen configuration ─────────────────────────────────
-echo ""
-echo "  Screen Settings"
-echo "  ───────────────"
-echo ""
-echo "  Screen rotation:"
-echo "    0) Normal (landscape)"
-echo "    1) 90° clockwise (portrait)"
-echo "    2) 180° (inverted landscape)"
-echo "    3) 270° clockwise (portrait inverted)"
-echo ""
-read -p "  Rotation [0]: " -n 1 -r SCREEN_ROTATION < /dev/tty
-echo
-SCREEN_ROTATION=${SCREEN_ROTATION:-0}
-
-if [[ ! "$SCREEN_ROTATION" =~ ^[0-3]$ ]]; then
-  warn "Invalid rotation, using 0 (normal)"
-  SCREEN_ROTATION=0
-fi
-
-echo ""
-echo "  Screen resolution (leave blank for auto-detect):"
-echo "    Examples: 1920x1080, 1024x600, 800x480"
-echo ""
-read -p "  Resolution [auto]: " SCREEN_RESOLUTION < /dev/tty
-echo
-
-# ── Set up Chromium kiosk via labwc autostart ─────────────
-step "Setting up kiosk mode..."
-
-CHROMIUM_BIN="chromium-browser"
-if ! command -v chromium-browser &> /dev/null; then
-  CHROMIUM_BIN="chromium"
-fi
-
-KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
-
-# Build labwc autostart script
-mkdir -p "$HOME/.config/labwc"
-
-AUTOSTART_CONTENT=""
-
-# Screen rotation via wlr-randr
-if [ "$SCREEN_ROTATION" != "0" ]; then
-  ROTATE_MAP=("normal" "90" "180" "270")
-  AUTOSTART_CONTENT+="wlr-randr --transform ${ROTATE_MAP[$SCREEN_ROTATION]} &\nsleep 1\n"
-  info "Rotation set to ${ROTATE_MAP[$SCREEN_ROTATION]}"
-fi
-
-# Screen resolution via wlr-randr
-if [ -n "$SCREEN_RESOLUTION" ]; then
-  SCREEN_W=$(echo "$SCREEN_RESOLUTION" | cut -dx -f1)
-  SCREEN_H=$(echo "$SCREEN_RESOLUTION" | cut -dx -f2)
-  if [ -n "$SCREEN_W" ] && [ -n "$SCREEN_H" ]; then
-    AUTOSTART_CONTENT+="wlr-randr --mode ${SCREEN_W}x${SCREEN_H} &\nsleep 1\n"
-    info "Resolution set to ${SCREEN_W}x${SCREEN_H}"
-  fi
-fi
-
-# Launch Chromium kiosk (native Wayland)
-AUTOSTART_CONTENT+="sleep 2\n"
-AUTOSTART_CONTENT+="${CHROMIUM_BIN} --kiosk --ozone-platform=wayland --noerrdialogs --disable-infobars --no-first-run --disable-session-crashed-bubble --disable-translate --check-for-update-interval=31536000 --password-store=basic \"${KIOSK_URL}\" &\n"
-
-echo -e "$AUTOSTART_CONTENT" > "$HOME/.config/labwc/autostart"
-chmod +x "$HOME/.config/labwc/autostart"
-
-info "Kiosk mode configured"
+info "Kiosk mode configured (greetd → cage → Chromium)"
 echo "    URL: ${KIOSK_URL}"
 
 # ── Sudoers for service management ────────────────────────
-SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigaos-gpio, /usr/bin/systemctl stop bigaos-gpio, /usr/bin/systemctl start bigaos-gpio"
+SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigaos-agent, /usr/bin/systemctl stop bigaos-agent, /usr/bin/systemctl start bigaos-agent"
 SUDOERS_FILE="/etc/sudoers.d/bigaos-client"
-if [ ! -f "$SUDOERS_FILE" ]; then
-  echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
-  sudo chmod 440 "$SUDOERS_FILE"
-fi
+echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
+sudo chmod 440 "$SUDOERS_FILE"
 
 # ── Enable overlay filesystem ─────────────────────────────
 echo ""
@@ -409,12 +493,17 @@ echo "  │  Setup Complete!                                 │"
 echo "  │                                                  │"
 echo "  │  After reboot:                                   │"
 echo "  │  • Chromium opens BigaOS in kiosk mode           │"
-echo "  │  • GPIO Agent connects to the server             │"
+echo "  │  • GPU-accelerated rendering enabled             │"
+echo "  │  • Touch input enabled                           │"
+echo "  │  • Client Agent connects to the server           │"
 echo "  │  • Relay control is ready                        │"
 echo "  │                                                  │"
+echo "  │  Display settings (resolution, rotation, zoom)   │"
+echo "  │  can be changed from BigaOS Settings → Clients.  │"
+echo "  │                                                  │"
 echo "  │  Useful commands:                                │"
-echo "  │  • journalctl -u bigaos-gpio -f   (agent logs)  │"
-echo "  │  • systemctl status bigaos-gpio   (agent status) │"
+echo "  │  • journalctl -u bigaos-agent -f  (agent logs)  │"
+echo "  │  • systemctl status bigaos-agent  (agent status) │"
 echo "  └──────────────────────────────────────────────────┘"
 echo ""
 read -p "  Reboot now? [Y/n] " -n 1 -r < /dev/tty

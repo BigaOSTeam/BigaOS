@@ -1,0 +1,12 @@
+{
+  "name": "bigaos-client-agent",
+  "version": "1.0.0",
+  "description": "BigaOS Client Agent — controls GPIO relays and display settings on Raspberry Pi",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "socket.io-client": "^4.7.5"
+  }
+}

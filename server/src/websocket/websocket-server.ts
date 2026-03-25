@@ -163,17 +163,18 @@ export class WebSocketServer {
     this.io.on('connection', (socket) => {
       const clientId = socket.handshake.auth?.clientId as string | undefined;
       const clientType = socket.handshake.auth?.type as string | undefined;
-      const isGpioAgent = clientType === 'gpio-agent';
-      console.log(`Client connected: ${socket.id}${clientId ? ` (clientId: ${clientId})` : ''}${isGpioAgent ? ' [GPIO Agent]' : ''}`);
+      const isAgent = clientType === 'client-agent' || clientType === 'gpio-agent';
+      console.log(`Client connected: ${socket.id}${clientId ? ` (clientId: ${clientId})` : ''}${isAgent ? ' [Client Agent]' : ''}`);
 
       // Track client and join room for targeted messaging
       if (clientId) {
         dbWorker.updateClientLastSeen(clientId).catch(() => {});
         socket.join(`client:${clientId}`);
-        // GPIO agents join a dedicated room for GPIO commands
-        if (isGpioAgent) {
+        // Client agents join dedicated rooms for GPIO and display commands
+        if (isAgent) {
           socket.join(`gpio:${clientId}`);
-          // Send switch initialization data to the GPIO agent
+          socket.join(`agent:${clientId}`);
+          // Send switch initialization data to the agent
           if (this.dataController) {
             const switches = this.dataController.getSwitchService().getSwitchesForClient(clientId);
             socket.emit('gpio_init', {
@@ -508,13 +509,17 @@ export class WebSocketServer {
           const clients = await dbWorker.getAllClients();
           // Determine which clients are currently online by checking socket rooms
           const onlineIds: string[] = [];
+          const agentOnlineIds: string[] = [];
           for (const c of clients) {
             const room = this.io.sockets.adapter.rooms.get(`client:${c.id}`);
             if (room && room.size > 0) onlineIds.push(c.id);
+            const agentRoom = this.io.sockets.adapter.rooms.get(`agent:${c.id}`);
+            if (agentRoom && agentRoom.size > 0) agentOnlineIds.push(c.id);
           }
           socket.emit('clients_sync', {
             clients,
             onlineIds,
+            agentOnlineIds,
             timestamp: new Date(),
           });
         } catch (error) {
@@ -633,11 +638,43 @@ export class WebSocketServer {
       });
 
       // ================================================================
+      // Display Control Handlers (forwarded to/from client agent)
+      // ================================================================
+
+      // Browser client requests display info for a specific client's agent
+      socket.on('display_get_info', (data: { clientId: string }) => {
+        this.io.to(`agent:${data.clientId}`).emit('display_get_info', {});
+      });
+
+      // Browser client requests display settings change
+      socket.on('display_set', (data: { clientId: string; resolution?: string; rotation?: string; scale?: number }) => {
+        this.io.to(`agent:${data.clientId}`).emit('display_set', {
+          resolution: data.resolution,
+          rotation: data.rotation,
+          scale: data.scale,
+        });
+      });
+
+      // Agent reports display info back
+      socket.on('display_info', (data: any) => {
+        if (clientId) {
+          this.io.emit('display_info', { clientId, ...data });
+        }
+      });
+
+      // Agent reports display set result
+      socket.on('display_set_result', (data: any) => {
+        if (clientId) {
+          this.io.emit('display_set_result', { clientId, ...data });
+        }
+      });
+
+      // ================================================================
       // Disconnect
       // ================================================================
 
       socket.on('disconnect', () => {
-        console.log(`Client disconnected: ${socket.id}${isGpioAgent ? ' [GPIO Agent]' : ''}`);
+        console.log(`Client disconnected: ${socket.id}${isAgent ? ' [Client Agent]' : ''}`);
         if (clientId) {
           dbWorker.updateClientLastSeen(clientId).catch(() => {});
           this.io.emit('clients_changed', { timestamp: new Date() });

@@ -26,7 +26,9 @@ import { PluginsTab } from '../settings/PluginsTab';
 import { TerminalPanel } from '../settings/TerminalPanel';
 import { ChartTab } from '../settings/ChartTab';
 import { ClientsTab } from '../settings/ClientsTab';
+import { DisplayTab } from '../settings/DisplayTab';
 
+import { useClient } from '../../context/ClientContext';
 import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LANGUAGES, LanguageCode } from '../../i18n/languages';
@@ -42,7 +44,7 @@ import {
   SInfoBox,
 } from '../ui/SettingsUI';
 
-type SettingsTab = 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'plugins' | 'clients' | 'advanced';
+type SettingsTab = 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'plugins' | 'clients' | 'display' | 'advanced';
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -68,6 +70,20 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const dotIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const { confirm } = useConfirmDialog();
   const { t } = useLanguage();
+  const { clientId } = useClient();
+  const [hasAgent, setHasAgent] = useState(false);
+
+  // Check if the current client has a connected agent (Pi installed via setup script)
+  useEffect(() => {
+    const handleSync = (data: { agentOnlineIds?: string[] }) => {
+      if (data.agentOnlineIds) {
+        setHasAgent(data.agentOnlineIds.includes(clientId));
+      }
+    };
+    wsService.on('clients_sync', handleSync);
+    wsService.emit('get_clients');
+    return () => { wsService.off('clients_sync', handleSync); };
+  }, [clientId]);
 
   const isCheckingVisible = minCheckSpin || updateChecking;
 
@@ -457,6 +473,18 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         </svg>
       ),
     },
+    // Display tab — only shown for Pi clients with a connected agent
+    ...(hasAgent ? [{
+      id: 'display' as SettingsTab,
+      label: t('settings.display'),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+          <line x1="8" y1="21" x2="16" y2="21" />
+          <line x1="12" y1="17" x2="12" y2="21" />
+        </svg>
+      ),
+    }] : []),
     {
       id: 'advanced',
       label: t('settings.advanced'),
@@ -1242,6 +1270,8 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         return <PluginsTab />;
       case 'clients':
         return <ClientsTab />;
+      case 'display':
+        return <DisplayTab />;
       case 'advanced':
         return renderAdvancedTab();
     }

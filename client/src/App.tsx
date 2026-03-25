@@ -262,14 +262,24 @@ function AppContent() {
 
     wsService.on('system_shutting_down', () => {
       setSystemShuttingDown(true);
-      // Keep overlay until server becomes unreachable, then clear so
-      // the normal "Server Unreachable" banner takes over
+      let serverWentDown = false;
       const checkGone = setInterval(() => {
-        fetch('/health').then(() => {}).catch(() => {
-          clearInterval(checkGone);
-          setSystemShuttingDown(false);
+        fetch('/health').then(() => {
+          // Server is reachable — if it went down and came back, it was a restart
+          if (serverWentDown) {
+            clearInterval(checkGone);
+            setSystemShuttingDown(false);
+            window.location.reload();
+          }
+        }).catch(() => {
+          serverWentDown = true;
         });
       }, 2000);
+      // Safety timeout: clear overlay after 30s no matter what
+      setTimeout(() => {
+        clearInterval(checkGone);
+        setSystemShuttingDown(false);
+      }, 30000);
     });
 
     // Listen for new version available (broadcast once by server per new version)

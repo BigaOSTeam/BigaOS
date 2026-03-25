@@ -1,6 +1,6 @@
 # BigaOS Client Setup Guide
 
-Set up a Raspberry Pi as a BigaOS display client with GPIO relay control and kiosk browser mode. The setup script handles everything: browser kiosk mode, GPIO agent, and read-only filesystem for SD card protection.
+Set up a Raspberry Pi as a BigaOS display client with GPIO relay control, kiosk browser mode, and remote display control. The setup script handles everything automatically.
 
 ## Requirements
 
@@ -9,6 +9,7 @@ Set up a Raspberry Pi as a BigaOS display client with GPIO relay control and kio
 - MicroSD card (8GB+)
 - Power supply
 - Network connection (WiFi or Ethernet)
+- HDMI display (touchscreen supported via USB)
 - Optional: AZ Delivery 8-Relay Board (or similar relay module)
 
 ### Software
@@ -18,7 +19,6 @@ Set up a Raspberry Pi as a BigaOS display client with GPIO relay control and kio
 ### Before You Start
 - The BigaOS server must be installed and running
 - You need SSH access to the Raspberry Pi
-- Know the display's resolution and whether it needs to be rotated
 
 ---
 
@@ -60,22 +60,21 @@ curl -sSL https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/client-setup.
 The script will prompt you for:
 1. **Server Address** — the IP:port from Step 2 (e.g., `192.168.1.100:3000`)
 2. **Client ID** — the UUID from Step 2
-3. **Screen Rotation** — 0 (normal), 1 (90°), 2 (180°), or 3 (270°)
-4. **Screen Resolution** — e.g., `1920x1080`, `1024x600`, or leave blank for auto-detect
+3. **Screen Resolution** — e.g., `1024x800`, `1920x1080`, or leave blank for auto-detect
 
 ### What the Script Does
 
-1. **Installs a desktop environment** — uses Raspberry Pi's recommended desktop, falls back to LXDE
-2. **Installs Node.js 20 LTS** (if not already installed)
-3. **Installs gpiod** — GPIO control tools (works on both RPi 4B and 5)
-4. **Installs Chromium** — for kiosk browser mode
-5. **Downloads and installs the GPIO Agent** — a lightweight Node.js process that controls relay boards
-6. **Creates a systemd service** (`bigaos-gpio`) — auto-starts the GPIO agent on boot
-7. **Enables desktop autologin** — boots straight to the desktop without requiring login
-8. **Configures screen rotation and resolution** — applies settings via `config.txt` and `wlr-randr` (Wayland)
-9. **Configures Chromium kiosk mode** — auto-starts the browser pointed at BigaOS on boot
-10. **Disables screen blanking** — keeps the display always on, hides the mouse cursor
-11. **Enables overlay filesystem** (optional) — makes the SD card read-only for protection against power loss
+1. **Installs cage** — a minimal Wayland kiosk compositor (single-app, no desktop)
+2. **Installs Chromium** — with GPU acceleration and touch support
+3. **Installs Node.js 20 LTS** (if not already installed)
+4. **Installs gpiod** — GPIO control tools (works on both RPi 4B and 5)
+5. **Installs Plymouth** — boot animation with BigaOS branding
+6. **Downloads the Client Agent** — controls GPIO relays and display settings
+7. **Creates a systemd service** (`bigaos-agent`) — auto-starts the agent on boot
+8. **Configures greetd** — auto-login directly into cage kiosk
+9. **Configures GPU** — enables `vc4-kms-v3d` driver with 256MB GPU memory
+10. **Sets screen resolution** — via KMS `video=` parameter in cmdline.txt
+11. **Enables overlay filesystem** (optional) — makes the SD card read-only
 
 After the script completes, it will prompt you to reboot.
 
@@ -84,17 +83,18 @@ After the script completes, it will prompt you to reboot.
 ## Step 4: Reboot and Verify
 
 After reboot, the Pi will:
+- Show the BigaOS boot animation
 - Automatically start Chromium in kiosk mode, showing BigaOS
-- Automatically start the GPIO Agent, connecting to your server
+- Automatically start the Client Agent, connecting to your server
 
-### Verify the GPIO Agent
+### Verify the Client Agent
 
 ```bash
 # Check agent status
-systemctl status bigaos-gpio
+systemctl status bigaos-agent
 
 # View agent logs
-journalctl -u bigaos-gpio -f
+journalctl -u bigaos-agent -f
 ```
 
 You should see:
@@ -102,6 +102,22 @@ You should see:
 [Agent] Connected to server (socket: ...)
 [Agent] Received gpio_init with N switch(es)
 ```
+
+---
+
+## Display Settings
+
+Resolution, rotation, and zoom can be changed directly from the BigaOS web UI — no SSH required.
+
+1. Open **Settings** on the Pi client (the Display tab only appears on Pi clients with a connected agent)
+2. Go to the **Display** tab
+3. Change:
+   - **Resolution** — dropdown of available modes detected from the display
+   - **Rotation** — Normal, 90°, 180°, 270°
+   - **Zoom** — scale factor (1.0 = 100%, 1.5 = 150%, etc.)
+4. Click **Apply**
+
+Settings are persisted and survive reboots.
 
 ---
 
@@ -176,25 +192,31 @@ Connect the relay board to the Pi's GPIO header:
 
 ## Troubleshooting
 
-### GPIO Agent won't connect
+### Client Agent won't connect
 - Check the server is reachable: `curl http://<server-ip>:3000/health`
-- Check the Client ID matches: `journalctl -u bigaos-gpio -f`
-- Check the service env vars: `systemctl show bigaos-gpio | grep Environment`
+- Check the Client ID matches: `journalctl -u bigaos-agent -f`
+- Check the service env vars: `systemctl show bigaos-agent | grep Environment`
 
 ### Display is blank after reboot
-- Check desktop autologin is enabled: `sudo raspi-config nonint get_boot_cli` (should return `1`)
-- Check LightDM is running: `systemctl status lightdm`
-- If desktop is missing, re-run the setup script — it will install one automatically
-
-### Browser doesn't start in kiosk mode
-- Check autostart file exists: `cat ~/.config/autostart/bigaos-kiosk.desktop`
-- Check display manager is running: `systemctl status lightdm`
+- Check greetd is running: `systemctl status greetd`
+- Check cage is launching: `journalctl -u greetd -f`
 - Check Chromium is installed: `which chromium-browser || which chromium`
 
-### Screen rotation or resolution is wrong
-- Re-run the setup script to reconfigure, or edit manually:
-  - **Wayland (labwc):** `wlr-randr --transform 90` / `wlr-randr --mode 1920x1080`
-  - **config.txt:** `sudo nano /boot/firmware/config.txt` (look for `framebuffer_width`, `framebuffer_height`)
+### Browser is slow or laggy
+- Verify GPU acceleration: navigate to `chrome://gpu` in Chromium
+- "Rasterization" and "Compositing" should show "Hardware accelerated"
+- Check `gpu_mem=256` is in `/boot/firmware/config.txt`
+- Check `dtoverlay=vc4-kms-v3d` is in `/boot/firmware/config.txt`
+
+### Screen resolution is wrong
+- Resolution can be changed from **Settings → Display** in the BigaOS UI
+- Or manually: `wlr-randr --output HDMI-A-1 --mode 1024x800`
+- For boot-time resolution, check `video=HDMI-A-1:1024x800@60` is in cmdline.txt
+
+### Touch not working
+- USB touchscreens should work automatically via libinput
+- Check `dmesg | grep -i touch` for device detection
+- Ensure `--touch-events=enabled` is in the Chromium flags
 
 ### Need to make changes (filesystem is read-only)
 ```bash
@@ -212,10 +234,10 @@ sudo reboot
 ### Relay doesn't switch
 - Test GPIO directly: `gpioset gpiochip0 17=1` (RPi 4B) or `gpioset gpiochip4 17=1` (RPi 5)
 - Check wiring: relay board VCC, GND, and signal pins
-- Check `journalctl -u bigaos-gpio -f` for errors during toggle
+- Check `journalctl -u bigaos-agent -f` for errors during toggle
 - Verify the correct BCM pin number in BigaOS settings
 
-### Update the GPIO Agent
+### Update the Client Agent
 ```bash
 # Disable read-only first
 sudo raspi-config nonint disable_overlayfs && sudo reboot
