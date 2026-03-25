@@ -187,28 +187,24 @@ sudo apt-get install -y plymouth plymouth-themes $PLYMOUTH_LABEL_PKG || warn "Pl
 THEME_DIR="/usr/share/plymouth/themes/bigaos"
 sudo mkdir -p "$THEME_DIR"
 
-# Download theme assets from release
-RELEASE_JSON=$(curl -sSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" 2>/dev/null || echo "")
-ASSET_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": "[^"]*\.tar\.gz"' | head -1 | sed 's/.*: "//;s/"//')
+# Download theme assets directly from repo (raw GitHub)
+RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/main/boot-theme"
 
 THEME_INSTALLED=false
-if [ -n "$ASSET_URL" ]; then
-  TEMP_DIR=$(mktemp -d)
-  if curl -sSfL -o "$TEMP_DIR/release.tar.gz" "$ASSET_URL"; then
-    tar xz -C "$TEMP_DIR" -f "$TEMP_DIR/release.tar.gz"
-    if [ -d "$TEMP_DIR/boot-theme" ]; then
-      sudo cp "$TEMP_DIR/boot-theme/bigaos.plymouth" "$THEME_DIR/"
-      sudo cp "$TEMP_DIR/boot-theme/bigaos.script" "$THEME_DIR/"
-      sudo cp "$TEMP_DIR/boot-theme/logo.png" "$THEME_DIR/"
-      # Generate dot.png spinner asset
-      if [ -f "$TEMP_DIR/boot-theme/generate-assets.sh" ]; then
-        sudo bash "$TEMP_DIR/boot-theme/generate-assets.sh"
-      fi
-      THEME_INSTALLED=true
-    fi
+TEMP_THEME=$(mktemp -d)
+if curl -sSfL -o "$TEMP_THEME/bigaos.plymouth" "$RAW_BASE/bigaos.plymouth" \
+   && curl -sSfL -o "$TEMP_THEME/bigaos.script" "$RAW_BASE/bigaos.script" \
+   && curl -sSfL -o "$TEMP_THEME/logo.png" "$RAW_BASE/logo.png"; then
+  sudo cp "$TEMP_THEME/bigaos.plymouth" "$THEME_DIR/"
+  sudo cp "$TEMP_THEME/bigaos.script" "$THEME_DIR/"
+  sudo cp "$TEMP_THEME/logo.png" "$THEME_DIR/"
+  # Download and run asset generator (creates dot.png)
+  if curl -sSfL -o "$TEMP_THEME/generate-assets.sh" "$RAW_BASE/generate-assets.sh"; then
+    sudo bash "$TEMP_THEME/generate-assets.sh"
   fi
-  rm -rf "$TEMP_DIR"
+  THEME_INSTALLED=true
 fi
+rm -rf "$TEMP_THEME"
 
 if [ "$THEME_INSTALLED" = true ]; then
   sudo plymouth-set-default-theme bigaos 2>/dev/null || true
@@ -230,29 +226,23 @@ AGENT_DIR="$HOME/bigaos-agent"
 
 step "Downloading Client Agent..."
 
-# Try to get agent from latest release
+# Download agent files directly from repo
+AGENT_RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/main/client-agent"
+rm -rf "$AGENT_DIR"
+mkdir -p "$AGENT_DIR"
+
 AGENT_INSTALLED=false
-if [ -n "$ASSET_URL" ]; then
-  TEMP_DIR=$(mktemp -d)
-  if curl -sSfL -o "$TEMP_DIR/release.tar.gz" "$ASSET_URL"; then
-    tar xz -C "$TEMP_DIR" -f "$TEMP_DIR/release.tar.gz"
-    # Try new client-agent directory first, fall back to gpio-agent
-    if [ -d "$TEMP_DIR/client-agent" ]; then
-      rm -rf "$AGENT_DIR"
-      cp -r "$TEMP_DIR/client-agent" "$AGENT_DIR"
-      AGENT_INSTALLED=true
-    elif [ -d "$TEMP_DIR/gpio-agent" ]; then
-      rm -rf "$AGENT_DIR"
-      cp -r "$TEMP_DIR/gpio-agent" "$AGENT_DIR"
-      AGENT_INSTALLED=true
-    fi
-  fi
-  rm -rf "$TEMP_DIR"
+if curl -sSfL -o "$AGENT_DIR/package.json" "$AGENT_RAW_BASE/package.json" \
+   && curl -sSfL -o "$AGENT_DIR/index.js" "$AGENT_RAW_BASE/index.js" \
+   && curl -sSfL -o "$AGENT_DIR/gpio.js" "$AGENT_RAW_BASE/gpio.js" \
+   && curl -sSfL -o "$AGENT_DIR/display.js" "$AGENT_RAW_BASE/display.js"; then
+  AGENT_INSTALLED=true
 fi
 
 if [ "$AGENT_INSTALLED" = false ]; then
-  warn "Could not fetch release. Creating agent directory..."
-  mkdir -p "$AGENT_DIR"
+  error "Could not download client agent files from GitHub."
+  error "Check your internet connection and try again."
+  exit 1
 fi
 
 # Install agent dependencies
@@ -412,10 +402,13 @@ exec ${CHROMIUM_BIN} \\
   --enable-gpu-rasterization \\
   --enable-zero-copy \\
   --ignore-gpu-blocklist \\
-  --enable-features=VaapiVideoDecoder,CanvasOopRasterization \\
+  --enable-features=CanvasOopRasterization \\
   --disable-software-rasterizer \\
-  --num-raster-threads=2 \\
+  --num-raster-threads=4 \\
   --enable-gpu-compositing \\
+  --disable-gpu-driver-bug-workarounds \\
+  --enable-oop-rasterization \\
+  --cursor-style=none \\
   --touch-events=enabled \\
   --noerrdialogs \\
   --disable-infobars \\
@@ -424,9 +417,32 @@ exec ${CHROMIUM_BIN} \\
   --disable-translate \\
   --check-for-update-interval=31536000 \\
   --password-store=basic \\
+  --disk-cache-size=104857600 \\
   "${KIOSK_URL}"
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
+
+# Create transparent cursor theme to hide cursor on touchscreens
+CURSOR_DIR="$HOME/.icons/transparent/cursors"
+mkdir -p "$CURSOR_DIR"
+# Generate a 1x1 transparent cursor using printf (no ImageMagick needed)
+printf '\x00\x00\x02\x00\x01\x00\x01\x01\x00\x00\x01\x00\x20\x00\x30\x00\x00\x00\x16\x00\x00\x00\x28\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x01\x00\x20\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > "$CURSOR_DIR/default"
+for CURSOR_NAME in left_ptr pointer hand2 text xterm watch arrow top_left_arrow; do
+  ln -sf default "$CURSOR_DIR/$CURSOR_NAME" 2>/dev/null || true
+done
+cat > "$HOME/.icons/transparent/cursor.theme" << THEOF
+[Icon Theme]
+Name=transparent
+Comment=Transparent cursor for touchscreens
+THEOF
+
+# Set environment for cage (hide cursor, use transparent theme)
+mkdir -p "$HOME/.config/environment.d"
+cat > "$HOME/.config/environment.d/bigaos.conf" << ENVEOF
+WLR_NO_HARDWARE_CURSORS=1
+XCURSOR_THEME=transparent
+XCURSOR_SIZE=1
+ENVEOF
 
 # Configure greetd to launch cage with the kiosk script
 sudo tee /etc/greetd/config.toml > /dev/null << EOF
