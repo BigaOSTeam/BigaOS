@@ -618,7 +618,7 @@ function AppContent() {
   // Default: Dashboard view
   return (
     <div style={{
-      width: '100vw',
+      width: '100%',
       height: '100dvh',
       background: theme.colors.bgPrimary,
       color: theme.colors.textPrimary,

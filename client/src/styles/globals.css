@@ -544,8 +544,15 @@ html, body {
   }
 }
 
-/* Compact sidebar buttons in landscape / short viewports */
-@media (max-height: 500px) {
+/* Narrow screens: hide labels but keep buttons square-ish */
+@media (max-width: 900px) {
+  .chart-sidebar-btn.with-label span {
+    display: none;
+  }
+}
+
+/* Short viewports: compact everything */
+@media (max-height: 550px) {
   .chart-sidebar-btn {
     height: 40px;
   }

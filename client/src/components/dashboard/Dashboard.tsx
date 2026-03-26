@@ -667,7 +667,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   return (
     <div
       style={{
-        width: '100vw',
+        width: '100%',
         height: '100dvh',
         overflow: 'hidden',
         position: 'relative',

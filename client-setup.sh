@@ -4,7 +4,7 @@
 # Sets up a Raspberry Pi as a BigaOS client with:
 #   - Desktop kiosk mode (autologin → Chromium fullscreen, no desktop visible)
 #   - GPU-accelerated Chromium via Pi's native compositor
-#   - Client Agent (GPIO relay control + display settings via wlr-randr)
+#   - Client Agent (GPIO relay control + display settings)
 #   - Plymouth boot animation (BigaOS branded)
 #   - Read-only filesystem (overlay FS for SD card protection)
 #
@@ -105,10 +105,33 @@ echo "  Screen Settings"
 echo "  ───────────────"
 echo ""
 echo "  Screen resolution (leave blank for auto-detect):"
-echo "    Examples: 1920x1080, 1024x800, 800x480"
+echo "    Examples: 1920x1080, 1024x600, 800x480"
 echo "    Set this if your display shows the wrong resolution."
 echo ""
 read -p "  Resolution [auto]: " SCREEN_RESOLUTION < /dev/tty
+echo
+
+# Screen rotation
+echo "  Screen rotation:"
+echo "    0 = normal (default)"
+echo "    90 = rotated 90° clockwise"
+echo "    180 = upside down"
+echo "    270 = rotated 270° clockwise"
+echo ""
+read -p "  Rotation [0]: " SCREEN_ROTATION < /dev/tty
+SCREEN_ROTATION=${SCREEN_ROTATION:-0}
+echo
+
+# Display scale
+echo "  Display scale (makes everything larger or smaller):"
+echo "    1.0 = normal (default)"
+echo "    1.2 = 120% (recommended for small screens)"
+echo "    1.5 = 150% (wide screens only)"
+echo "    0.8 = 80% (fit more on screen)"
+echo "    Note: max usable scale depends on screen width"
+echo ""
+read -p "  Scale [1.0]: " SCREEN_SCALE < /dev/tty
+SCREEN_SCALE=${SCREEN_SCALE:-1.0}
 echo
 
 echo ""
@@ -116,6 +139,8 @@ info "Configuration:"
 echo "    Server:     ${SERVER_URL}"
 echo "    Client ID:  ${CLIENT_ID}"
 echo "    Resolution: ${SCREEN_RESOLUTION:-auto}"
+echo "    Rotation:   ${SCREEN_ROTATION}°"
+echo "    Scale:      ${SCREEN_SCALE}x"
 echo ""
 read -p "  Is this correct? [Y/n] " -n 1 -r < /dev/tty
 echo
@@ -138,7 +163,7 @@ fi
 step "Updating package lists..."
 sudo apt-get update -qq
 
-# Install wlr-randr for display control (resolution/rotation/scale)
+# Install wlr-randr for display control (resolution/rotation)
 if ! command -v wlr-randr &> /dev/null; then
   step "Installing wlr-randr..."
   sudo apt-get install -y wlr-randr
@@ -305,11 +330,6 @@ info "Client Agent service created and started"
 # ── Configure GPU and display ────────────────────────────
 step "Configuring GPU acceleration..."
 
-# Ensure KMS driver is enabled
-if ! grep -q '^dtoverlay=vc4-kms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
-  echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$BOOT_CONFIG" > /dev/null
-fi
-
 # Allocate GPU memory for hardware-accelerated rendering
 if grep -q '^gpu_mem=' "$BOOT_CONFIG" 2>/dev/null; then
   sudo sed -i 's/^gpu_mem=.*/gpu_mem=256/' "$BOOT_CONFIG"
@@ -322,24 +342,67 @@ if ! grep -q '^disable_splash' "$BOOT_CONFIG" 2>/dev/null; then
   echo "disable_splash=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
 fi
 
-# Remove legacy resolution settings (don't work with KMS driver)
-sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^framebuffer_width/d; /^framebuffer_height/d' "$BOOT_CONFIG"
+# Clean previous resolution settings (re-added below if needed)
+sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^hdmi_drive/d; /^framebuffer_width/d; /^framebuffer_height/d' "$BOOT_CONFIG"
 
-info "GPU configured (vc4-kms-v3d, 256MB GPU memory)"
+# Auto-detect which HDMI port has a display connected
+# Pi 4 config.txt uses 0-based port index: HDMI-A-1 → :0, HDMI-A-2 → :1
+HDMI_SUFFIX=""
+HDMI_PORT=""
+for STATUS_FILE in /sys/class/drm/card*-HDMI-A-*/status; do
+  if [ -f "$STATUS_FILE" ] && [ "$(cat "$STATUS_FILE")" = "connected" ]; then
+    PORT_NAME=$(basename "$(dirname "$STATUS_FILE")")
+    PORT_NUM=$(echo "$PORT_NAME" | grep -oP 'HDMI-A-\K\d+')
+    HDMI_SUFFIX=":$((PORT_NUM - 1))"
+    HDMI_PORT="HDMI-A-${PORT_NUM}"
+    break
+  fi
+done
+HDMI_PORT=${HDMI_PORT:-HDMI-A-1}
 
-# ── Set custom resolution via KMS ────────────────────────
+if [ -n "$HDMI_SUFFIX" ]; then
+  info "Detected display on ${HDMI_PORT}"
+else
+  warn "Could not detect HDMI port, using default (HDMI-A-1)"
+fi
+
+# ── Set display resolution ───────────────────────────────
 if [ -n "$SCREEN_RESOLUTION" ]; then
+  # Custom resolution — use fkms + hdmi_cvt so non-standard modes
+  # like 1024x600 or 800x480 work (KMS doesn't support them natively)
   step "Setting display resolution to ${SCREEN_RESOLUTION}..."
+
+  RES_W=$(echo "$SCREEN_RESOLUTION" | cut -d'x' -f1)
+  RES_H=$(echo "$SCREEN_RESOLUTION" | cut -d'x' -f2)
+
+  # Switch to fkms (firmware handles display setup, supports custom modes)
+  sudo sed -i 's/^dtoverlay=vc4-kms-v3d/dtoverlay=vc4-fkms-v3d/' "$BOOT_CONFIG"
+  if ! grep -q '^dtoverlay=vc4-fkms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
+    echo "dtoverlay=vc4-fkms-v3d" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+  fi
+
+  # Add custom HDMI mode via hdmi_cvt for the detected port
+  cat << HDMIEOF | sudo tee -a "$BOOT_CONFIG" > /dev/null
+hdmi_group${HDMI_SUFFIX}=2
+hdmi_mode${HDMI_SUFFIX}=87
+hdmi_cvt${HDMI_SUFFIX}=${RES_W} ${RES_H} 60 3 0 0 0
+hdmi_drive${HDMI_SUFFIX}=2
+HDMIEOF
+
+  # Remove any video= params from cmdline (fkms handles resolution via config.txt)
   CMDLINE=$(cat "$CMDLINE_FILE" | tr -d '\n')
-
-  # Remove any existing video= parameter
-  CMDLINE=$(echo "$CMDLINE" | sed 's/ video=[^ ]*//')
-
-  # Add KMS-compatible resolution parameter (use wildcard to match any HDMI port)
-  CMDLINE="$CMDLINE video=${SCREEN_RESOLUTION}@60"
-
+  CMDLINE=$(echo "$CMDLINE" | sed 's/ video=[^ ]*//g')
   echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
-  info "Resolution set to ${SCREEN_RESOLUTION} via KMS (cmdline.txt)"
+
+  info "Resolution set to ${SCREEN_RESOLUTION} via fkms + hdmi_cvt"
+else
+  # Auto-detect — use KMS driver (modern, handles EDID natively)
+  if grep -q '^dtoverlay=vc4-fkms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
+    sudo sed -i 's/^dtoverlay=vc4-fkms-v3d/dtoverlay=vc4-kms-v3d/' "$BOOT_CONFIG"
+  elif ! grep -q '^dtoverlay=vc4-kms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
+    echo "dtoverlay=vc4-kms-v3d" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+  fi
+  info "GPU configured (vc4-kms-v3d, 256MB GPU memory, auto-detect resolution)"
 fi
 
 # ── Silent boot ──────────────────────────────────────────
@@ -412,9 +475,8 @@ fi
 if [ "$DISPLAY_ROTATION" != "normal" ] && [ -n "$DISPLAY_ROTATION" ]; then
   wlr-randr --output "$OUTPUT" --transform "$DISPLAY_ROTATION" 2>/dev/null || true
 fi
-if [ -n "$DISPLAY_SCALE" ] && [ "$DISPLAY_SCALE" != "1.0" ] && [ "$DISPLAY_SCALE" != "1" ]; then
-  wlr-randr --output "$OUTPUT" --scale "$DISPLAY_SCALE" 2>/dev/null || true
-fi
+# Scale is handled by Chromium's --force-device-scale-factor (not wlr-randr,
+# which has poor fractional scaling support on Pi)
 
 KIOSKEOF
 
@@ -440,6 +502,7 @@ exec ${CHROMIUM_BIN} \\
   --check-for-update-interval=31536000 \\
   --password-store=basic \\
   --disk-cache-size=104857600 \\
+  --force-device-scale-factor=${SCREEN_SCALE} \\
   "${KIOSK_URL}"
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
@@ -484,6 +547,99 @@ fi
 # Also override the system-wide labwc autostart to prevent panel
 if [ -f "/etc/xdg/labwc/autostart" ]; then
   grep -v 'wfpanel\|pcmanfm\|sfwbar' "/etc/xdg/labwc/autostart" | sudo tee "$HOME/.config/labwc/autostart" > /dev/null 2>&1 || true
+fi
+
+# ── Write initial display config ─────────────────────────
+# Map rotation degrees to wlr-randr transform name
+case "$SCREEN_ROTATION" in
+  90)  WLR_TRANSFORM="90"  ;;
+  180) WLR_TRANSFORM="180" ;;
+  270) WLR_TRANSFORM="270" ;;
+  *)   WLR_TRANSFORM="normal" ;;
+esac
+
+cat > "$HOME/bigaos-display.conf" << EOF
+DISPLAY_ROTATION=$WLR_TRANSFORM
+EOF
+info "Display config written (rotation: ${WLR_TRANSFORM})"
+
+# ── Configure touchscreen ─────────────────────────────────
+# Auto-detect USB touchscreen device
+TOUCH_DEVICE=$(libinput list-devices 2>/dev/null | awk '/^Device:/{name=$0} /Capabilities:.*touch/{print name; exit}' | sed 's/^Device: *//')
+
+# Detect compositor (labwc = Trixie, wayfire = Bookworm)
+COMPOSITOR=""
+if command -v labwc &> /dev/null; then
+  COMPOSITOR="labwc"
+elif command -v wayfire &> /dev/null; then
+  COMPOSITOR="wayfire"
+fi
+
+if [ -n "$TOUCH_DEVICE" ]; then
+  step "Configuring touchscreen: ${TOUCH_DEVICE}"
+
+  # Escape device name for XML (handle special chars)
+  TOUCH_DEVICE_XML=$(echo "$TOUCH_DEVICE" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
+
+  # Use HDMI port detected earlier
+  TOUCH_OUTPUT="$HDMI_PORT"
+
+  # Map rotation to libinput calibration matrix
+  case "$SCREEN_ROTATION" in
+    90)  CAL_MATRIX="0 -1 1 1 0 0 0 0 1" ;;
+    180) CAL_MATRIX="-1 0 1 0 -1 1 0 0 1" ;;
+    270) CAL_MATRIX="0 1 0 -1 0 1 0 0 1" ;;
+    *)   CAL_MATRIX="" ;;
+  esac
+
+  if [ "$COMPOSITOR" = "labwc" ]; then
+    # Write labwc rc.xml with touch mapping and calibration
+    if [ -n "$CAL_MATRIX" ]; then
+      cat > "$HOME/.config/labwc/rc.xml" << RCEOF
+<?xml version="1.0"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+        <touch deviceName="${TOUCH_DEVICE_XML}" mapToOutput="${TOUCH_OUTPUT}" mouseEmulation="no"/>
+        <libinput>
+                <device deviceName="${TOUCH_DEVICE_XML}">
+                        <calibrationMatrix>${CAL_MATRIX}</calibrationMatrix>
+                </device>
+        </libinput>
+</openbox_config>
+RCEOF
+    else
+      cat > "$HOME/.config/labwc/rc.xml" << RCEOF
+<?xml version="1.0"?>
+<openbox_config xmlns="http://openbox.org/3.4/rc">
+        <touch deviceName="${TOUCH_DEVICE_XML}" mapToOutput="${TOUCH_OUTPUT}" mouseEmulation="no"/>
+</openbox_config>
+RCEOF
+    fi
+    info "Touchscreen configured for labwc (device: ${TOUCH_DEVICE}, output: ${TOUCH_OUTPUT}, rotation: ${SCREEN_ROTATION}°)"
+
+  elif [ "$COMPOSITOR" = "wayfire" ]; then
+    # Wayfire uses libinput plugin in wayfire.ini for touch calibration
+    WAYFIRE_INI="$HOME/.config/wayfire.ini"
+    if [ -f "$WAYFIRE_INI" ]; then
+      # Remove existing touch calibration section if present
+      sed -i '/^\[QDTECH\|^\[touchscreen\|^\[libinput:/d' "$WAYFIRE_INI" 2>/dev/null || true
+      # Add touch device config
+      cat >> "$WAYFIRE_INI" << WFEOF
+
+[libinput:${TOUCH_DEVICE}]
+output = ${TOUCH_OUTPUT}
+WFEOF
+      if [ -n "$CAL_MATRIX" ]; then
+        echo "calibration_matrix = ${CAL_MATRIX}" >> "$WAYFIRE_INI"
+      fi
+      info "Touchscreen configured for wayfire (device: ${TOUCH_DEVICE}, output: ${TOUCH_OUTPUT}, rotation: ${SCREEN_ROTATION}°)"
+    else
+      warn "wayfire.ini not found — touch calibration not applied"
+    fi
+  else
+    warn "Unknown compositor — touch calibration not applied"
+  fi
+else
+  warn "No touchscreen detected — skipping touch configuration"
 fi
 
 info "Kiosk mode configured (desktop autologin → Chromium fullscreen)"
