@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-03-23T00:00:00Z",
+  "updatedAt": "2026-03-26T00:00:00Z",
   "plugins": [
     {
       "id": "bigaos-demo-driver",
@@ -159,7 +159,7 @@
       "author": "BigaOS Team",
       "type": "service",
       "flag": "official",
-      "latestVersion": "1.0.0",
+      "latestVersion": "1.1.0",
       "capabilities": [
         "settings",
         "network"
@@ -167,6 +167,12 @@
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-tailscale",
       "versions": [
+        {
+          "version": "1.1.0",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
+          "releaseDate": "2026-03-26",
+          "changelog": "Fix permissions (set operator in setup), add connect/disconnect loading & error feedback in UI"
+        },
         {
           "version": "1.0.0",
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
