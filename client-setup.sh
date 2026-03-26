@@ -2,13 +2,13 @@
 # BigaOS Client Setup Script for Raspberry Pi
 #
 # Sets up a Raspberry Pi as a BigaOS client with:
-#   - Cage kiosk mode (Wayland, boots straight into Chromium)
-#   - GPU-accelerated Chromium with touch support
+#   - Desktop kiosk mode (autologin → Chromium fullscreen, no desktop visible)
+#   - GPU-accelerated Chromium via Pi's native compositor
 #   - Client Agent (GPIO relay control + display settings via wlr-randr)
 #   - Plymouth boot animation (BigaOS branded)
 #   - Read-only filesystem (overlay FS for SD card protection)
 #
-# Tested on: Raspberry Pi OS Lite (Bookworm/Trixie, 64-bit)
+# Requires: Raspberry Pi OS Desktop (Bookworm/Trixie, 64-bit)
 #
 # Install: curl -sSL https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/client-setup.sh | bash
 
@@ -35,6 +35,8 @@ echo "  ─────────────────────"
 echo ""
 echo "  This script sets up a Raspberry Pi as a BigaOS display"
 echo "  with GPIO relay control and kiosk browser mode."
+echo ""
+echo "  Requires: Raspberry Pi OS Desktop (64-bit)"
 echo ""
 
 # ── Check not root ─────────────────────────────────────────
@@ -136,12 +138,16 @@ fi
 step "Updating package lists..."
 sudo apt-get update -qq
 
-# Install kiosk packages: cage (Wayland kiosk compositor) + greetd + seatd
-step "Installing kiosk display packages..."
-sudo apt-get install -y --no-install-recommends cage seatd greetd wlr-randr
-info "Kiosk packages installed (cage + greetd + seatd)"
+# Install wlr-randr for display control (resolution/rotation/scale)
+if ! command -v wlr-randr &> /dev/null; then
+  step "Installing wlr-randr..."
+  sudo apt-get install -y wlr-randr
+  info "wlr-randr installed"
+else
+  info "wlr-randr already installed"
+fi
 
-# Install Chromium
+# Chromium should already be installed on full RPi OS
 if ! command -v chromium-browser &> /dev/null && ! command -v chromium &> /dev/null; then
   step "Installing Chromium browser..."
   sudo apt-get install -y chromium-browser || sudo apt-get install -y chromium
@@ -254,7 +260,6 @@ if [ -f "$AGENT_DIR/package.json" ]; then
   info "Client Agent installed at $AGENT_DIR"
 else
   error "Agent package.json not found at $AGENT_DIR"
-  error "You may need to copy the client-agent folder from the BigaOS release manually."
   exit 1
 fi
 
@@ -317,12 +322,6 @@ if ! grep -q '^disable_splash' "$BOOT_CONFIG" 2>/dev/null; then
   echo "disable_splash=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
 fi
 
-# Enable both HDMI ports
-if ! grep -q 'hdmi_force_hotplug:0' "$BOOT_CONFIG"; then
-  echo "hdmi_force_hotplug:0=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
-  echo "hdmi_force_hotplug:1=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
-fi
-
 # Remove legacy resolution settings (don't work with KMS driver)
 sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^framebuffer_width/d; /^framebuffer_height/d' "$BOOT_CONFIG"
 
@@ -355,15 +354,12 @@ done
 echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
 info "Silent boot configured (quiet + splash)"
 
-# ── Configure greetd + cage (kiosk mode) ─────────────────
+# ── Configure desktop autologin + kiosk ──────────────────
 step "Configuring kiosk mode..."
 
-# Add user to GPU/seat groups required by cage
-sudo usermod -aG video,render "$USER"
-
-# Enable seatd (seat management for Wayland)
-sudo systemctl enable seatd
-sudo systemctl start seatd 2>/dev/null || true
+# Set desktop autologin via raspi-config (B4 = Desktop Autologin)
+sudo raspi-config nonint do_boot_behaviour B4
+info "Desktop autologin enabled"
 
 # Detect Chromium binary
 CHROMIUM_BIN="chromium-browser"
@@ -373,42 +369,60 @@ fi
 
 KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
 
-# Create kiosk launch script
-cat > "$HOME/bigaos-kiosk.sh" << KIOSKEOF
+# Create autostart directory
+mkdir -p "$HOME/.config/autostart"
+
+# Disable desktop panel, file manager, etc. from autostarting
+for DESKTOP_FILE in lxpanel pcmanfm; do
+  if [ -f "/etc/xdg/autostart/${DESKTOP_FILE}.desktop" ]; then
+    cp "/etc/xdg/autostart/${DESKTOP_FILE}.desktop" "$HOME/.config/autostart/${DESKTOP_FILE}.desktop"
+    echo "Hidden=true" >> "$HOME/.config/autostart/${DESKTOP_FILE}.desktop"
+  fi
+done
+
+# Create BigaOS kiosk autostart entry
+cat > "$HOME/.config/autostart/bigaos-kiosk.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=BigaOS Kiosk
+Exec=$HOME/bigaos-kiosk.sh
+X-GNOME-Autostart-enabled=true
+EOF
+
+# Create the kiosk launcher script
+cat > "$HOME/bigaos-kiosk.sh" << 'KIOSKEOF'
 #!/bin/bash
-# BigaOS Kiosk Launcher — launched by greetd via cage
+# BigaOS Kiosk Launcher — runs on desktop autostart
 
 # Source display config if saved by client-agent
-. "\$HOME/bigaos-display.conf" 2>/dev/null
+. "$HOME/bigaos-display.conf" 2>/dev/null
 
-# Apply saved display settings (after cage starts)
-(
-  sleep 2
-  if [ -n "\$DISPLAY_RESOLUTION" ]; then
-    wlr-randr --output HDMI-A-1 --mode "\$DISPLAY_RESOLUTION" 2>/dev/null || true
-  fi
-  if [ "\$DISPLAY_ROTATION" != "normal" ] && [ -n "\$DISPLAY_ROTATION" ]; then
-    wlr-randr --output HDMI-A-1 --transform "\$DISPLAY_ROTATION" 2>/dev/null || true
-  fi
-  if [ -n "\$DISPLAY_SCALE" ] && [ "\$DISPLAY_SCALE" != "1.0" ] && [ "\$DISPLAY_SCALE" != "1" ]; then
-    wlr-randr --output HDMI-A-1 --scale "\$DISPLAY_SCALE" 2>/dev/null || true
-  fi
-) &
+# Apply saved display settings
+sleep 2
+if [ -n "$DISPLAY_RESOLUTION" ]; then
+  wlr-randr --output HDMI-A-1 --mode "$DISPLAY_RESOLUTION" 2>/dev/null || true
+fi
+if [ "$DISPLAY_ROTATION" != "normal" ] && [ -n "$DISPLAY_ROTATION" ]; then
+  wlr-randr --output HDMI-A-1 --transform "$DISPLAY_ROTATION" 2>/dev/null || true
+fi
+if [ -n "$DISPLAY_SCALE" ] && [ "$DISPLAY_SCALE" != "1.0" ] && [ "$DISPLAY_SCALE" != "1" ]; then
+  wlr-randr --output HDMI-A-1 --scale "$DISPLAY_SCALE" 2>/dev/null || true
+fi
 
-# Launch Chromium with GPU acceleration and touch support
+KIOSKEOF
+
+# Append Chromium launch with the actual URL (not single-quoted)
+cat >> "$HOME/bigaos-kiosk.sh" << KIOSKEOF
+# Launch Chromium in kiosk mode
 exec ${CHROMIUM_BIN} \\
   --kiosk \\
-  --ozone-platform=wayland \\
+  --start-fullscreen \\
   --enable-gpu-rasterization \\
   --enable-zero-copy \\
   --ignore-gpu-blocklist \\
   --enable-features=CanvasOopRasterization \\
-  --disable-software-rasterizer \\
   --num-raster-threads=4 \\
   --enable-gpu-compositing \\
-  --disable-gpu-driver-bug-workarounds \\
-  --enable-oop-rasterization \\
-  --cursor-style=none \\
   --touch-events=enabled \\
   --noerrdialogs \\
   --disable-infobars \\
@@ -422,45 +436,45 @@ exec ${CHROMIUM_BIN} \\
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
 
-# Create transparent cursor theme to hide cursor on touchscreens
-CURSOR_DIR="$HOME/.icons/transparent/cursors"
-mkdir -p "$CURSOR_DIR"
-# Generate a 1x1 transparent cursor using printf (no ImageMagick needed)
-printf '\x00\x00\x02\x00\x01\x00\x01\x01\x00\x00\x01\x00\x20\x00\x30\x00\x00\x00\x16\x00\x00\x00\x28\x00\x00\x00\x01\x00\x00\x00\x02\x00\x00\x00\x01\x00\x20\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00' > "$CURSOR_DIR/default"
-for CURSOR_NAME in left_ptr pointer hand2 text xterm watch arrow top_left_arrow; do
-  ln -sf default "$CURSOR_DIR/$CURSOR_NAME" 2>/dev/null || true
-done
-cat > "$HOME/.icons/transparent/cursor.theme" << THEOF
-[Icon Theme]
-Name=transparent
-Comment=Transparent cursor for touchscreens
-THEOF
-
-# Set environment for cage (hide cursor, use transparent theme)
-mkdir -p "$HOME/.config/environment.d"
-cat > "$HOME/.config/environment.d/bigaos.conf" << ENVEOF
-WLR_NO_HARDWARE_CURSORS=1
-XCURSOR_THEME=transparent
-XCURSOR_SIZE=1
-ENVEOF
-
-# Configure greetd to launch cage with the kiosk script
-sudo tee /etc/greetd/config.toml > /dev/null << EOF
-[terminal]
-vt = 7
-
-[default_session]
-command = "cage -s -- $HOME/bigaos-kiosk.sh"
-user = "$USER"
+# Hide mouse cursor for touchscreen (unclutter hides after 0.1s idle)
+if ! command -v unclutter &> /dev/null; then
+  sudo apt-get install -y unclutter
+fi
+cat > "$HOME/.config/autostart/hide-cursor.desktop" << EOF
+[Desktop Entry]
+Type=Application
+Name=Hide Cursor
+Exec=unclutter -idle 0.1 -root
+X-GNOME-Autostart-enabled=true
 EOF
 
-# Disable LightDM if present (conflicts with greetd)
-sudo systemctl disable lightdm 2>/dev/null || true
-sudo rm -f /etc/systemd/system/display-manager.service
+# Set blank desktop wallpaper (black) to avoid seeing desktop between boot and Chromium
+if command -v pcmanfm &> /dev/null; then
+  mkdir -p "$HOME/.config/pcmanfm/LXDE-pi"
+  cat > "$HOME/.config/pcmanfm/LXDE-pi/desktop-items-0.conf" << EOF
+[*]
+wallpaper_mode=color
+desktop_bg=#000000
+show_documents=0
+show_trash=0
+show_mounts=0
+EOF
+fi
 
-sudo systemctl enable greetd
-sudo systemctl set-default graphical.target
-info "Kiosk mode configured (greetd → cage → Chromium)"
+# For wayfire (Bookworm default): set background to black
+if [ -f "$HOME/.config/wayfire.ini" ]; then
+  # Hide panel and set black background
+  sed -i 's/^autostart_wf_panel\s*=.*/# autostart_wf_panel = /' "$HOME/.config/wayfire.ini" 2>/dev/null || true
+fi
+
+# For labwc (Trixie default): disable desktop extras
+mkdir -p "$HOME/.config/labwc"
+if [ -f "$HOME/.config/labwc/autostart" ]; then
+  # Remove panel/background entries if present
+  sed -i '/wfpanel/d; /pcmanfm --desktop/d' "$HOME/.config/labwc/autostart" 2>/dev/null || true
+fi
+
+info "Kiosk mode configured (desktop autologin → Chromium fullscreen)"
 echo "    URL: ${KIOSK_URL}"
 
 # ── Sudoers for service management ────────────────────────
@@ -508,14 +522,14 @@ echo "  ┌───────────────────────
 echo "  │  Setup Complete!                                 │"
 echo "  │                                                  │"
 echo "  │  After reboot:                                   │"
-echo "  │  • Chromium opens BigaOS in kiosk mode           │"
-echo "  │  • GPU-accelerated rendering enabled             │"
-echo "  │  • Touch input enabled                           │"
+echo "  │  • Desktop autologins and launches Chromium      │"
+echo "  │  • GPU acceleration via Pi's native compositor   │"
+echo "  │  • Touch input enabled, cursor hidden            │"
 echo "  │  • Client Agent connects to the server           │"
 echo "  │  • Relay control is ready                        │"
 echo "  │                                                  │"
 echo "  │  Display settings (resolution, rotation, zoom)   │"
-echo "  │  can be changed from BigaOS Settings → Clients.  │"
+echo "  │  can be changed from BigaOS Settings → Display.  │"
 echo "  │                                                  │"
 echo "  │  Useful commands:                                │"
 echo "  │  • journalctl -u bigaos-agent -f  (agent logs)  │"
