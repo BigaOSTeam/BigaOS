@@ -346,7 +346,7 @@ fi
 step "Configuring silent boot..."
 
 CMDLINE=$(cat "$CMDLINE_FILE" | tr -d '\n')
-for PARAM in quiet splash "loglevel=3" "vt.global_cursor_default=0"; do
+for PARAM in quiet splash "loglevel=3" "vt.global_cursor_default=0" "plymouth.ignore-serial-consoles"; do
   if ! echo "$CMDLINE" | grep -q "$PARAM"; then
     CMDLINE="$CMDLINE $PARAM"
   fi
@@ -394,11 +394,14 @@ cat > "$HOME/bigaos-kiosk.sh" << 'KIOSKEOF'
 #!/bin/bash
 # BigaOS Kiosk Launcher — runs on desktop autostart
 
+# Dismiss Plymouth boot animation now that we're about to launch Chromium
+plymouth quit --retain-splash 2>/dev/null &
+
 # Source display config if saved by client-agent
 . "$HOME/bigaos-display.conf" 2>/dev/null
 
 # Apply saved display settings
-sleep 2
+sleep 1
 if [ -n "$DISPLAY_RESOLUTION" ]; then
   wlr-randr --output HDMI-A-1 --mode "$DISPLAY_RESOLUTION" 2>/dev/null || true
 fi
@@ -417,10 +420,11 @@ cat >> "$HOME/bigaos-kiosk.sh" << KIOSKEOF
 exec ${CHROMIUM_BIN} \\
   --kiosk \\
   --start-fullscreen \\
+  --ozone-platform=wayland \\
   --enable-gpu-rasterization \\
   --enable-zero-copy \\
   --ignore-gpu-blocklist \\
-  --enable-features=CanvasOopRasterization \\
+  --enable-features=CanvasOopRasterization,TouchpadOverscrollHistoryNavigation \\
   --num-raster-threads=4 \\
   --enable-gpu-compositing \\
   --touch-events=enabled \\
@@ -467,11 +471,15 @@ if [ -f "$HOME/.config/wayfire.ini" ]; then
   sed -i 's/^autostart_wf_panel\s*=.*/# autostart_wf_panel = /' "$HOME/.config/wayfire.ini" 2>/dev/null || true
 fi
 
-# For labwc (Trixie default): disable desktop extras
+# For labwc (Trixie default): disable panel and desktop background
 mkdir -p "$HOME/.config/labwc"
+# Remove panel and desktop manager from labwc autostart
 if [ -f "$HOME/.config/labwc/autostart" ]; then
-  # Remove panel/background entries if present
-  sed -i '/wfpanel/d; /pcmanfm --desktop/d' "$HOME/.config/labwc/autostart" 2>/dev/null || true
+  sed -i '/wfpanel/d; /pcmanfm/d; /sfwbar/d' "$HOME/.config/labwc/autostart" 2>/dev/null || true
+fi
+# Also override the system-wide labwc autostart to prevent panel
+if [ -f "/etc/xdg/labwc/autostart" ]; then
+  grep -v 'wfpanel\|pcmanfm\|sfwbar' "/etc/xdg/labwc/autostart" | sudo tee "$HOME/.config/labwc/autostart" > /dev/null 2>&1 || true
 fi
 
 info "Kiosk mode configured (desktop autologin → Chromium fullscreen)"
