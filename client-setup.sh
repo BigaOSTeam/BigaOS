@@ -335,8 +335,8 @@ if [ -n "$SCREEN_RESOLUTION" ]; then
   # Remove any existing video= parameter
   CMDLINE=$(echo "$CMDLINE" | sed 's/ video=[^ ]*//')
 
-  # Add KMS-compatible resolution parameter
-  CMDLINE="$CMDLINE video=HDMI-A-1:${SCREEN_RESOLUTION}@60"
+  # Add KMS-compatible resolution parameter (use wildcard to match any HDMI port)
+  CMDLINE="$CMDLINE video=${SCREEN_RESOLUTION}@60"
 
   echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
   info "Resolution set to ${SCREEN_RESOLUTION} via KMS (cmdline.txt)"
@@ -400,16 +400,20 @@ plymouth quit --retain-splash 2>/dev/null &
 # Source display config if saved by client-agent
 . "$HOME/bigaos-display.conf" 2>/dev/null
 
-# Apply saved display settings
+# Auto-detect connected output name
 sleep 1
+OUTPUT=$(wlr-randr 2>/dev/null | grep -oP '^\S+' | head -1)
+OUTPUT=${OUTPUT:-HDMI-A-1}
+
+# Apply saved display settings
 if [ -n "$DISPLAY_RESOLUTION" ]; then
-  wlr-randr --output HDMI-A-1 --mode "$DISPLAY_RESOLUTION" 2>/dev/null || true
+  wlr-randr --output "$OUTPUT" --mode "$DISPLAY_RESOLUTION" 2>/dev/null || true
 fi
 if [ "$DISPLAY_ROTATION" != "normal" ] && [ -n "$DISPLAY_ROTATION" ]; then
-  wlr-randr --output HDMI-A-1 --transform "$DISPLAY_ROTATION" 2>/dev/null || true
+  wlr-randr --output "$OUTPUT" --transform "$DISPLAY_ROTATION" 2>/dev/null || true
 fi
 if [ -n "$DISPLAY_SCALE" ] && [ "$DISPLAY_SCALE" != "1.0" ] && [ "$DISPLAY_SCALE" != "1" ]; then
-  wlr-randr --output HDMI-A-1 --scale "$DISPLAY_SCALE" 2>/dev/null || true
+  wlr-randr --output "$OUTPUT" --scale "$DISPLAY_SCALE" 2>/dev/null || true
 fi
 
 KIOSKEOF
