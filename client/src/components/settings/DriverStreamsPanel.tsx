@@ -75,12 +75,34 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
   const [debugExpanded, setDebugExpanded] = useState(false);
   const [advancedExpanded, setAdvancedExpanded] = useState(false);
   const [magCalActive, setMagCalActive] = useState(false);
+  const [actionLoading, setActionLoading] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const configSchema = plugin.manifest.configSchema || plugin.manifest.driver?.configSchema || [];
   const isDriver = plugin.manifest.type === 'driver';
   const isMacArthur = plugin.id === 'bigaos-macarthur-hat';
   const imuCalStatus = pluginActionResults['bigaos-macarthur-hat:imu_calibration_status'];
   const pluginStatus = pluginActionResults[`${plugin.id}:getStatus`];
+
+  // Handle connect/disconnect action with loading + error feedback
+  const handleAction = useCallback((action: 'connect' | 'disconnect') => {
+    setActionLoading(action);
+    setActionError(null);
+    executePluginAction(plugin.id, action);
+  }, [plugin.id, executePluginAction]);
+
+  // Watch for connect/disconnect results to clear loading and show errors
+  const connectResult = pluginActionResults[`${plugin.id}:connect`];
+  const disconnectResult = pluginActionResults[`${plugin.id}:disconnect`];
+  useEffect(() => {
+    if (!actionLoading) return;
+    const result = actionLoading === 'connect' ? connectResult : disconnectResult;
+    if (!result) return;
+    if (result.error) {
+      setActionError(result.error);
+    }
+    setActionLoading(null);
+  }, [actionLoading, connectResult, disconnectResult]);
 
   // Poll plugin status via getStatus RPC (non-driver plugins)
   useEffect(() => {
@@ -429,7 +451,7 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
         </div>
 
         {/* Plugin Status Section (non-driver plugins with getStatus action) */}
-        {!isDriver && pluginStatus && !pluginStatus.error && (
+        {!isDriver && pluginStatus && (
           <div style={{
             padding: theme.space.md,
             background: theme.colors.bgCard,
@@ -492,23 +514,41 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
               </div>
             )}
 
+            {/* Action error display */}
+            {actionError && (
+              <div style={{
+                padding: theme.space.sm,
+                marginTop: theme.space.sm,
+                background: `${theme.colors.error}15`,
+                border: `1px solid ${theme.colors.error}40`,
+                borderRadius: theme.radius.sm,
+                fontSize: theme.fontSize.sm,
+                color: theme.colors.error,
+                wordBreak: 'break-word',
+              }}>
+                {actionError}
+              </div>
+            )}
+
             {/* Connect / Disconnect buttons */}
             <div style={{ display: 'flex', gap: theme.space.sm, marginTop: theme.space.md }}>
               {pluginStatus.connected ? (
                 <SButton
                   variant="danger"
                   fullWidth
-                  onClick={() => executePluginAction(plugin.id, 'disconnect')}
+                  disabled={!!actionLoading}
+                  onClick={() => handleAction('disconnect')}
                 >
-                  {t('plugins.disconnect') || 'Disconnect'}
+                  {actionLoading === 'disconnect' ? (t('common.loading') || 'Loading...') : (t('plugins.disconnect') || 'Disconnect')}
                 </SButton>
               ) : (
                 <SButton
                   variant="primary"
                   fullWidth
-                  onClick={() => executePluginAction(plugin.id, 'connect')}
+                  disabled={!!actionLoading}
+                  onClick={() => handleAction('connect')}
                 >
-                  {t('plugins.connect') || 'Connect'}
+                  {actionLoading === 'connect' ? (t('common.loading') || 'Connecting...') : (t('plugins.connect') || 'Connect')}
                 </SButton>
               )}
             </div>

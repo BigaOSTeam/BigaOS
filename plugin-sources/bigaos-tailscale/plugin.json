@@ -1,7 +1,7 @@
 {
   "id": "bigaos-tailscale",
   "name": "Tailscale VPN",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere.",
   "author": "BigaOS Team",
   "type": "service",
@@ -9,6 +9,7 @@
   "flag": "official",
   "capabilities": ["settings", "network"],
   "versions": [
+    { "version": "1.1.0", "date": "2026-03-26", "changelog": "Fix permissions (set operator in setup), add connect/disconnect loading & error feedback in UI" },
     { "version": "1.0.0", "date": "2026-03-23", "changelog": "Initial release" }
   ],
   "configSchema": [
