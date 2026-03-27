@@ -470,11 +470,35 @@ fi
 KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
 
 # Install packages for bare kiosk (no desktop environment)
-if ! command -v unclutter &> /dev/null; then
-  sudo apt-get install -y unclutter
-fi
 if ! command -v swaybg &> /dev/null; then
   sudo apt-get install -y swaybg 2>/dev/null || true
+fi
+sudo apt-get install -y wtype 2>/dev/null || true
+
+# Build labwc from source (0.9.5+ needed for HideCursor + touch auto-hide cursor)
+LABWC_VER=$(labwc --version 2>/dev/null | grep -oP '[\d.]+' | head -1)
+if [ "$(printf '%s\n' "0.9.5" "$LABWC_VER" | sort -V | head -1)" != "0.9.5" ]; then
+  step "Building labwc 0.9.5+ (cursor hiding for kiosk)..."
+  sudo apt-get install -y build-essential meson ninja-build libffi-dev \
+    libxml2-dev libwayland-dev wayland-protocols libdrm-dev libgbm-dev \
+    libegl-dev libgles2-mesa-dev libinput-dev libudev-dev libpixman-1-dev \
+    libseat-dev libxcb1-dev libxcb-composite0-dev libxcb-render0-dev \
+    libxcb-xfixes0-dev libxcb-xinput-dev libxcb-shm0-dev libxcb-icccm4-dev \
+    libxcb-res0-dev libxkbcommon-dev libcairo2-dev libpango1.0-dev \
+    libglib2.0-dev libpng-dev libexpat1-dev hwdata xwayland glslang-tools \
+    2>/dev/null || true
+  LABWC_BUILD=$(mktemp -d)
+  if git clone --depth 1 https://github.com/labwc/labwc.git "$LABWC_BUILD/labwc" 2>/dev/null; then
+    cd "$LABWC_BUILD/labwc"
+    if meson setup build --prefix=/usr 2>/dev/null && ninja -C build 2>/dev/null; then
+      sudo ninja -C build install
+      info "labwc $(labwc --version 2>/dev/null | grep -oP '[\d.]+' | head -1) built and installed"
+    else
+      warn "labwc build failed — cursor may be visible on boot"
+    fi
+    cd - > /dev/null
+  fi
+  rm -rf "$LABWC_BUILD"
 fi
 
 # Create the kiosk launcher script
@@ -486,7 +510,6 @@ cat > "$HOME/bigaos-kiosk.sh" << 'KIOSKEOF'
 . "$HOME/bigaos-display.conf" 2>/dev/null
 
 # Auto-detect connected output name
-sleep 0.5
 OUTPUT=$(wlr-randr 2>/dev/null | grep -oP '^\S+' | head -1)
 OUTPUT=${OUTPUT:-HDMI-A-1}
 
@@ -528,9 +551,7 @@ ${CHROMIUM_BIN} \\
   --force-device-scale-factor=\$SCALE \\
   "${KIOSK_URL}" &
 
-# Dismiss boot splash after Chromium has had time to render
-sleep 3
-plymouth quit --retain-splash 2>/dev/null
+# Wait for Chromium to exit (keeps labwc alive)
 wait
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
@@ -539,8 +560,8 @@ chmod +x "$HOME/bigaos-kiosk.sh"
 mkdir -p "$HOME/.config/labwc"
 cat > "$HOME/.config/labwc/autostart" << 'LABWCEOF'
 swaybg -c '#000000' &
-unclutter -idle 0.1 -root &
 /home/$USER/bigaos-kiosk.sh &
+sleep 1 && wtype -M logo -k h -m logo &
 LABWCEOF
 # Fix $USER in the autostart file (written inside single-quoted heredoc)
 sed -i "s|\$USER|$USER|g" "$HOME/.config/labwc/autostart"
@@ -559,8 +580,16 @@ if command -v greetd &> /dev/null; then
   sudo systemctl disable lightdm 2>/dev/null || true
   sudo systemctl disable gdm 2>/dev/null || true
 
-  # Boot to multi-user (no graphical.target desktop session)
-  sudo systemctl set-default multi-user.target
+  # greetd is a display manager — needs graphical.target
+  sudo systemctl set-default graphical.target
+
+  # Create greetd launcher that dismisses Plymouth just before labwc takes DRM
+  cat > "$HOME/bigaos-greetd.sh" << 'GREETEOF'
+#!/bin/bash
+plymouth quit --retain-splash 2>/dev/null
+exec labwc
+GREETEOF
+  chmod +x "$HOME/bigaos-greetd.sh"
 
   # Configure greetd: autologin → labwc (bare compositor)
   sudo mkdir -p /etc/greetd
@@ -569,7 +598,7 @@ if command -v greetd &> /dev/null; then
 vt = 7
 
 [default_session]
-command = "labwc"
+command = "/home/$USER/bigaos-greetd.sh"
 user = "$USER"
 EOF
 
@@ -674,6 +703,11 @@ if [ -n "$TOUCH_DEVICE" ]; then
                         <calibrationMatrix>${CAL_MATRIX}</calibrationMatrix>
                 </device>
         </libinput>
+        <keyboard>
+                <keybind key="W-h">
+                        <action name="HideCursor"/>
+                </keybind>
+        </keyboard>
 </openbox_config>
 RCEOF
     else
@@ -681,6 +715,11 @@ RCEOF
 <?xml version="1.0"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
         <touch deviceName="${TOUCH_DEVICE_XML}" mapToOutput="${TOUCH_OUTPUT}" mouseEmulation="no"/>
+        <keyboard>
+                <keybind key="W-h">
+                        <action name="HideCursor"/>
+                </keybind>
+        </keyboard>
 </openbox_config>
 RCEOF
     fi
