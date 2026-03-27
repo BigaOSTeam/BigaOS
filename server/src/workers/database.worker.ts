@@ -164,49 +164,31 @@ function addEvent(type: string, category: string, message: string, details: any)
  * Execute a read query
  */
 function query(sql: string, params: any[]): any[] {
-  if (!db) return [];
-
-  try {
-    const stmt = db.prepare(sql);
-    return stmt.all(...params);
-  } catch (error) {
-    console.error('[DB Worker] Query error:', error);
-    return [];
-  }
+  if (!db) throw new Error('Database not initialized');
+  const stmt = db.prepare(sql);
+  return stmt.all(...params);
 }
 
 /**
  * Execute a read query returning single row
  */
 function queryOne(sql: string, params: any[]): any {
-  if (!db) return null;
-
-  try {
-    const stmt = db.prepare(sql);
-    return stmt.get(...params);
-  } catch (error) {
-    console.error('[DB Worker] Query error:', error);
-    return null;
-  }
+  if (!db) throw new Error('Database not initialized');
+  const stmt = db.prepare(sql);
+  return stmt.get(...params);
 }
 
 /**
  * Execute a write statement
  */
 function execute(sql: string, params: any[]): { changes: number; lastInsertRowid: number } {
-  if (!db) return { changes: 0, lastInsertRowid: 0 };
-
-  try {
-    const stmt = db.prepare(sql);
-    const result = stmt.run(...params);
-    return {
-      changes: result.changes,
-      lastInsertRowid: Number(result.lastInsertRowid)
-    };
-  } catch (error) {
-    console.error('[DB Worker] Execute error:', error);
-    return { changes: 0, lastInsertRowid: 0 };
-  }
+  if (!db) throw new Error('Database not initialized');
+  const stmt = db.prepare(sql);
+  const result = stmt.run(...params);
+  return {
+    changes: result.changes,
+    lastInsertRowid: Number(result.lastInsertRowid)
+  };
 }
 
 /**

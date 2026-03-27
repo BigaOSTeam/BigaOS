@@ -171,7 +171,7 @@ fi
 # ── Install system packages ───────────────────────────────
 step "Updating system packages..."
 sudo apt-get update -qq
-sudo apt-get upgrade -y
+sudo DEBIAN_FRONTEND=noninteractive apt-get upgrade -y -o Dpkg::Options::="--force-confold"
 
 # Install wlr-randr for display control (resolution/rotation)
 if ! command -v wlr-randr &> /dev/null; then
