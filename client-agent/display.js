@@ -1,23 +1,40 @@
 /**
- * Display control module using wlr-randr
+ * Display control module
  *
- * Controls resolution, rotation, and persists settings to a config file.
- * Works with any wlroots-based compositor (cage, labwc, sway).
+ * Controls resolution and rotation via wlr-randr.
+ * Scale/zoom via Chromium's --force-device-scale-factor (wlr-randr fractional
+ * scaling looks bad on Pi, so scale changes require a Chromium restart).
+ *
+ * Also updates labwc touch calibration matrix when rotation changes.
  */
 
 const { exec } = require('child_process');
-const { readFileSync, writeFileSync } = require('fs');
+const { readFileSync, writeFileSync, existsSync } = require('fs');
 const { join } = require('path');
 
-const CONFIG_JSON = join(process.env.HOME || '/home/bigaos', 'bigaos-display.json');
-const CONFIG_SHELL = join(process.env.HOME || '/home/bigaos', 'bigaos-display.conf');
+const HOME = process.env.HOME || '/home/bigaos';
+const CONFIG_JSON = join(HOME, 'bigaos-display.json');
+const CONFIG_SHELL = join(HOME, 'bigaos-display.conf');
+const LABWC_RC = join(HOME, '.config/labwc/rc.xml');
+
+// Calibration matrices for touch rotation
+const CALIBRATION_MATRICES = {
+  '90':  '0 -1 1 1 0 0 0 0 1',
+  '180': '-1 0 1 0 -1 1 0 0 1',
+  '270': '0 1 0 -1 0 1 0 0 1',
+};
 
 /**
- * Run a shell command and return stdout.
+ * Run a shell command with Wayland environment.
  */
 function run(cmd) {
+  const env = {
+    ...process.env,
+    XDG_RUNTIME_DIR: process.env.XDG_RUNTIME_DIR || `/run/user/${process.getuid?.() || 1000}`,
+    WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || 'wayland-0',
+  };
   return new Promise((resolve, reject) => {
-    exec(cmd, { timeout: 5000 }, (error, stdout, stderr) => {
+    exec(cmd, { timeout: 5000, env }, (error, stdout, stderr) => {
       if (error) {
         reject(new Error(`${cmd} failed: ${stderr || error.message}`));
       } else {
@@ -29,15 +46,6 @@ function run(cmd) {
 
 /**
  * Parse wlr-randr output into structured display info.
- *
- * Example wlr-randr output:
- *   HDMI-A-1 "..." (enabled)
- *     Modes:
- *       1920x1080 px, 60.000000 Hz (preferred, current)
- *       1024x800 px, 60.000000 Hz
- *     Position: 0,0
- *     Transform: normal
- *     Scale: 1.000000
  */
 function parseWlrRandr(output) {
   const result = { output: '', currentMode: '', currentTransform: 'normal', currentScale: 1.0, availableModes: [] };
@@ -87,63 +95,131 @@ async function getDisplayInfo() {
   const output = await run('wlr-randr');
   const info = parseWlrRandr(output);
   const config = getConfig();
+  // Report scale from config (Chromium flag) not wlr-randr
+  info.currentScale = config.scale || 1.0;
   return { ...info, config };
 }
 
 /**
  * Set display resolution via wlr-randr.
- * @param {string} outputName - e.g., "HDMI-A-1"
- * @param {string} mode - e.g., "1024x800" or "1920x1080"
  */
 async function setResolution(outputName, mode) {
-  // Strip Hz suffix if present for the --mode flag
   const modeClean = mode.replace(/@\d+Hz$/, '');
   await run(`wlr-randr --output ${outputName} --mode ${modeClean}`);
   console.log(`[Display] Resolution set to ${modeClean} on ${outputName}`);
 }
 
 /**
- * Set display rotation/transform via wlr-randr.
- * @param {string} outputName - e.g., "HDMI-A-1"
- * @param {string} transform - "normal", "90", "180", "270"
+ * Set display rotation via wlr-randr and update touch calibration.
  */
 async function setRotation(outputName, transform) {
   await run(`wlr-randr --output ${outputName} --transform ${transform}`);
   console.log(`[Display] Transform set to ${transform} on ${outputName}`);
+  updateTouchCalibration(outputName, transform);
 }
 
 /**
- * Set display scale/zoom via wlr-randr.
- * Scale > 1 = zoom in (things appear bigger), < 1 = zoom out.
- * @param {string} outputName - e.g., "HDMI-A-1"
- * @param {number} scale - e.g., 1.0, 1.5, 2.0
+ * Set display scale by saving config and restarting Chromium.
+ * wlr-randr fractional scaling looks bad on Pi, so we use
+ * Chromium's --force-device-scale-factor instead.
  */
-async function setScale(outputName, scale) {
-  await run(`wlr-randr --output ${outputName} --scale ${scale}`);
-  console.log(`[Display] Scale set to ${scale} on ${outputName}`);
+async function setScale(_outputName, scale) {
+  console.log(`[Display] Scale set to ${scale} (Chromium restart needed)`);
+  // Scale is applied by restarting Chromium in the caller
 }
 
 /**
- * Read persisted display config. Returns defaults if file missing.
+ * Restart Chromium kiosk to apply new scale factor.
+ * The kiosk script reads DISPLAY_SCALE from bigaos-display.conf.
+ */
+async function restartChromium() {
+  try {
+    await run('pkill -f chromium');
+    console.log('[Display] Chromium killed, kiosk script will relaunch');
+  } catch {
+    console.log('[Display] No Chromium process found to restart');
+  }
+}
+
+/**
+ * Update labwc touch calibration matrix to match rotation.
+ */
+function updateTouchCalibration(outputName, transform) {
+  if (!existsSync(LABWC_RC)) return;
+
+  try {
+    const rc = readFileSync(LABWC_RC, 'utf8');
+
+    // Extract device name from existing rc.xml
+    const deviceMatch = rc.match(/deviceName="([^"]+)"/);
+    if (!deviceMatch) return;
+    const deviceName = deviceMatch[1];
+
+    const calMatrix = CALIBRATION_MATRICES[transform];
+
+    let newRc;
+    if (calMatrix) {
+      newRc = [
+        '<?xml version="1.0"?>',
+        '<openbox_config xmlns="http://openbox.org/3.4/rc">',
+        `        <touch deviceName="${deviceName}" mapToOutput="${outputName}" mouseEmulation="no"/>`,
+        '        <libinput>',
+        `                <device deviceName="${deviceName}">`,
+        `                        <calibrationMatrix>${calMatrix}</calibrationMatrix>`,
+        '                </device>',
+        '        </libinput>',
+        '</openbox_config>',
+      ].join('\n');
+    } else {
+      newRc = [
+        '<?xml version="1.0"?>',
+        '<openbox_config xmlns="http://openbox.org/3.4/rc">',
+        `        <touch deviceName="${deviceName}" mapToOutput="${outputName}" mouseEmulation="no"/>`,
+        '</openbox_config>',
+      ].join('\n');
+    }
+
+    writeFileSync(LABWC_RC, newRc + '\n');
+    console.log(`[Display] Touch calibration updated for ${transform}`);
+  } catch (err) {
+    console.error(`[Display] Failed to update touch calibration: ${err.message}`);
+  }
+}
+
+/**
+ * Read persisted display config.
+ * Tries JSON first, falls back to parsing the shell conf (written by setup script).
  */
 function getConfig() {
   try {
     return JSON.parse(readFileSync(CONFIG_JSON, 'utf8'));
   } catch {
-    return { resolution: '', rotation: 'normal', scale: 1.0 };
+    // Fall back to shell conf (setup script writes this but not the JSON)
+    try {
+      const shell = readFileSync(CONFIG_SHELL, 'utf8');
+      const get = (key) => {
+        const m = shell.match(new RegExp(`^${key}="?([^"\\n]*)"?`, 'm'));
+        return m ? m[1] : '';
+      };
+      return {
+        resolution: get('DISPLAY_RESOLUTION') || '',
+        rotation: get('DISPLAY_ROTATION') || 'normal',
+        scale: parseFloat(get('DISPLAY_SCALE')) || 1.0,
+      };
+    } catch {
+      return { resolution: '', rotation: 'normal', scale: 1.0 };
+    }
   }
 }
 
 /**
- * Save display config to both JSON (for agent) and shell (for autostart).
+ * Save display config to both JSON (for agent) and shell (for kiosk autostart).
  */
 function saveConfig(config) {
   const merged = { ...getConfig(), ...config };
 
-  // JSON config for agent
   writeFileSync(CONFIG_JSON, JSON.stringify(merged, null, 2) + '\n');
 
-  // Shell-sourceable config for kiosk autostart
   const shell = [
     `DISPLAY_RESOLUTION="${merged.resolution || ''}"`,
     `DISPLAY_ROTATION="${merged.rotation || 'normal'}"`,
@@ -156,4 +232,4 @@ function saveConfig(config) {
   return merged;
 }
 
-module.exports = { getDisplayInfo, setResolution, setRotation, setScale, getConfig, saveConfig };
+module.exports = { getDisplayInfo, setResolution, setRotation, setScale, restartChromium, getConfig, saveConfig };

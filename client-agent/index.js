@@ -18,7 +18,7 @@
 
 const { io } = require('socket.io-client');
 const { setPin, initializePins } = require('./gpio');
-const { getDisplayInfo, setResolution, setRotation, setScale, getConfig, saveConfig } = require('./display');
+const { getDisplayInfo, setResolution, setRotation, setScale, restartChromium, getConfig, saveConfig } = require('./display');
 
 // ── Configuration ──────────────────────────────────────────
 const SERVER_URL = process.env.BIGAOS_SERVER_URL;
@@ -141,17 +141,21 @@ socket.on('display_set', async (data) => {
       await setRotation(outputName, data.rotation);
     }
 
-    // Apply scale/zoom
-    if (data.scale !== undefined) {
-      await setScale(outputName, data.scale);
-    }
+    // Check if scale actually changed before restarting Chromium
+    const oldConfig = getConfig();
+    const scaleChanged = data.scale !== undefined && data.scale !== (oldConfig.scale ?? 1.0);
 
-    // Persist config
+    // Persist config (includes scale for Chromium restart)
     const config = saveConfig({
       ...(data.resolution && { resolution: data.resolution }),
       ...(data.rotation && { rotation: data.rotation }),
       ...(data.scale !== undefined && { scale: data.scale }),
     });
+
+    // Only restart Chromium if scale actually changed
+    if (scaleChanged) {
+      await restartChromium();
+    }
 
     socket.emit('display_set_result', { success: true, config });
     console.log('[Agent] Display settings applied');

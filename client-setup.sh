@@ -314,6 +314,8 @@ User=$USER
 WorkingDirectory=$AGENT_DIR
 Environment="BIGAOS_SERVER_URL=${SERVER_URL}"
 Environment="BIGAOS_CLIENT_ID=${CLIENT_ID}"
+Environment="XDG_RUNTIME_DIR=/run/user/$(id -u)"
+Environment="WAYLAND_DISPLAY=wayland-0"
 ExecStart=$NODE_BIN $AGENT_DIR/index.js
 Restart=always
 RestartSec=5
@@ -497,6 +499,7 @@ if [ "$DISPLAY_ROTATION" != "normal" ] && [ -n "$DISPLAY_ROTATION" ]; then
 fi
 # Scale is handled by Chromium's --force-device-scale-factor (not wlr-randr,
 # which has poor fractional scaling support on Pi)
+SCALE=${DISPLAY_SCALE:-1.0}
 
 KIOSKEOF
 
@@ -522,7 +525,7 @@ exec ${CHROMIUM_BIN} \\
   --check-for-update-interval=31536000 \\
   --password-store=basic \\
   --disk-cache-size=104857600 \\
-  --force-device-scale-factor=${SCREEN_SCALE} \\
+  --force-device-scale-factor=\$SCALE \\
   "${KIOSK_URL}"
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
@@ -580,8 +583,17 @@ esac
 
 cat > "$HOME/bigaos-display.conf" << EOF
 DISPLAY_ROTATION=$WLR_TRANSFORM
+DISPLAY_SCALE=$SCREEN_SCALE
 EOF
-info "Display config written (rotation: ${WLR_TRANSFORM})"
+
+cat > "$HOME/bigaos-display.json" << EOF
+{
+  "resolution": "",
+  "rotation": "$WLR_TRANSFORM",
+  "scale": $SCREEN_SCALE
+}
+EOF
+info "Display config written (rotation: ${WLR_TRANSFORM}, scale: ${SCREEN_SCALE}x)"
 
 # ── Configure touchscreen ─────────────────────────────────
 # Auto-detect USB touchscreen device
