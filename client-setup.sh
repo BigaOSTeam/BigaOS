@@ -134,6 +134,14 @@ read -p "  Scale [1.0]: " SCREEN_SCALE < /dev/tty
 SCREEN_SCALE=${SCREEN_SCALE:-1.0}
 echo
 
+# Disable WiFi/Bluetooth
+echo "  Disable WiFi and Bluetooth? (saves power, reduces interference)"
+echo "    Only do this if using ethernet."
+echo ""
+read -p "  Disable WiFi/Bluetooth? [y/N] " -n 1 -r DISABLE_WIRELESS < /dev/tty
+echo
+echo
+
 echo ""
 info "Configuration:"
 echo "    Server:     ${SERVER_URL}"
@@ -141,6 +149,7 @@ echo "    Client ID:  ${CLIENT_ID}"
 echo "    Resolution: ${SCREEN_RESOLUTION:-auto}"
 echo "    Rotation:   ${SCREEN_ROTATION}°"
 echo "    Scale:      ${SCREEN_SCALE}x"
+echo "    Wireless:   $([[ $DISABLE_WIRELESS =~ ^[Yy]$ ]] && echo "disabled" || echo "enabled")"
 echo ""
 read -p "  Is this correct? [Y/n] " -n 1 -r < /dev/tty
 echo
@@ -341,6 +350,16 @@ fi
 # Disable Pi firmware rainbow splash
 if ! grep -q '^disable_splash' "$BOOT_CONFIG" 2>/dev/null; then
   echo "disable_splash=1" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+fi
+
+# ── Disable WiFi/Bluetooth if requested ───────────────────
+sudo sed -i '/^dtoverlay=disable-wifi/d; /^dtoverlay=disable-bt/d' "$BOOT_CONFIG"
+if [[ $DISABLE_WIRELESS =~ ^[Yy]$ ]]; then
+  step "Disabling WiFi and Bluetooth..."
+  echo "dtoverlay=disable-wifi" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+  echo "dtoverlay=disable-bt" | sudo tee -a "$BOOT_CONFIG" > /dev/null
+  sudo systemctl disable --now hciuart 2>/dev/null || true
+  info "WiFi and Bluetooth disabled (saves ~2W, reduces interference)"
 fi
 
 # Clean previous resolution settings (re-added below if needed)
