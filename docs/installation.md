@@ -25,7 +25,7 @@ Complete guide for installing BigaOS on a Raspberry Pi. Covers initial OS setup,
 1. Insert your **MicroSD card** into your PC
 2. Open **Raspberry Pi Imager**
 3. Choose device: **Raspberry Pi 5** (or your model)
-4. Choose OS: **Raspberry Pi OS Lite (64-bit)** (under "Raspberry Pi OS (other)")
+4. Choose OS: **Raspberry Pi OS Desktop (64-bit)**
 5. Choose storage: your MicroSD card
 6. Click **Next**
 7. When prompted "Would you like to apply OS customisation settings?", click **Edit Settings** and configure:

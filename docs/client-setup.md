@@ -13,7 +13,7 @@ Set up a Raspberry Pi as a BigaOS display client with GPIO relay control, kiosk 
 - Optional: AZ Delivery 8-Relay Board (or similar relay module)
 
 ### Software
-- Raspberry Pi OS Lite (64-bit) — flashed on the MicroSD card
+- Raspberry Pi OS Desktop (64-bit) — flashed on the MicroSD card
 - BigaOS server running on another device (or the same Pi)
 
 ### Before You Start
@@ -24,7 +24,7 @@ Set up a Raspberry Pi as a BigaOS display client with GPIO relay control, kiosk 
 
 ## Step 1: Flash Raspberry Pi OS
 
-1. Flash **Raspberry Pi OS Lite (64-bit)** using Raspberry Pi Imager
+1. Flash **Raspberry Pi OS Desktop (64-bit)** using Raspberry Pi Imager
 2. In the imager settings:
    - Set hostname (e.g., `bigaos-salon`)
    - Enable SSH
@@ -32,7 +32,7 @@ Set up a Raspberry Pi as a BigaOS display client with GPIO relay control, kiosk 
    - Set username and password
 3. Boot the Pi and SSH into it
 
-> **Note:** You do **not** need to install a desktop environment manually — the setup script handles this automatically.
+> **Note:** Use the full Desktop version, not Lite. The setup script configures the desktop as a kiosk automatically.
 
 ---
 
