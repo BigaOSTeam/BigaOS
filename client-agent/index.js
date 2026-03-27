@@ -77,7 +77,7 @@ socket.on('gpio_command', async (command) => {
   console.log(`[Agent] GPIO command: pin ${command.gpioPin} → ${command.targetState ? 'ON' : 'OFF'} (switch: ${command.switchId})`);
 
   try {
-    await setPin(command.gpioPin, command.targetState, command.deviceType);
+    await setPin(command.gpioPin, command.targetState, command.relayType || 'active-low');
     socket.emit('gpio_command_result', {
       switchId: command.switchId,
       success: true,

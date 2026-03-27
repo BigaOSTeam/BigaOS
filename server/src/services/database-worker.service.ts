@@ -465,26 +465,26 @@ class DatabaseWorkerService {
 
   async getAllSwitches(): Promise<any[]> {
     return this.send('query', {
-      sql: `SELECT id, name, icon, target_client_id, device_type, relay_type, gpio_pin, state, created_at, updated_at FROM switches ORDER BY name`,
+      sql: `SELECT id, name, icon, target_client_id, device_type, relay_type, startup_behavior, gpio_pin, state, created_at, updated_at FROM switches ORDER BY name`,
       params: []
     });
   }
 
   async getSwitchesForClient(clientId: string): Promise<any[]> {
     return this.send('query', {
-      sql: `SELECT id, name, icon, target_client_id, device_type, relay_type, gpio_pin, state, created_at, updated_at FROM switches WHERE target_client_id = ? ORDER BY gpio_pin`,
+      sql: `SELECT id, name, icon, target_client_id, device_type, relay_type, startup_behavior, gpio_pin, state, created_at, updated_at FROM switches WHERE target_client_id = ? ORDER BY gpio_pin`,
       params: [clientId]
     });
   }
 
-  async createSwitch(id: string, name: string, icon: string, targetClientId: string, deviceType: string, relayType: string, gpioPin: number): Promise<void> {
+  async createSwitch(id: string, name: string, icon: string, targetClientId: string, deviceType: string, relayType: string, startupBehavior: string, gpioPin: number): Promise<void> {
     await this.send('execute', {
-      sql: `INSERT INTO switches (id, name, icon, target_client_id, device_type, relay_type, gpio_pin, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))`,
-      params: [id, name, icon, targetClientId, deviceType, relayType, gpioPin]
+      sql: `INSERT INTO switches (id, name, icon, target_client_id, device_type, relay_type, startup_behavior, gpio_pin, state, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, datetime('now'), datetime('now'))`,
+      params: [id, name, icon, targetClientId, deviceType, relayType, startupBehavior, gpioPin]
     });
   }
 
-  async updateSwitch(id: string, fields: { name?: string; icon?: string; targetClientId?: string; deviceType?: string; relayType?: string; gpioPin?: number }): Promise<void> {
+  async updateSwitch(id: string, fields: { name?: string; icon?: string; targetClientId?: string; deviceType?: string; relayType?: string; startupBehavior?: string; gpioPin?: number }): Promise<void> {
     const sets: string[] = [];
     const params: any[] = [];
     if (fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name); }
@@ -492,6 +492,7 @@ class DatabaseWorkerService {
     if (fields.targetClientId !== undefined) { sets.push('target_client_id = ?'); params.push(fields.targetClientId); }
     if (fields.deviceType !== undefined) { sets.push('device_type = ?'); params.push(fields.deviceType); }
     if (fields.relayType !== undefined) { sets.push('relay_type = ?'); params.push(fields.relayType); }
+    if (fields.startupBehavior !== undefined) { sets.push('startup_behavior = ?'); params.push(fields.startupBehavior); }
     if (fields.gpioPin !== undefined) { sets.push('gpio_pin = ?'); params.push(fields.gpioPin); }
     if (sets.length === 0) return;
     sets.push('updated_at = datetime(\'now\')');
@@ -516,10 +517,10 @@ class DatabaseWorkerService {
     });
   }
 
-  async resetSwitchStatesByRelayType(relayType: string, state: number): Promise<void> {
+  async resetSwitchStatesByStartupBehavior(behavior: string, state: number): Promise<void> {
     await this.send('execute', {
-      sql: `UPDATE switches SET state = ?, updated_at = datetime('now') WHERE relay_type = ?`,
-      params: [state, relayType]
+      sql: `UPDATE switches SET state = ?, updated_at = datetime('now') WHERE startup_behavior = ?`,
+      params: [state, behavior]
     });
   }
 

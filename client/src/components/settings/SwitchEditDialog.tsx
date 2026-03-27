@@ -5,7 +5,7 @@ import { useSwitches } from '../../context/SwitchContext';
 import { wsService } from '../../services/websocket';
 import { SButton, SInput, SLabel } from '../ui/SettingsUI';
 import { CustomSelect, type SelectOption } from '../ui/CustomSelect';
-import type { SwitchDefinition, SwitchIcon, DeviceType, RelayType } from '../../types/switches';
+import type { SwitchDefinition, SwitchIcon, RelayType, StartupBehavior } from '../../types/switches';
 
 interface RawClient {
   id: string;
@@ -36,14 +36,15 @@ const ICON_OPTIONS: SelectOption<SwitchIcon>[] = [
   { value: 'generic', label: 'Generic' },
 ];
 
-const DEVICE_TYPE_OPTIONS: SelectOption<DeviceType>[] = [
-  { value: 'rpi4b', label: 'Raspberry Pi 4B' },
-  { value: 'rpi5', label: 'Raspberry Pi 5' },
+const RELAY_TYPE_OPTIONS: SelectOption<RelayType>[] = [
+  { value: 'active-low', label: 'Active Low' },
+  { value: 'active-high', label: 'Active High' },
 ];
 
-const RELAY_TYPE_OPTIONS: SelectOption<RelayType>[] = [
-  { value: 'normally-off', label: 'Normally Off' },
-  { value: 'normally-on', label: 'Normally On' },
+const STARTUP_BEHAVIOR_OPTIONS: SelectOption<StartupBehavior>[] = [
+  { value: 'keep-state', label: 'Keep State' },
+  { value: 'off', label: 'Off' },
+  { value: 'on', label: 'On' },
 ];
 
 // BCM GPIO pins available on RPi (2-27)
@@ -61,8 +62,8 @@ export const SwitchEditDialog: React.FC<SwitchEditDialogProps> = ({ switchDef, o
   const [name, setName] = useState(switchDef?.name || '');
   const [icon, setIcon] = useState<SwitchIcon>(switchDef?.icon || 'lightbulb');
   const [targetClientId, setTargetClientId] = useState(switchDef?.targetClientId || '');
-  const [deviceType, setDeviceType] = useState<DeviceType>(switchDef?.deviceType || 'rpi4b');
-  const [relayType, setRelayType] = useState<RelayType>(switchDef?.relayType || 'normally-off');
+  const [relayType, setRelayType] = useState<RelayType>(switchDef?.relayType || 'active-low');
+  const [startupBehavior, setStartupBehavior] = useState<StartupBehavior>(switchDef?.startupBehavior || 'keep-state');
   const [gpioPin, setGpioPin] = useState<number>(switchDef?.gpioPin || 2);
   const [clients, setClients] = useState<RawClient[]>([]);
 
@@ -93,9 +94,9 @@ export const SwitchEditDialog: React.FC<SwitchEditDialogProps> = ({ switchDef, o
     if (pinInUse) return;
 
     if (isEdit && switchDef) {
-      updateSwitch(switchDef.id, { name: name.trim(), icon, targetClientId, deviceType, relayType, gpioPin });
+      updateSwitch(switchDef.id, { name: name.trim(), icon, targetClientId, relayType, startupBehavior, gpioPin });
     } else {
-      createSwitch({ name: name.trim(), icon, targetClientId, deviceType, relayType, gpioPin });
+      createSwitch({ name: name.trim(), icon, targetClientId, deviceType: 'rpi4b', relayType, startupBehavior, gpioPin });
     }
     onClose();
   };
@@ -169,16 +170,6 @@ export const SwitchEditDialog: React.FC<SwitchEditDialogProps> = ({ switchDef, o
           />
         </div>
 
-        {/* Device Type */}
-        <div style={{ marginBottom: theme.space.lg }}>
-          <SLabel>{t('switches.device_type')}</SLabel>
-          <CustomSelect
-            value={deviceType}
-            options={DEVICE_TYPE_OPTIONS}
-            onChange={setDeviceType}
-          />
-        </div>
-
         {/* GPIO Pin */}
         <div style={{ marginBottom: theme.space.lg }}>
           <SLabel>{t('switches.gpio_pin')}</SLabel>
@@ -199,7 +190,7 @@ export const SwitchEditDialog: React.FC<SwitchEditDialogProps> = ({ switchDef, o
         </div>
 
         {/* Relay Type */}
-        <div style={{ marginBottom: theme.space.xl }}>
+        <div style={{ marginBottom: theme.space.lg }}>
           <SLabel>{t('switches.relay_type')}</SLabel>
           <CustomSelect
             value={relayType}
@@ -211,9 +202,31 @@ export const SwitchEditDialog: React.FC<SwitchEditDialogProps> = ({ switchDef, o
             color: theme.colors.textMuted,
             marginTop: theme.space.xs,
           }}>
-            {relayType === 'normally-off'
-              ? t('switches.relay_type_desc_off')
-              : t('switches.relay_type_desc_on')
+            {relayType === 'active-low'
+              ? t('switches.relay_type_desc_low')
+              : t('switches.relay_type_desc_high')
+            }
+          </div>
+        </div>
+
+        {/* Startup Behavior */}
+        <div style={{ marginBottom: theme.space.xl }}>
+          <SLabel>{t('switches.startup_behavior')}</SLabel>
+          <CustomSelect
+            value={startupBehavior}
+            options={STARTUP_BEHAVIOR_OPTIONS}
+            onChange={setStartupBehavior}
+          />
+          <div style={{
+            fontSize: theme.fontSize.xs,
+            color: theme.colors.textMuted,
+            marginTop: theme.space.xs,
+          }}>
+            {startupBehavior === 'keep-state'
+              ? t('switches.startup_keep')
+              : startupBehavior === 'off'
+              ? t('switches.startup_off')
+              : t('switches.startup_on')
             }
           </div>
         </div>

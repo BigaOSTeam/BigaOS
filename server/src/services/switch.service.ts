@@ -35,9 +35,10 @@ export class SwitchService extends EventEmitter {
 
     console.log('[SwitchService] Initializing...');
 
-    // Reset states in DB based on relay type (simulates power loss recovery)
-    await dbWorker.resetSwitchStatesByRelayType('normally-off', 0);
-    await dbWorker.resetSwitchStatesByRelayType('normally-on', 1);
+    // Reset states based on startup behavior (simulates power loss recovery)
+    // 'keep-state' switches retain their last state from the database
+    await dbWorker.resetSwitchStatesByStartupBehavior('off', 0);
+    await dbWorker.resetSwitchStatesByStartupBehavior('on', 1);
 
     // Load all switches from DB
     const rows: SwitchRow[] = await dbWorker.getAllSwitches();
@@ -68,7 +69,7 @@ export class SwitchService extends EventEmitter {
 
     await dbWorker.createSwitch(
       id, input.name, input.icon, input.targetClientId,
-      input.deviceType, input.relayType, input.gpioPin
+      input.deviceType, input.relayType, input.startupBehavior, input.gpioPin
     );
 
     const sw: SwitchDefinition = {
@@ -78,6 +79,7 @@ export class SwitchService extends EventEmitter {
       targetClientId: input.targetClientId,
       deviceType: input.deviceType,
       relayType: input.relayType,
+      startupBehavior: input.startupBehavior,
       gpioPin: input.gpioPin,
       state: false,
       locked: false,
@@ -98,6 +100,7 @@ export class SwitchService extends EventEmitter {
       targetClientId: updates.targetClientId,
       deviceType: updates.deviceType,
       relayType: updates.relayType,
+      startupBehavior: updates.startupBehavior,
       gpioPin: updates.gpioPin,
     });
 
@@ -107,6 +110,7 @@ export class SwitchService extends EventEmitter {
     if (updates.targetClientId !== undefined) sw.targetClientId = updates.targetClientId;
     if (updates.deviceType !== undefined) sw.deviceType = updates.deviceType;
     if (updates.relayType !== undefined) sw.relayType = updates.relayType;
+    if (updates.startupBehavior !== undefined) sw.startupBehavior = updates.startupBehavior;
     if (updates.gpioPin !== undefined) sw.gpioPin = updates.gpioPin;
 
     this.emit('switches_changed');
@@ -156,6 +160,7 @@ export class SwitchService extends EventEmitter {
       switchId: sw.id,
       gpioPin: sw.gpioPin,
       deviceType: sw.deviceType,
+      relayType: sw.relayType,
       targetState,
     };
 

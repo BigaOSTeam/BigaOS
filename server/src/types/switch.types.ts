@@ -6,7 +6,8 @@
  */
 
 export type DeviceType = 'rpi4b' | 'rpi5';
-export type RelayType = 'normally-off' | 'normally-on';
+export type RelayType = 'active-low' | 'active-high';
+export type StartupBehavior = 'off' | 'on' | 'keep-state';
 
 export type SwitchIcon =
   | 'lightbulb'
@@ -33,6 +34,7 @@ export interface SwitchDefinition {
   targetClientId: string;
   deviceType: DeviceType;
   relayType: RelayType;
+  startupBehavior: StartupBehavior;
   gpioPin: number;
   state: boolean;
   locked: boolean; // in-memory only, not persisted
@@ -46,6 +48,7 @@ export interface SwitchRow {
   target_client_id: string;
   device_type: string;
   relay_type: string;
+  startup_behavior: string;
   gpio_pin: number;
   state: number;
   created_at: string;
@@ -59,6 +62,7 @@ export interface SwitchCreateInput {
   targetClientId: string;
   deviceType: DeviceType;
   relayType: RelayType;
+  startupBehavior: StartupBehavior;
   gpioPin: number;
 }
 
@@ -69,6 +73,7 @@ export interface SwitchUpdateInput {
   targetClientId?: string;
   deviceType?: DeviceType;
   relayType?: RelayType;
+  startupBehavior?: StartupBehavior;
   gpioPin?: number;
 }
 
@@ -77,6 +82,7 @@ export interface GpioCommand {
   switchId: string;
   gpioPin: number;
   deviceType: DeviceType;
+  relayType: RelayType;
   targetState: boolean;
 }
 
@@ -93,6 +99,7 @@ export interface GpioInitPayload {
     switchId: string;
     gpioPin: number;
     deviceType: DeviceType;
+    relayType: RelayType;
     state: boolean;
   }>;
 }
@@ -106,6 +113,7 @@ export function rowToSwitch(row: SwitchRow): SwitchDefinition {
     targetClientId: row.target_client_id,
     deviceType: row.device_type as DeviceType,
     relayType: row.relay_type as RelayType,
+    startupBehavior: (row.startup_behavior || 'keep-state') as StartupBehavior,
     gpioPin: row.gpio_pin,
     state: row.state === 1,
     locked: false,

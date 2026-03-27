@@ -182,6 +182,7 @@ export class WebSocketServer {
                 switchId: s.id,
                 gpioPin: s.gpioPin,
                 deviceType: s.deviceType,
+                relayType: s.relayType,
                 state: s.state,
               })),
             });
