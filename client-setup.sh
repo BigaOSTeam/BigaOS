@@ -683,11 +683,11 @@ if [ -n "$TOUCH_DEVICE" ]; then
   # Use HDMI port detected earlier
   TOUCH_OUTPUT="$HDMI_PORT"
 
-  # Map rotation to libinput calibration matrix
+  # Map rotation to libinput calibration matrix (6 floats: first two rows of 3x3)
   case "$SCREEN_ROTATION" in
-    90)  CAL_MATRIX="0 -1 1 1 0 0 0 0 1" ;;
-    180) CAL_MATRIX="-1 0 1 0 -1 1 0 0 1" ;;
-    270) CAL_MATRIX="0 1 0 -1 0 1 0 0 1" ;;
+    90)  CAL_MATRIX="0 -1 1 1 0 0" ;;
+    180) CAL_MATRIX="-1 0 1 0 -1 1" ;;
+    270) CAL_MATRIX="0 1 0 -1 0 1" ;;
     *)   CAL_MATRIX="" ;;
   esac
 
