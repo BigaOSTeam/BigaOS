@@ -497,8 +497,8 @@ fi
 if [ "$DISPLAY_ROTATION" != "normal" ] && [ -n "$DISPLAY_ROTATION" ]; then
   wlr-randr --output "$OUTPUT" --transform "$DISPLAY_ROTATION" 2>/dev/null || true
 fi
-# Scale is handled by Chromium's --force-device-scale-factor (not wlr-randr,
-# which has poor fractional scaling support on Pi)
+# Reset compositor scale (only Chromium handles zoom)
+wlr-randr --output "$OUTPUT" --scale 1 2>/dev/null || true
 SCALE=${DISPLAY_SCALE:-1.0}
 
 KIOSKEOF
@@ -541,6 +541,7 @@ Name=Hide Cursor
 Exec=unclutter -idle 0.1 -root
 X-GNOME-Autostart-enabled=true
 EOF
+
 
 # Set blank desktop wallpaper (black) to avoid seeing desktop between boot and Chromium
 if command -v pcmanfm &> /dev/null; then

@@ -89,14 +89,29 @@ function parseWlrRandr(output) {
 }
 
 /**
+ * Read scale from shell conf (the source of truth — kiosk script reads this).
+ */
+function getShellScale() {
+  try {
+    const shell = readFileSync(CONFIG_SHELL, 'utf8');
+    const m = shell.match(/^DISPLAY_SCALE="?([^"\n]*)"?/m);
+    return m ? parseFloat(m[1]) || 1.0 : 1.0;
+  } catch {
+    return 1.0;
+  }
+}
+
+/**
  * Get current display information from wlr-randr.
  */
 async function getDisplayInfo() {
   const output = await run('wlr-randr');
   const info = parseWlrRandr(output);
   const config = getConfig();
-  // Report scale from config (Chromium flag) not wlr-randr
-  info.currentScale = config.scale || 1.0;
+  // Always read scale from shell conf (source of truth for Chromium)
+  const shellScale = getShellScale();
+  config.scale = shellScale;
+  info.currentScale = shellScale;
   return { ...info, config };
 }
 

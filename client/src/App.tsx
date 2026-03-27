@@ -20,6 +20,7 @@ import { AlertProvider, useAlerts } from './context/AlertContext';
 import { PluginProvider, usePlugins } from './context/PluginContext';
 import { SwitchProvider } from './context/SwitchContext';
 import { AlertContainer } from './components/alerts';
+import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { useClient } from './context/ClientContext';
@@ -673,6 +674,7 @@ function App() {
               <ConfirmDialogProvider>
                 <AppContent />
                 <AlertContainer />
+                <VirtualKeyboard />
               </ConfirmDialogProvider>
             </AlertProvider>
             </SwitchProvider>
