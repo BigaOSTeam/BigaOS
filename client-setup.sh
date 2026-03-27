@@ -439,12 +439,27 @@ done
 echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
 info "Silent boot configured (quiet + splash)"
 
-# ── Configure desktop autologin + kiosk ──────────────────
-step "Configuring kiosk mode..."
+# ── Boot display rotation (Plymouth) ─────────────────────
+# Set panel_orientation on the DRM connector so Plymouth renders rotated
+CMDLINE=$(cat "$CMDLINE_FILE" | tr -d '\n')
+CMDLINE=$(echo "$CMDLINE" | sed "s/ video=${HDMI_PORT}:[^ ]*//g")
 
-# Set desktop autologin via raspi-config (B4 = Desktop Autologin)
-sudo raspi-config nonint do_boot_behaviour B4
-info "Desktop autologin enabled"
+if [ "$SCREEN_ROTATION" != "0" ]; then
+  case "$SCREEN_ROTATION" in
+    90)  PANEL_ORIENT="left_side_up" ;;
+    180) PANEL_ORIENT="upside_down" ;;
+    270) PANEL_ORIENT="right_side_up" ;;
+  esac
+
+  CMDLINE="$CMDLINE video=${HDMI_PORT}:panel_orientation=${PANEL_ORIENT}"
+  echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
+  info "Boot rotation set (panel_orientation=${PANEL_ORIENT} on ${HDMI_PORT})"
+else
+  echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
+fi
+
+# ── Configure kiosk mode ──────────────────────────────────
+step "Configuring kiosk mode..."
 
 # Detect Chromium binary
 CHROMIUM_BIN="chromium-browser"
@@ -454,27 +469,18 @@ fi
 
 KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
 
-# Create autostart directory
-mkdir -p "$HOME/.config/autostart"
-
-# Disable desktop panels, file manager, etc. from autostarting
-for DESKTOP_FILE in lxpanel pcmanfm wf-panel-pi pcmanfm-pi; do
-  echo -e "[Desktop Entry]\nHidden=true" > "$HOME/.config/autostart/${DESKTOP_FILE}.desktop"
-done
-
-# Create BigaOS kiosk autostart entry
-cat > "$HOME/.config/autostart/bigaos-kiosk.desktop" << EOF
-[Desktop Entry]
-Type=Application
-Name=BigaOS Kiosk
-Exec=$HOME/bigaos-kiosk.sh
-X-GNOME-Autostart-enabled=true
-EOF
+# Install packages for bare kiosk (no desktop environment)
+if ! command -v unclutter &> /dev/null; then
+  sudo apt-get install -y unclutter
+fi
+if ! command -v swaybg &> /dev/null; then
+  sudo apt-get install -y swaybg 2>/dev/null || true
+fi
 
 # Create the kiosk launcher script
 cat > "$HOME/bigaos-kiosk.sh" << 'KIOSKEOF'
 #!/bin/bash
-# BigaOS Kiosk Launcher — runs on desktop autostart
+# BigaOS Kiosk Launcher — runs as labwc startup command
 
 # Source display config
 . "$HOME/bigaos-display.conf" 2>/dev/null
@@ -529,49 +535,79 @@ wait
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
 
-# Hide mouse cursor for touchscreen (unclutter hides after 0.1s idle)
-if ! command -v unclutter &> /dev/null; then
-  sudo apt-get install -y unclutter
-fi
-cat > "$HOME/.config/autostart/hide-cursor.desktop" << EOF
-[Desktop Entry]
-Type=Application
-Name=Hide Cursor
-Exec=unclutter -idle 0.1 -root
-X-GNOME-Autostart-enabled=true
-EOF
-
-
-# Set blank desktop wallpaper (black) to avoid seeing desktop between boot and Chromium
-if command -v pcmanfm &> /dev/null; then
-  mkdir -p "$HOME/.config/pcmanfm/LXDE-pi"
-  cat > "$HOME/.config/pcmanfm/LXDE-pi/desktop-items-0.conf" << EOF
-[*]
-wallpaper_mode=color
-desktop_bg=#000000
-show_documents=0
-show_trash=0
-show_mounts=0
-EOF
-fi
-
-# For wayfire (Bookworm default): set background to black
-if [ -f "$HOME/.config/wayfire.ini" ]; then
-  # Hide panel and set black background
-  sed -i 's/^autostart_wf_panel\s*=.*/# autostart_wf_panel = /' "$HOME/.config/wayfire.ini" 2>/dev/null || true
-fi
-
-# For labwc (Trixie default): replace autostart with clean kiosk version
+# labwc autostart — bare minimum: black background + kiosk
 mkdir -p "$HOME/.config/labwc"
 cat > "$HOME/.config/labwc/autostart" << 'LABWCEOF'
-swaybg -c '#000000' 2>/dev/null &
-/usr/bin/kanshi &
-/usr/bin/lxsession-xdg-autostart
+swaybg -c '#000000' &
+unclutter -idle 0.1 -root &
+/home/$USER/bigaos-kiosk.sh &
 LABWCEOF
+# Fix $USER in the autostart file (written inside single-quoted heredoc)
+sed -i "s|\$USER|$USER|g" "$HOME/.config/labwc/autostart"
 
-# Install swaybg for solid black background
-if ! command -v swaybg &> /dev/null; then
-  sudo apt-get install -y swaybg 2>/dev/null || true
+# ── Set up greetd for direct kiosk boot (no desktop) ─────
+# greetd auto-logs in and starts labwc directly — no desktop environment,
+# no panels, no file manager, no XDG autostart processing
+step "Configuring greetd (direct boot to kiosk)..."
+
+if ! command -v greetd &> /dev/null; then
+  sudo apt-get install -y greetd 2>/dev/null || true
+fi
+
+if command -v greetd &> /dev/null; then
+  # Disable any existing display manager
+  sudo systemctl disable lightdm 2>/dev/null || true
+  sudo systemctl disable gdm 2>/dev/null || true
+
+  # Boot to multi-user (no graphical.target desktop session)
+  sudo systemctl set-default multi-user.target
+
+  # Configure greetd: autologin → labwc (bare compositor)
+  sudo mkdir -p /etc/greetd
+  sudo tee /etc/greetd/config.toml > /dev/null << EOF
+[terminal]
+vt = 7
+
+[default_session]
+command = "labwc"
+user = "$USER"
+EOF
+
+  sudo systemctl enable greetd
+  info "greetd configured (autologin → labwc → Chromium kiosk)"
+else
+  # Fallback for Bookworm where greetd may not be in repos:
+  # Use a systemd service to launch labwc directly
+  warn "greetd not available — using systemd service fallback"
+
+  sudo tee /etc/systemd/system/bigaos-kiosk.service > /dev/null << EOF
+[Unit]
+Description=BigaOS Kiosk
+After=systemd-user-sessions.service plymouth-start.service
+Conflicts=getty@tty7.service
+
+[Service]
+Type=simple
+User=$USER
+PAMName=login
+TTYPath=/dev/tty7
+Environment=XDG_SESSION_TYPE=wayland
+Environment=XDG_RUNTIME_DIR=/run/user/$(id -u)
+Environment=WLR_LIBINPUT_NO_DEVICES=1
+ExecStart=/usr/bin/labwc
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+  # Disable desktop autologin, enable kiosk service
+  sudo raspi-config nonint do_boot_behaviour B1 2>/dev/null || true
+  sudo systemctl set-default multi-user.target
+  sudo systemctl disable lightdm 2>/dev/null || true
+  sudo systemctl enable bigaos-kiosk
+  info "Systemd kiosk service configured (labwc → Chromium kiosk)"
 fi
 
 # ── Write initial display config ─────────────────────────
@@ -676,7 +712,7 @@ else
   warn "No touchscreen detected — skipping touch configuration"
 fi
 
-info "Kiosk mode configured (desktop autologin → Chromium fullscreen)"
+info "Kiosk mode configured (greetd → labwc → Chromium fullscreen)"
 echo "    URL: ${KIOSK_URL}"
 
 # ── Sudoers for service management ────────────────────────
@@ -724,7 +760,7 @@ echo "  ┌───────────────────────
 echo "  │  Setup Complete!                                 │"
 echo "  │                                                  │"
 echo "  │  After reboot:                                   │"
-echo "  │  • Desktop autologins and launches Chromium      │"
+echo "  │  • Boots directly to Chromium (no desktop)        │"
 echo "  │  • GPU acceleration via Pi's native compositor   │"
 echo "  │  • Touch input enabled, cursor hidden            │"
 echo "  │  • Client Agent connects to the server           │"
