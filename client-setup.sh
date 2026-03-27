@@ -683,35 +683,10 @@ if [ -n "$TOUCH_DEVICE" ]; then
   # Use HDMI port detected earlier
   TOUCH_OUTPUT="$HDMI_PORT"
 
-  # Map rotation to libinput calibration matrix (6 floats: first two rows of 3x3)
-  case "$SCREEN_ROTATION" in
-    90)  CAL_MATRIX="0 -1 1 1 0 0" ;;
-    180) CAL_MATRIX="-1 0 1 0 -1 1" ;;
-    270) CAL_MATRIX="0 1 0 -1 0 1" ;;
-    *)   CAL_MATRIX="" ;;
-  esac
-
   if [ "$COMPOSITOR" = "labwc" ]; then
-    # Write labwc rc.xml with touch mapping and calibration
-    if [ -n "$CAL_MATRIX" ]; then
-      cat > "$HOME/.config/labwc/rc.xml" << RCEOF
-<?xml version="1.0"?>
-<openbox_config xmlns="http://openbox.org/3.4/rc">
-        <touch deviceName="${TOUCH_DEVICE_XML}" mapToOutput="${TOUCH_OUTPUT}" mouseEmulation="no"/>
-        <libinput>
-                <device deviceName="${TOUCH_DEVICE_XML}">
-                        <calibrationMatrix>${CAL_MATRIX}</calibrationMatrix>
-                </device>
-        </libinput>
-        <keyboard>
-                <keybind key="W-h">
-                        <action name="HideCursor"/>
-                </keybind>
-        </keyboard>
-</openbox_config>
-RCEOF
-    else
-      cat > "$HOME/.config/labwc/rc.xml" << RCEOF
+    # Write labwc rc.xml with touch mapping + HideCursor keybind
+    # labwc 0.9.5+ handles touch rotation via mapToOutput (no calibration matrix needed)
+    cat > "$HOME/.config/labwc/rc.xml" << RCEOF
 <?xml version="1.0"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
         <touch deviceName="${TOUCH_DEVICE_XML}" mapToOutput="${TOUCH_OUTPUT}" mouseEmulation="no"/>
@@ -722,11 +697,17 @@ RCEOF
         </keyboard>
 </openbox_config>
 RCEOF
-    fi
     info "Touchscreen configured for labwc (device: ${TOUCH_DEVICE}, output: ${TOUCH_OUTPUT}, rotation: ${SCREEN_ROTATION}°)"
 
   elif [ "$COMPOSITOR" = "wayfire" ]; then
     # Wayfire uses libinput plugin in wayfire.ini for touch calibration
+    # Map rotation to libinput calibration matrix (9 floats for wayfire)
+    case "$SCREEN_ROTATION" in
+      90)  CAL_MATRIX="0 -1 1 1 0 0 0 0 1" ;;
+      180) CAL_MATRIX="-1 0 1 0 -1 1 0 0 1" ;;
+      270) CAL_MATRIX="0 1 0 -1 0 1 0 0 1" ;;
+      *)   CAL_MATRIX="" ;;
+    esac
     WAYFIRE_INI="$HOME/.config/wayfire.ini"
     if [ -f "$WAYFIRE_INI" ]; then
       # Remove existing touch calibration section if present
