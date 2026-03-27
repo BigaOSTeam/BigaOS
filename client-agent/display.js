@@ -145,15 +145,29 @@ async function setScale(_outputName, scale) {
 
 /**
  * Restart Chromium kiosk to apply new scale factor.
- * The kiosk script reads DISPLAY_SCALE from bigaos-display.conf.
+ * Kills existing Chromium, then relaunches via the kiosk script.
  */
 async function restartChromium() {
   try {
     await run('pkill -f chromium');
-    console.log('[Display] Chromium killed, kiosk script will relaunch');
+    console.log('[Display] Chromium killed');
   } catch {
-    console.log('[Display] No Chromium process found to restart');
+    console.log('[Display] No Chromium process found');
   }
+  // Wait for Chromium to fully exit, then relaunch via kiosk script
+  setTimeout(async () => {
+    try {
+      const { exec: execDetached } = require('child_process');
+      execDetached(`bash ${join(HOME, 'bigaos-kiosk.sh')}`, {
+        detached: true,
+        stdio: 'ignore',
+        env: { ...process.env, WAYLAND_DISPLAY: process.env.WAYLAND_DISPLAY || 'wayland-0' },
+      }).unref();
+      console.log('[Display] Kiosk script relaunched');
+    } catch (err) {
+      console.error(`[Display] Failed to relaunch kiosk: ${err.message}`);
+    }
+  }, 2000);
 }
 
 /**
