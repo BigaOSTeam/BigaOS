@@ -86,7 +86,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const { theme } = useTheme();
   const { t, language } = useLanguage();
   const { clientId } = useClient();
-  const { toggleSwitch } = useSwitches();
+  const { toggleSwitch, getSwitchById, isClientOnline } = useSwitches();
   const [switchConfigItem, setSwitchConfigItem] = useState<string | null>(null);
 
   // Dashboard sidebar position - independent from chart sidebar, saved per client
@@ -726,7 +726,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 onNavigate={onNavigate}
                 editMode={editMode}
                 onDelete={() => handleDeleteItem(item.id)}
-                onTap={item.type === 'switch' && item.switchConfig?.switchId ? () => toggleSwitch(item.switchConfig!.switchId) : undefined}
+                onTap={item.type === 'switch' && item.switchConfig?.switchId ? () => {
+                  const sw = getSwitchById(item.switchConfig!.switchId);
+                  if (sw && isClientOnline(sw.targetClientId)) toggleSwitch(item.switchConfig!.switchId);
+                } : undefined}
                 onSettings={item.type === 'switch' ? () => setSwitchConfigItem(item.id) : undefined}
               >
                 {renderItemContent(item)}

@@ -887,6 +887,7 @@ switches.relay_normally_off=Normally Off
 switches.relay_normally_on=Normally On
 switches.state_on=ON
 switches.state_off=OFF
+switches.offline=OFFLINE
 switches.pin_in_use=This pin is already used by another switch on the same device
 switches.no_switches=No switches configured yet
 switches.toggle_failed=Failed to toggle switch

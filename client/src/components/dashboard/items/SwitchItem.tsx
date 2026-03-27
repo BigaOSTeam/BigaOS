@@ -12,9 +12,10 @@ interface SwitchItemProps {
 export const SwitchItem: React.FC<SwitchItemProps> = ({ switchId, activeColor }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const { getSwitchById } = useSwitches();
+  const { getSwitchById, isClientOnline } = useSwitches();
 
   const sw = switchId ? getSwitchById(switchId) : undefined;
+  const offline = sw ? !isClientOnline(sw.targetClientId) : false;
 
   if (!sw) {
     return (
@@ -44,7 +45,7 @@ export const SwitchItem: React.FC<SwitchItemProps> = ({ switchId, activeColor })
     );
   }
 
-  const color = sw.state ? (activeColor || theme.colors.success) : theme.colors.textMuted;
+  const color = offline ? theme.colors.textMuted : sw.state ? (activeColor || theme.colors.success) : theme.colors.textMuted;
 
   return (
     <div style={{
@@ -57,10 +58,11 @@ export const SwitchItem: React.FC<SwitchItemProps> = ({ switchId, activeColor })
       gap: '4cqmin',
       padding: '8cqmin',
       position: 'relative',
-      background: sw.state
+      background: offline ? 'transparent' : sw.state
         ? `${activeColor || theme.colors.success}15`
         : 'transparent',
-      transition: 'background 0.2s ease',
+      opacity: offline ? 0.4 : 1,
+      transition: 'background 0.2s ease, opacity 0.2s ease',
       borderRadius: 'inherit',
     }}>
       {/* Icon */}
@@ -106,7 +108,7 @@ export const SwitchItem: React.FC<SwitchItemProps> = ({ switchId, activeColor })
         letterSpacing: '0.05em',
         transition: 'color 0.2s ease',
       }}>
-        {sw.state ? t('switches.state_on') : t('switches.state_off')}
+        {offline ? t('switches.offline') : sw.state ? t('switches.state_on') : t('switches.state_off')}
       </span>
 
       {/* Locked overlay with spinner */}

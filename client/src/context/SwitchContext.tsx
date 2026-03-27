@@ -12,11 +12,13 @@ import type { SwitchDefinition, SwitchCreateInput, SwitchUpdateInput } from '../
 interface SwitchContextType {
   switches: SwitchDefinition[];
   loading: boolean;
+  agentOnlineIds: Set<string>;
   createSwitch: (input: SwitchCreateInput) => void;
   updateSwitch: (id: string, updates: SwitchUpdateInput) => void;
   deleteSwitch: (id: string) => void;
   toggleSwitch: (switchId: string) => void;
   getSwitchById: (id: string) => SwitchDefinition | undefined;
+  isClientOnline: (clientId: string) => boolean;
 }
 
 const SwitchContext = createContext<SwitchContextType | null>(null);
@@ -24,10 +26,12 @@ const SwitchContext = createContext<SwitchContextType | null>(null);
 export const SwitchProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [switches, setSwitches] = useState<SwitchDefinition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [agentOnlineIds, setAgentOnlineIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     // Request initial data
     wsService.emit('get_switches');
+    wsService.emit('get_clients');
 
     const handleSync = (data: { switches: SwitchDefinition[] }) => {
       setSwitches(data.switches || []);
@@ -42,12 +46,24 @@ export const SwitchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       ));
     };
 
+    const handleClientsSync = (data: { agentOnlineIds?: string[] }) => {
+      setAgentOnlineIds(new Set(data.agentOnlineIds || []));
+    };
+
+    const handleClientsChanged = () => {
+      wsService.emit('get_clients');
+    };
+
     wsService.on('switches_sync', handleSync);
     wsService.on('switch_state_update', handleStateUpdate);
+    wsService.on('clients_sync', handleClientsSync);
+    wsService.on('clients_changed', handleClientsChanged);
 
     return () => {
       wsService.off('switches_sync', handleSync);
       wsService.off('switch_state_update', handleStateUpdate);
+      wsService.off('clients_sync', handleClientsSync);
+      wsService.off('clients_changed', handleClientsChanged);
     };
   }, []);
 
@@ -71,15 +87,21 @@ export const SwitchProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return switches.find(sw => sw.id === id);
   }, [switches]);
 
+  const isClientOnline = useCallback((clientId: string) => {
+    return agentOnlineIds.has(clientId);
+  }, [agentOnlineIds]);
+
   return (
     <SwitchContext.Provider value={{
       switches,
       loading,
+      agentOnlineIds,
       createSwitch,
       updateSwitch,
       deleteSwitch,
       toggleSwitch,
       getSwitchById,
+      isClientOnline,
     }}>
       {children}
     </SwitchContext.Provider>
