@@ -160,8 +160,9 @@ else
 fi
 
 # ── Install system packages ───────────────────────────────
-step "Updating package lists..."
+step "Updating system packages..."
 sudo apt-get update -qq
+sudo apt-get upgrade -y
 
 # Install wlr-randr for display control (resolution/rotation)
 if ! command -v wlr-randr &> /dev/null; then
