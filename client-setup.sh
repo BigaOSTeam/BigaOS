@@ -457,12 +457,9 @@ KIOSK_URL="${SERVER_URL}/c/${CLIENT_ID}"
 # Create autostart directory
 mkdir -p "$HOME/.config/autostart"
 
-# Disable desktop panel, file manager, etc. from autostarting
-for DESKTOP_FILE in lxpanel pcmanfm; do
-  if [ -f "/etc/xdg/autostart/${DESKTOP_FILE}.desktop" ]; then
-    cp "/etc/xdg/autostart/${DESKTOP_FILE}.desktop" "$HOME/.config/autostart/${DESKTOP_FILE}.desktop"
-    echo "Hidden=true" >> "$HOME/.config/autostart/${DESKTOP_FILE}.desktop"
-  fi
+# Disable desktop panels, file manager, etc. from autostarting
+for DESKTOP_FILE in lxpanel pcmanfm wf-panel-pi pcmanfm-pi; do
+  echo -e "[Desktop Entry]\nHidden=true" > "$HOME/.config/autostart/${DESKTOP_FILE}.desktop"
 done
 
 # Create BigaOS kiosk autostart entry
@@ -479,14 +476,11 @@ cat > "$HOME/bigaos-kiosk.sh" << 'KIOSKEOF'
 #!/bin/bash
 # BigaOS Kiosk Launcher — runs on desktop autostart
 
-# Dismiss Plymouth boot animation now that we're about to launch Chromium
-plymouth quit --retain-splash 2>/dev/null &
-
-# Source display config if saved by client-agent
+# Source display config
 . "$HOME/bigaos-display.conf" 2>/dev/null
 
 # Auto-detect connected output name
-sleep 1
+sleep 0.5
 OUTPUT=$(wlr-randr 2>/dev/null | grep -oP '^\S+' | head -1)
 OUTPUT=${OUTPUT:-HDMI-A-1}
 
@@ -505,8 +499,8 @@ KIOSKEOF
 
 # Append Chromium launch with the actual URL (not single-quoted)
 cat >> "$HOME/bigaos-kiosk.sh" << KIOSKEOF
-# Launch Chromium in kiosk mode
-exec ${CHROMIUM_BIN} \\
+# Launch Chromium (background so we can dismiss Plymouth after)
+${CHROMIUM_BIN} \\
   --kiosk \\
   --start-fullscreen \\
   --ozone-platform=wayland \\
@@ -526,7 +520,12 @@ exec ${CHROMIUM_BIN} \\
   --password-store=basic \\
   --disk-cache-size=104857600 \\
   --force-device-scale-factor=\$SCALE \\
-  "${KIOSK_URL}"
+  "${KIOSK_URL}" &
+
+# Dismiss boot splash after Chromium has had time to render
+sleep 3
+plymouth quit --retain-splash 2>/dev/null
+wait
 KIOSKEOF
 chmod +x "$HOME/bigaos-kiosk.sh"
 
@@ -562,15 +561,17 @@ if [ -f "$HOME/.config/wayfire.ini" ]; then
   sed -i 's/^autostart_wf_panel\s*=.*/# autostart_wf_panel = /' "$HOME/.config/wayfire.ini" 2>/dev/null || true
 fi
 
-# For labwc (Trixie default): disable panel and desktop background
+# For labwc (Trixie default): replace autostart with clean kiosk version
 mkdir -p "$HOME/.config/labwc"
-# Remove panel and desktop manager from labwc autostart
-if [ -f "$HOME/.config/labwc/autostart" ]; then
-  sed -i '/wfpanel/d; /pcmanfm/d; /sfwbar/d' "$HOME/.config/labwc/autostart" 2>/dev/null || true
-fi
-# Also override the system-wide labwc autostart to prevent panel
-if [ -f "/etc/xdg/labwc/autostart" ]; then
-  grep -v 'wfpanel\|pcmanfm\|sfwbar' "/etc/xdg/labwc/autostart" | sudo tee "$HOME/.config/labwc/autostart" > /dev/null 2>&1 || true
+cat > "$HOME/.config/labwc/autostart" << 'LABWCEOF'
+swaybg -c '#000000' 2>/dev/null &
+/usr/bin/kanshi &
+/usr/bin/lxsession-xdg-autostart
+LABWCEOF
+
+# Install swaybg for solid black background
+if ! command -v swaybg &> /dev/null; then
+  sudo apt-get install -y swaybg 2>/dev/null || true
 fi
 
 # ── Write initial display config ─────────────────────────
