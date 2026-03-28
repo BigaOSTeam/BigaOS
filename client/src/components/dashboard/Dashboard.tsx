@@ -684,6 +684,34 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
 
       {/* Grid Container */}
       <div style={gridContainerStyle}>
+        {/* Grid lines overlay in edit mode */}
+        {editMode && (
+          <div
+            style={{
+              position: 'absolute',
+              top: margin,
+              left: margin,
+              right: margin,
+              bottom: margin,
+              pointerEvents: 'none',
+              zIndex: 0,
+              display: 'grid',
+              gridTemplateColumns: `repeat(${effectiveCols}, 1fr)`,
+              gridTemplateRows: `repeat(${effectiveRows}, 1fr)`,
+              gap: `${margin}px`,
+            }}
+          >
+            {Array.from({ length: effectiveCols * effectiveRows }).map((_, i) => (
+              <div
+                key={i}
+                style={{
+                  border: '1px dashed rgba(255, 255, 255, 0.12)',
+                  borderRadius: 4,
+                }}
+              />
+            ))}
+          </div>
+        )}
         <GridLayout
           className="layout"
           layout={layout}

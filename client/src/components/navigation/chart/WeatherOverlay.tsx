@@ -8,7 +8,7 @@ import { TWO_PI } from '../../../utils/angle';
 import { useSettings } from '../../../context/SettingsContext';
 
 // Debounce delay for fetch requests (ms)
-const FETCH_DEBOUNCE_MS = 500;
+const FETCH_DEBOUNCE_MS = 3000;
 
 interface WaterGridPoint {
   lat: number;
@@ -20,6 +20,7 @@ export type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water
 
 interface WeatherOverlayProps {
   enabled: boolean;
+  hidden?: boolean;
   forecastHour: number;
   displayMode: WeatherDisplayMode;
   onLoadingChange?: (loading: boolean) => void;
@@ -815,6 +816,7 @@ class WeatherCanvasLayer extends L.Layer {
 
 export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   enabled,
+  hidden,
   forecastHour,
   displayMode,
   onLoadingChange,
@@ -831,6 +833,13 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   const [isLoading, setIsLoading] = React.useState(false);
   const { convertWind, convertDepth, convertTemperature } = useSettings();
 
+  // Hide/show overlay based on hidden prop
+  useEffect(() => {
+    if (layerRef.current) {
+      layerRef.current.setVisible(!hidden);
+    }
+  }, [hidden]);
+
   // Fetch weather data for current bounds
   const fetchWeatherData = useCallback(async () => {
     if (!enabled) return;
@@ -843,9 +852,20 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       return;
     }
 
+    // Clamp coordinates to valid ranges (Leaflet can wrap beyond -180/180 at low zoom)
+    const south = Math.max(-90, bounds.getSouth());
+    const north = Math.min(90, bounds.getNorth());
+    let west = bounds.getWest();
+    let east = bounds.getEast();
+    // Wrap longitude to -180..180
+    west = ((west + 180) % 360 + 360) % 360 - 180;
+    east = ((east + 180) % 360 + 360) % 360 - 180;
+    // If view spans more than 360°, just use full range
+    if (east <= west) { west = -180; east = 180; }
+
     // Calculate visible area size
-    const latRange = bounds.getNorth() - bounds.getSouth();
-    const lonRange = bounds.getEast() - bounds.getWest();
+    const latRange = north - south;
+    const lonRange = east - west;
     const diagonal = Math.sqrt(latRange * latRange + lonRange * lonRange);
 
     // Calculate how many arrows will be shown (~15 along diagonal)
@@ -878,17 +898,17 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     }
 
     // Snap viewport to resolution grid (these are the points that cover the viewport)
-    const gridSouth = Math.floor(bounds.getSouth() / resolution) * resolution;
-    const gridNorth = Math.ceil(bounds.getNorth() / resolution) * resolution;
-    const gridWest = Math.floor(bounds.getWest() / resolution) * resolution;
-    const gridEast = Math.ceil(bounds.getEast() / resolution) * resolution;
+    const gridSouth = Math.floor(south / resolution) * resolution;
+    const gridNorth = Math.ceil(north / resolution) * resolution;
+    const gridWest = Math.floor(west / resolution) * resolution;
+    const gridEast = Math.ceil(east / resolution) * resolution;
 
     // Add one ring around (1 resolution step in each direction)
     const gridBounds = {
-      south: gridSouth - resolution,
-      north: gridNorth + resolution,
-      west: gridWest - resolution,
-      east: gridEast + resolution,
+      south: Math.max(-90, gridSouth - resolution),
+      north: Math.min(90, gridNorth + resolution),
+      west: Math.max(-180, gridWest - resolution),
+      east: Math.min(180, gridEast + resolution),
     };
 
     const fetchKey = `${gridBounds.south},${gridBounds.west},${gridBounds.north},${gridBounds.east},${resolution},${forecastHour}`;
@@ -1002,17 +1022,26 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       return;
     }
 
+    // Clamp coordinates to valid ranges
+    const south = Math.max(-90, bounds.getSouth());
+    const north = Math.min(90, bounds.getNorth());
+    let west = bounds.getWest();
+    let east = bounds.getEast();
+    west = ((west + 180) % 360 + 360) % 360 - 180;
+    east = ((east + 180) % 360 + 360) % 360 - 180;
+    if (east <= west) { west = -180; east = 180; }
+
     // Calculate spacing exactly like the render function does
-    const latRange = bounds.getNorth() - bounds.getSouth();
-    const lonRange = bounds.getEast() - bounds.getWest();
+    const latRange = north - south;
+    const lonRange = east - west;
     const diagonal = Math.sqrt(latRange * latRange + lonRange * lonRange);
     const spacing = diagonal / 15;
 
     // Snap to grid boundaries - exactly like render function
-    const startLat = Math.floor(bounds.getSouth() / spacing) * spacing;
-    const endLat = Math.ceil(bounds.getNorth() / spacing) * spacing;
-    const startLon = Math.floor(bounds.getWest() / spacing) * spacing;
-    const endLon = Math.ceil(bounds.getEast() / spacing) * spacing;
+    const startLat = Math.max(-90, Math.floor(south / spacing) * spacing);
+    const endLat = Math.min(90, Math.ceil(north / spacing) * spacing);
+    const startLon = Math.max(-180, Math.floor(west / spacing) * spacing);
+    const endLon = Math.min(180, Math.ceil(east / spacing) * spacing);
 
     // Create key based on the actual grid
     const waterGridKey = `${startLat.toFixed(4)},${startLon.toFixed(4)},${endLat.toFixed(4)},${endLon.toFixed(4)},${spacing.toFixed(4)}`;
@@ -1155,13 +1184,16 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   // Map events
   useMapEvents({
     move: () => {
-      if (enabled && layerRef.current) {
+      if (enabled && !hidden && layerRef.current) {
         layerRef.current.reset();
       }
     },
     moveend: () => {
       if (enabled) {
-        // Use debounced fetch to avoid hammering the API when panning quickly
+        // Restore after hidden animation completes
+        if (!hidden && layerRef.current) {
+          layerRef.current.reset();
+        }
         debouncedFetchWeather();
         const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
         if (marineDisplayModes.includes(displayMode)) {
@@ -1170,7 +1202,6 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       }
     },
     zoomstart: () => {
-      // Hide arrows while zooming and cancel pending fetches
       if (enabled && layerRef.current) {
         layerRef.current.setVisible(false);
       }
@@ -1178,8 +1209,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
     },
     zoomend: () => {
-      // Show and redraw after zoom completes
-      if (enabled && layerRef.current) {
+      if (enabled && !hidden && layerRef.current) {
         layerRef.current.setVisible(true);
         layerRef.current.reset();
       }

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { MapContainer, TileLayer, useMap, useMapEvents } from 'react-leaflet';
+import { MapContainer, useMap, useMapEvents } from 'react-leaflet';
+import { BufferedTileLayer } from '../navigation/chart/BufferedTileLayer';
 import type { Map as LeafletMap } from 'leaflet';
 import { useTheme } from '../../context/ThemeContext';
 import { offlineMapsAPI, OfflineRegion, Bounds, TileEstimate, StorageStats } from '../../services/api';
@@ -345,10 +346,14 @@ export const OfflineMapsTab: React.FC<OfflineMapsTabProps> = ({ formatFileSize }
               style={{ height: '100%', width: '100%' }}
               scrollWheelZoom={true}
               zoomControl={false}
+              preferCanvas={true}
             >
-              <TileLayer
+              <BufferedTileLayer
                 attribution=""
                 url={TILE_URLS.street}
+                updateWhenZooming={false}
+                keepBuffer={4}
+                loadBuffer={0.5}
               />
               <BoundsTracker
                 onBoundsChange={setSelectedBounds}

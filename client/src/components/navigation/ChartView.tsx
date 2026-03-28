@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
-import { MapContainer, TileLayer, Marker, Polyline, Circle, useMap } from 'react-leaflet';
+import { MapContainer, Marker, Polyline, Circle, useMap } from 'react-leaflet';
+import { BufferedTileLayer } from './chart/BufferedTileLayer';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
@@ -149,6 +150,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
     const saved = localStorage.getItem('chartWeatherOverlay');
     return saved ? JSON.parse(saved) : false;
   });
+  const [weatherOverlayHidden, setWeatherOverlayHidden] = useState(false);
   const [navDataError, setNavDataError] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<{
     reason: string;
@@ -685,9 +687,13 @@ export const ChartView: React.FC<ChartViewProps> = ({
     }
   }, [position.latitude, position.longitude, navigationTarget, routeWaypoints]);
 
-  // Save satellite view preference
+  // Save satellite view preference and update map background color
   useEffect(() => {
     localStorage.setItem('chartUseSatellite', JSON.stringify(useSatellite));
+    const container = mapRef.current?.getContainer();
+    if (container) {
+      container.style.background = useSatellite ? '#0b1a2e' : '#aad3df';
+    }
   }, [useSatellite]);
 
   // Save weather overlay preference
@@ -701,64 +707,44 @@ export const ChartView: React.FC<ChartViewProps> = ({
     return createBoatIcon(heading);
   }, [Math.round(radToDeg(heading))]);
 
-  // Force map to recalculate size on mount and visibility changes
+  // Invalidate map size on container resize or visibility change
   useEffect(() => {
     const invalidateMap = () => {
-      if (mapRef.current) {
-        mapRef.current.invalidateSize();
-      }
+      if (mapRef.current) mapRef.current.invalidateSize();
     };
 
-    // Multiple delayed invalidations to catch different timing issues
-    const timer1 = setTimeout(invalidateMap, 50);
-    const timer2 = setTimeout(invalidateMap, 150);
-    const timer3 = setTimeout(invalidateMap, 300);
-    const timer4 = setTimeout(invalidateMap, 600);
-    const timer5 = setTimeout(invalidateMap, 1000);
+    // Single delayed invalidation on mount to catch initial layout
+    const timer = setTimeout(invalidateMap, 150);
 
-    // Use requestAnimationFrame for smoother invalidation
-    let rafId: number;
-    const rafInvalidate = () => {
-      invalidateMap();
-      rafId = requestAnimationFrame(rafInvalidate);
-    };
-    // Run for a short period on mount
-    rafId = requestAnimationFrame(rafInvalidate);
-    const stopRaf = setTimeout(() => cancelAnimationFrame(rafId), 1500);
-
-    window.addEventListener('resize', invalidateMap);
+    // ResizeObserver handles window resizes and layout shifts
+    const container = mapRef.current?.getContainer();
+    let ro: ResizeObserver | undefined;
+    if (container) {
+      ro = new ResizeObserver(invalidateMap);
+      ro.observe(container);
+    }
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible') {
-        setTimeout(invalidateMap, 50);
-        setTimeout(invalidateMap, 200);
-        setTimeout(invalidateMap, 500);
+        setTimeout(invalidateMap, 100);
       }
     };
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
-    // Periodic check every 30 seconds as a fallback (reduced from 2 seconds)
-    const periodicCheck = setInterval(() => {
-      if (mapRef.current) {
-        const container = mapRef.current.getContainer();
-        if (container && container.offsetHeight > 0) {
-          invalidateMap();
-        }
-      }
-    }, 30000);
-
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
-      clearTimeout(timer5);
-      clearTimeout(stopRaf);
-      cancelAnimationFrame(rafId);
-      clearInterval(periodicCheck);
-      window.removeEventListener('resize', invalidateMap);
+      clearTimeout(timer);
+      ro?.disconnect();
       document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
+  }, []);
+
+  // Clear weather overlay hidden flag when map animation finishes
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+    const onMoveEnd = () => setWeatherOverlayHidden(false);
+    map.on('moveend', onMoveEnd);
+    return () => { map.off('moveend', onMoveEnd); };
   }, []);
 
   // Reposition zoom controls based on sidebar position
@@ -959,6 +945,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
     const lat = parseFloat(result.lat);
     const lon = parseFloat(result.lon);
     if (mapRef.current) {
+      setWeatherOverlayHidden(true);
       mapRef.current.flyTo([lat, lon], 14);
       setAutoCenter(false);
     }
@@ -969,6 +956,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
   const handleMarkerSearchClick = (marker: CustomMarker) => {
     if (mapRef.current) {
+      setWeatherOverlayHidden(true);
       mapRef.current.flyTo([marker.lat, marker.lon], 16);
       setAutoCenter(false);
     }
@@ -1040,6 +1028,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
         [position.latitude, position.longitude],
         [marker.lat, marker.lon]
       );
+      setWeatherOverlayHidden(true);
       mapRef.current.fitBounds(bounds, { padding: [120, 120], maxZoom: 15 });
     }
   };
@@ -1068,6 +1057,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
         [position.latitude, position.longitude],
         [lat, lon]
       );
+      setWeatherOverlayHidden(true);
       mapRef.current.fitBounds(bounds, { padding: [120, 120], maxZoom: 15 });
     }
   };
@@ -1083,13 +1073,16 @@ export const ChartView: React.FC<ChartViewProps> = ({
         style={{ width: '100%', height: '100%' }}
         ref={mapRef}
         zoomControl={!hideSidebar}
+        preferCanvas={true}
+        zoomAnimation={false}
+        markerZoomAnimation={false}
       >
         {useSatellite ? (
-          <TileLayer attribution="" url={TILE_URLS.satellite} />
+          <BufferedTileLayer attribution="" url={TILE_URLS.satellite} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
           ) : (
-          <TileLayer attribution="" url={TILE_URLS.street} />
+          <BufferedTileLayer attribution="" url={TILE_URLS.street} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
         )}
-        <TileLayer attribution="" url={TILE_URLS.nautical} zIndex={10} />
+        <BufferedTileLayer attribution="" url={TILE_URLS.nautical} zIndex={10} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
 
         {/* Auto-refresh tiles when coming back online */}
         <ConnectivityRefresher />
@@ -1337,6 +1330,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
           position={position}
           autoCenter={autoCenter}
           onDrag={handleMapDrag}
+          onAnimationStart={() => setWeatherOverlayHidden(true)}
         />
         <ZoomTracker onZoomChange={setMapZoom} />
         <LongPressHandler onLongPress={handleLongPress} />
@@ -1350,6 +1344,7 @@ export const ChartView: React.FC<ChartViewProps> = ({
         {weatherOverlayEnabled && (
           <WeatherOverlay
             enabled={weatherOverlayEnabled}
+            hidden={weatherOverlayHidden}
             forecastHour={weatherOverlay.forecastHour}
             displayMode={weatherOverlay.displayMode}
             onLoadingChange={weatherOverlay.setLoading}

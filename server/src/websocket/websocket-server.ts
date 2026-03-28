@@ -818,7 +818,7 @@ export class WebSocketServer {
    * Handle control commands
    */
   private handleControlCommand(data: any, socket: any): void {
-    console.log('Control command received:', data);
+    // Control command received (logged silently)
 
     // Handle demo navigation updates - sync to all clients
     if (data.type === 'demo_navigation' && this.dataController) {

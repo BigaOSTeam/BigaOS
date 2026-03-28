@@ -9,6 +9,7 @@ interface MapControllerProps {
   position: GeoPosition;
   autoCenter: boolean;
   onDrag: () => void;
+  onAnimationStart?: () => void;
 }
 
 /**
@@ -18,6 +19,7 @@ export const MapController: React.FC<MapControllerProps> = ({
   position,
   autoCenter,
   onDrag,
+  onAnimationStart,
 }) => {
   const map = useMap();
   const prevAutoCenterRef = useRef(autoCenter);
@@ -28,6 +30,7 @@ export const MapController: React.FC<MapControllerProps> = ({
       // If transitioning from false to true (user clicked recenter), animate with flyTo
       if (!prevAutoCenterRef.current) {
         isFlyingRef.current = true;
+        onAnimationStart?.();
         map.flyTo([position.latitude, position.longitude], map.getZoom());
 
         // Listen for moveend to know when flyTo animation completes

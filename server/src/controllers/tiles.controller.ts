@@ -944,6 +944,7 @@ class TilesController {
     // Try to serve local tile first
     if (fs.existsSync(tilePath)) {
       res.setHeader('Content-Type', 'image/png');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
       res.setHeader('X-Tile-Source', 'local');
       res.setHeader('X-Offline-Mode', String(!connectivityService.getOnlineStatus()));
       fs.createReadStream(tilePath).pipe(res);

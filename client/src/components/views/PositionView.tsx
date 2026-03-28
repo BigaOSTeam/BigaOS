@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { MapContainer, TileLayer, useMap } from 'react-leaflet';
+import { MapContainer, useMap } from 'react-leaflet';
+import { BufferedTileLayer } from '../navigation/chart/BufferedTileLayer';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
@@ -173,13 +174,14 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
             style={{ width: '100%', height: '100%' }}
             zoomControl={false}
             attributionControl={false}
+            preferCanvas={true}
           >
             {useSatellite ? (
-              <TileLayer url={TILE_URLS.satellite} />
+              <BufferedTileLayer url={TILE_URLS.satellite} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
             ) : (
-              <TileLayer url={TILE_URLS.street} />
+              <BufferedTileLayer url={TILE_URLS.street} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
             )}
-            <TileLayer url={TILE_URLS.nautical} zIndex={10} />
+            <BufferedTileLayer url={TILE_URLS.nautical} zIndex={10} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
             <MapFollower lat={position.latitude} lon={position.longitude} />
             <PulsingMarker lat={position.latitude} lon={position.longitude} color={'#d32f2f'} />
           </MapContainer>
