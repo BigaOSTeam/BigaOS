@@ -83,6 +83,60 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
       {/* Spacer */}
       <div style={{ flex: 1 }} />
 
+      {/* Instruments button */}
+      <button
+        onClick={() => onNavigate('instruments')}
+        className="chart-sidebar-btn with-label"
+        style={{
+          ...(isHorizontal
+            ? { borderLeft: separator, width: `${sidebarWidth}px`, height: '100%' }
+            : { borderTop: separator }),
+        }}
+        title={t('instruments.title')}
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <circle cx="12" cy="12" r="10" />
+          <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76" />
+        </svg>
+        {!hideLabels && <span style={{ opacity: 0.7 }}>{t('instruments.title')}</span>}
+      </button>
+
+      {/* Switches button */}
+      <button
+        onClick={() => onNavigate('switches')}
+        className="chart-sidebar-btn with-label"
+        style={{
+          ...(isHorizontal
+            ? { borderLeft: separator, width: `${sidebarWidth}px`, height: '100%' }
+            : { borderTop: separator }),
+        }}
+        title={t('switches.title')}
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <rect x="1" y="5" width="22" height="14" rx="7" />
+          <circle cx="16" cy="12" r="4" />
+        </svg>
+        {!hideLabels && <span style={{ opacity: 0.7 }}>{t('switches.title')}</span>}
+      </button>
+
       {/* Edit button */}
       <button
         onClick={onEditMode}

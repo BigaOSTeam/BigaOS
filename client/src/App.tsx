@@ -13,6 +13,8 @@ import { BatteryView } from './components/views/BatteryView';
 import { WeatherView } from './components/views/WeatherView';
 import { RollView } from './components/views/RollView';
 import { PitchView } from './components/views/PitchView';
+import { SwitchesView } from './components/views/SwitchesView';
+import { InstrumentsView } from './components/views/InstrumentsView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
@@ -596,6 +598,30 @@ function AppContent() {
     return (
       <>
         <RollView roll={sensorData.navigation.attitude.roll} onClose={handleGoBack} />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
+  if (activeView === 'switches') {
+    return (
+      <>
+        <SwitchesView onClose={handleGoBack} />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
+  if (activeView === 'instruments') {
+    return (
+      <>
+        <InstrumentsView sensorData={sensorData} onClose={handleGoBack} onNavigate={handleNavigate} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />

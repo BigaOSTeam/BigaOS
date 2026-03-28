@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { wsService } from '../../services/websocket';
@@ -23,23 +23,27 @@ interface ClientSettingsDialogProps {
   onClose: () => void;
 }
 
-const START_PAGE_OPTIONS: SelectOption<StartPage>[] = [
-  { value: '', label: 'Default' },
-  { value: 'dashboard', label: 'Dashboard' },
-  { value: 'chart', label: 'Chart' },
-  { value: 'settings', label: 'Settings' },
-  { value: 'battery', label: 'Battery' },
-  { value: 'wind', label: 'Wind' },
-  { value: 'depth', label: 'Depth' },
-  { value: 'speed', label: 'Speed' },
-  { value: 'heading', label: 'Heading' },
-  { value: 'position', label: 'Position' },
-  { value: 'weather', label: 'Weather' },
-];
-
 export const ClientSettingsDialog: React.FC<ClientSettingsDialogProps> = ({ client, onClose }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
+
+  const startPageOptions = useMemo<SelectOption<StartPage>[]>(() => [
+    { value: '', label: t('clients.start_page_default') },
+    { value: 'dashboard', label: t('dashboard.title') },
+    { value: 'chart', label: t('dashboard.chart') },
+    { value: 'instruments', label: t('instruments.title') },
+    { value: 'switches', label: t('switches.title') },
+    { value: 'settings', label: t('common.settings') },
+    { value: 'battery', label: t('dashboard.battery') },
+    { value: 'wind', label: t('dashboard.wind') },
+    { value: 'depth', label: t('dashboard.depth') },
+    { value: 'speed', label: t('dashboard.speed') },
+    { value: 'heading', label: t('dashboard.heading') },
+    { value: 'position', label: t('dashboard.position') },
+    { value: 'weather', label: t('dashboard.weather') },
+    { value: 'roll', label: t('dashboard.roll') },
+    { value: 'pitch', label: t('dashboard.pitch') },
+  ], [t]);
   const nameRef = useRef<HTMLInputElement>(null);
 
   const [name, setName] = useState(client.name);
@@ -173,7 +177,7 @@ export const ClientSettingsDialog: React.FC<ClientSettingsDialogProps> = ({ clie
           {settingsLoaded ? (
             <CustomSelect
               value={startPage}
-              options={START_PAGE_OPTIONS}
+              options={startPageOptions}
               onChange={setStartPage}
               placeholder={t('clients.start_page_default')}
             />

@@ -3,7 +3,7 @@ import { SwitchDashboardConfig } from './switches';
 
 export type DashboardSidebarPosition = 'left' | 'right' | 'top' | 'bottom';
 
-export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch';
+export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch' | 'switches' | 'instruments';
 
 export interface DashboardItemConfig {
   id: string;

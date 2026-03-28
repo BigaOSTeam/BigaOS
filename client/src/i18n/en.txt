@@ -865,6 +865,7 @@ setup.use_existing=Use an existing client
 setup.select_client=Select a Client
 setup.create_new=Create New
 setup.skip=Skip
+instruments.title=Instruments
 switches.title=Switches
 switches.description=Control physical relays connected to GPIO pins on Raspberry Pi devices.
 switches.add=Add Switch
