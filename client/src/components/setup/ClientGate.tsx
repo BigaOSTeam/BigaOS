@@ -40,11 +40,14 @@ export const ClientGate: React.FC = () => {
         if (res.ok) {
           return res.json().then((data) => {
             setClientId(candidateId);
-            // Refresh localStorage with server-side name (best-effort for non-readonly systems)
+            // Refresh localStorage from server (best-effort for non-readonly systems)
             try {
               const name = data.client?.name || storedName || 'Unknown';
               localStorage.setItem('bigaos-client-id', candidateId);
               localStorage.setItem('bigaos-client-name', name);
+              if (data.client?.clientType) {
+                localStorage.setItem('bigaos-client-type', data.client.clientType);
+              }
             } catch { /* read-only filesystem — ignore */ }
           });
         } else if (!urlClientId) {

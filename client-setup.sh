@@ -365,25 +365,28 @@ if [[ $DISABLE_WIRELESS =~ ^[Yy]$ ]]; then
 fi
 
 # Clean previous resolution settings (re-added below if needed)
-sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^hdmi_drive/d; /^framebuffer_width/d; /^framebuffer_height/d' "$BOOT_CONFIG"
+sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^hdmi_drive/d; /^hdmi_force_hotplug/d; /^framebuffer_width/d; /^framebuffer_height/d' "$BOOT_CONFIG"
+# Also clean [HDMI:N] conditional sections we may have added previously
+sudo sed -i '/^\[HDMI:[0-9]\]/d' "$BOOT_CONFIG"
 
 # Auto-detect which HDMI port has a display connected
-# Pi 4 config.txt uses 0-based port index: HDMI-A-1 → :0, HDMI-A-2 → :1
-HDMI_SUFFIX=""
+# Pi 4: HDMI-A-1 → [HDMI:0], HDMI-A-2 → [HDMI:1]
+HDMI_INDEX=""
 HDMI_PORT=""
 for STATUS_FILE in /sys/class/drm/card*-HDMI-A-*/status; do
   if [ -f "$STATUS_FILE" ] && [ "$(cat "$STATUS_FILE")" = "connected" ]; then
     PORT_NAME=$(basename "$(dirname "$STATUS_FILE")")
     PORT_NUM=$(echo "$PORT_NAME" | grep -oP 'HDMI-A-\K\d+')
-    HDMI_SUFFIX=":$((PORT_NUM - 1))"
+    HDMI_INDEX=$((PORT_NUM - 1))
     HDMI_PORT="HDMI-A-${PORT_NUM}"
     break
   fi
 done
 HDMI_PORT=${HDMI_PORT:-HDMI-A-1}
+HDMI_INDEX=${HDMI_INDEX:-0}
 
-if [ -n "$HDMI_SUFFIX" ]; then
-  info "Detected display on ${HDMI_PORT}"
+if [ -n "$HDMI_PORT" ]; then
+  info "Detected display on ${HDMI_PORT} (HDMI:${HDMI_INDEX})"
 else
   warn "Could not detect HDMI port, using default (HDMI-A-1)"
 fi
@@ -403,12 +406,15 @@ if [ -n "$SCREEN_RESOLUTION" ]; then
     echo "dtoverlay=vc4-fkms-v3d" | sudo tee -a "$BOOT_CONFIG" > /dev/null
   fi
 
-  # Add custom HDMI mode via hdmi_cvt for the detected port
+  # Add custom HDMI mode via conditional section (more reliable than :N suffix)
   cat << HDMIEOF | sudo tee -a "$BOOT_CONFIG" > /dev/null
-hdmi_group${HDMI_SUFFIX}=2
-hdmi_mode${HDMI_SUFFIX}=87
-hdmi_cvt${HDMI_SUFFIX}=${RES_W} ${RES_H} 60 3 0 0 0
-hdmi_drive${HDMI_SUFFIX}=2
+[HDMI:${HDMI_INDEX}]
+hdmi_force_hotplug=1
+hdmi_group=2
+hdmi_mode=87
+hdmi_cvt=${RES_W} ${RES_H} 60 3 0 0 0
+hdmi_drive=2
+[all]
 HDMIEOF
 
   # Remove any video= params from cmdline (fkms handles resolution via config.txt)

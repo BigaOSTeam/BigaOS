@@ -35,9 +35,8 @@ export const VirtualKeyboard: React.FC = () => {
   const [activeInput, setActiveInput] = useState<HTMLInputElement | HTMLTextAreaElement | null>(null);
   const [layout, setLayout] = useState<'default' | 'shift' | 'numbers'>('default');
 
-  const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
-  const isDisplayClient = localStorage.getItem('bigaos-client-type') === 'display';
-  const enabled = isTouchDevice || isDisplayClient;
+  const isKioskClient = /^\/c\/[a-f0-9-]+$/i.test(window.location.pathname);
+  const enabled = isKioskClient;
 
   const handleKey = useCallback((key: string) => {
     if (!activeInput) return;

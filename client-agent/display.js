@@ -5,7 +5,8 @@
  * Scale/zoom via Chromium's --force-device-scale-factor (wlr-randr fractional
  * scaling looks bad on Pi, so scale changes require a Chromium restart).
  *
- * Also updates labwc touch calibration matrix when rotation changes.
+ * Updates labwc touch mapToOutput when rotation changes
+ * (labwc 0.9.5+ handles touch rotation via mapToOutput automatically).
  */
 
 const { exec } = require('child_process');
@@ -17,12 +18,6 @@ const CONFIG_JSON = join(HOME, 'bigaos-display.json');
 const CONFIG_SHELL = join(HOME, 'bigaos-display.conf');
 const LABWC_RC = join(HOME, '.config/labwc/rc.xml');
 
-// Calibration matrices for touch rotation
-const CALIBRATION_MATRICES = {
-  '90':  '0 -1 1 1 0 0 0 0 1',
-  '180': '-1 0 1 0 -1 1 0 0 1',
-  '270': '0 1 0 -1 0 1 0 0 1',
-};
 
 /**
  * Run a shell command with Wayland environment.
@@ -125,12 +120,12 @@ async function setResolution(outputName, mode) {
 }
 
 /**
- * Set display rotation via wlr-randr and update touch calibration.
+ * Set display rotation via wlr-randr and update touch mapping.
  */
 async function setRotation(outputName, transform) {
   await run(`wlr-randr --output ${outputName} --transform ${transform}`);
   console.log(`[Display] Transform set to ${transform} on ${outputName}`);
-  updateTouchCalibration(outputName, transform);
+  updateTouchMapping(outputName);
 }
 
 /**
@@ -171,47 +166,21 @@ async function restartChromium() {
 }
 
 /**
- * Update labwc touch calibration matrix to match rotation.
+ * Update labwc touch mapToOutput (labwc 0.9.5+ handles rotation automatically).
  */
-function updateTouchCalibration(outputName, transform) {
+function updateTouchMapping(outputName) {
   if (!existsSync(LABWC_RC)) return;
 
   try {
-    const rc = readFileSync(LABWC_RC, 'utf8');
-
-    // Extract device name from existing rc.xml
-    const deviceMatch = rc.match(/deviceName="([^"]+)"/);
-    if (!deviceMatch) return;
-    const deviceName = deviceMatch[1];
-
-    const calMatrix = CALIBRATION_MATRICES[transform];
-
-    let newRc;
-    if (calMatrix) {
-      newRc = [
-        '<?xml version="1.0"?>',
-        '<openbox_config xmlns="http://openbox.org/3.4/rc">',
-        `        <touch deviceName="${deviceName}" mapToOutput="${outputName}" mouseEmulation="no"/>`,
-        '        <libinput>',
-        `                <device deviceName="${deviceName}">`,
-        `                        <calibrationMatrix>${calMatrix}</calibrationMatrix>`,
-        '                </device>',
-        '        </libinput>',
-        '</openbox_config>',
-      ].join('\n');
-    } else {
-      newRc = [
-        '<?xml version="1.0"?>',
-        '<openbox_config xmlns="http://openbox.org/3.4/rc">',
-        `        <touch deviceName="${deviceName}" mapToOutput="${outputName}" mouseEmulation="no"/>`,
-        '</openbox_config>',
-      ].join('\n');
-    }
-
-    writeFileSync(LABWC_RC, newRc + '\n');
-    console.log(`[Display] Touch calibration updated for ${transform}`);
+    let rc = readFileSync(LABWC_RC, 'utf8');
+    // Update mapToOutput attribute to match current output
+    rc = rc.replace(/mapToOutput="[^"]*"/, `mapToOutput="${outputName}"`);
+    // Remove any leftover calibration matrix sections
+    rc = rc.replace(/\s*<libinput>[\s\S]*?<\/libinput>/, '');
+    writeFileSync(LABWC_RC, rc);
+    console.log(`[Display] Touch mapping updated for ${outputName}`);
   } catch (err) {
-    console.error(`[Display] Failed to update touch calibration: ${err.message}`);
+    console.error(`[Display] Failed to update touch mapping: ${err.message}`);
   }
 }
 
