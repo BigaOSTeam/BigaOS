@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">BigaOS</string>
+    <string name="title_activity_main">BigaOS</string>
+    <string name="package_name">BigaOSTeam.bigaos</string>
+    <string name="custom_url_scheme">BigaOSTeam.bigaos</string>
+</resources>

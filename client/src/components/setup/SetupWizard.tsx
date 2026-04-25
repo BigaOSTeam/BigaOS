@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { SButton, SInput, SCard } from '../ui/SettingsUI';
 import { API_BASE_URL } from '../../utils/urls';
+import { isNativeApp } from '../../utils/serverConfig';
 
 interface SetupWizardProps {
   onComplete: (id: string, name: string, clientType: string) => void;
@@ -30,7 +31,11 @@ const SUGGESTED_NAMES_REMOTE = [
 
 export const SetupWizard: React.FC<SetupWizardProps> = ({ onComplete }) => {
   const { theme } = useTheme();
-  const [isRemote, setIsRemote] = useState(() => new URLSearchParams(window.location.search).has('remote'));
+  // In the native APK the URL is local, so ?remote=1 isn't carried — but the APK
+  // is by definition a phone, so default isRemote to true there.
+  const [isRemote, setIsRemote] = useState(
+    () => new URLSearchParams(window.location.search).has('remote') || isNativeApp(),
+  );
   const [step, setStep] = useState<WizardStep>('welcome');
   const [clientName, setClientName] = useState('');
   const [existingClients, setExistingClients] = useState<Array<{ id: string; name: string; client_type?: string }>>([]);

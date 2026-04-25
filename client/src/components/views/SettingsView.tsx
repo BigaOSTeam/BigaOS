@@ -27,6 +27,7 @@ import { TerminalPanel } from '../settings/TerminalPanel';
 import { ChartTab } from '../settings/ChartTab';
 import { ClientsTab } from '../settings/ClientsTab';
 import { DisplayTab } from '../settings/DisplayTab';
+import { ServerConnectionSection } from '../settings/ServerConnectionSection';
 
 import { useClient } from '../../context/ClientContext';
 import { wsService } from '../../services/websocket';
@@ -504,6 +505,9 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
 
   const renderGeneralTab = () => (
     <div>
+      {/* Server connection (native APK only) */}
+      <ServerConnectionSection />
+
       {/* Language Selector */}
       <div style={{ marginBottom: theme.space.xl }}>
         <SLabel>{t('language.label')}</SLabel>

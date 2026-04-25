@@ -5,6 +5,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg">
     <title>Biga OS</title>
+    <style>
+      /* Available before any React render — used by setup screens that load before globals.css */
+      @keyframes spin { to { transform: rotate(360deg); } }
+      html, body, #root { background: #0a1929; color: #e0e0e0; margin: 0; }
+    </style>
   </head>
   <body>
     <div id="root"></div>

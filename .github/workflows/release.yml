@@ -53,9 +53,34 @@ jobs:
           cd release
           tar -czf ../bigaos-${GITHUB_REF_NAME}.tar.gz .
 
-      # Create GitHub release with the tarball
+      # ---- Android APK build ----
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Sync Capacitor web assets to Android project
+        working-directory: client
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: client/android
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Rename APK
+        run: cp client/android/app/build/outputs/apk/debug/app-debug.apk bigaos-${GITHUB_REF_NAME}.apk
+
+      # Create GitHub release with the tarball + APK
       - name: Create release
         uses: softprops/action-gh-release@v2
         with:
-          files: bigaos-${{ github.ref_name }}.tar.gz
+          files: |
+            bigaos-${{ github.ref_name }}.tar.gz
+            bigaos-${{ github.ref_name }}.apk
           generate_release_notes: true
