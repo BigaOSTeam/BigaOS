@@ -67,14 +67,39 @@ jobs:
         working-directory: client
         run: npx cap sync android
 
-      - name: Build debug APK
+      - name: Compute Android version from tag
+        id: android_version
+        run: |
+          TAG=${GITHUB_REF_NAME#v}
+          IFS='.' read -r MAJ MIN PAT <<< "$TAG"
+          MAJ=${MAJ:-0}; MIN=${MIN:-0}; PAT=${PAT:-0}
+          CODE=$((MAJ * 10000 + MIN * 100 + PAT))
+          echo "name=$TAG" >> $GITHUB_OUTPUT
+          echo "code=$CODE" >> $GITHUB_OUTPUT
+
+      - name: Decode signing keystore
+        run: |
+          echo "${{ secrets.ANDROID_KEYSTORE_BASE64 }}" | base64 -d > $RUNNER_TEMP/bigaos-release.jks
+
+      - name: Build release APK
         working-directory: client/android
+        env:
+          BIGAOS_KEYSTORE_FILE: ${{ runner.temp }}/bigaos-release.jks
+          BIGAOS_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          BIGAOS_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          BIGAOS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleRelease --no-daemon \
+            -PbigaosVersionCode=${{ steps.android_version.outputs.code }} \
+            -PbigaosVersionName=${{ steps.android_version.outputs.name }}
 
       - name: Rename APK
-        run: cp client/android/app/build/outputs/apk/debug/app-debug.apk bigaos-${GITHUB_REF_NAME}.apk
+        run: cp client/android/app/build/outputs/apk/release/app-release.apk bigaos-${GITHUB_REF_NAME}.apk
+
+      - name: Clean up keystore
+        if: always()
+        run: rm -f $RUNNER_TEMP/bigaos-release.jks
 
       # Create GitHub release with the tarball + APK
       - name: Create release
