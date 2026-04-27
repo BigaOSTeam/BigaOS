@@ -1,10 +1,17 @@
 import { io, Socket } from 'socket.io-client';
 import { WS_URL } from '../utils/urls';
 
+// Hide the "server unreachable" banner during transient disconnects (tab
+// throttled in background, brief network blip, Socket.IO transport upgrade).
+// A real outage will exceed this window and surface normally.
+const UNREACHABLE_DEBOUNCE_MS = 4000;
+
 class WebSocketService {
   private socket: Socket | null = null;
   private listeners: Map<string, Set<Function>> = new Map();
   private serverReachable: boolean = true;
+  private unreachableTimer: ReturnType<typeof setTimeout> | null = null;
+  private visibilityHandler: (() => void) | null = null;
 
   connect(clientId?: string) {
     if (this.socket?.connected) {
@@ -15,9 +22,9 @@ class WebSocketService {
       transports: ['polling', 'websocket'],
       reconnection: true,
       reconnectionAttempts: Infinity, // Keep trying forever
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      timeout: 5000, // Initial connection timeout
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      timeout: 10000, // Initial connection timeout
       auth: clientId ? { clientId } : undefined,
     });
 
@@ -58,16 +65,50 @@ class WebSocketService {
         listeners.forEach(callback => callback(...args));
       }
     });
+
+    // When the tab becomes visible again, kick the socket so it reconnects
+    // immediately instead of waiting on the next backoff tick.
+    if (typeof document !== 'undefined' && !this.visibilityHandler) {
+      this.visibilityHandler = () => {
+        if (document.visibilityState === 'visible' && this.socket && !this.socket.connected) {
+          this.socket.connect();
+        }
+      };
+      document.addEventListener('visibilitychange', this.visibilityHandler);
+    }
   }
 
   private setServerReachable(reachable: boolean) {
-    if (this.serverReachable !== reachable) {
-      this.serverReachable = reachable;
-      // Emit a custom event for UI components to listen to
-      const listeners = this.listeners.get('server_reachability');
-      if (listeners) {
-        listeners.forEach(callback => callback({ reachable, timestamp: new Date() }));
+    if (reachable) {
+      // Clear any pending "unreachable" notification — we recovered before the
+      // debounce window elapsed, so the user never needed to see a banner.
+      if (this.unreachableTimer) {
+        clearTimeout(this.unreachableTimer);
+        this.unreachableTimer = null;
       }
+      if (this.serverReachable !== true) {
+        this.serverReachable = true;
+        this.notifyReachability(true);
+      }
+      return;
+    }
+
+    // Already known unreachable, or already pending — nothing to do.
+    if (!this.serverReachable || this.unreachableTimer) return;
+
+    this.unreachableTimer = setTimeout(() => {
+      this.unreachableTimer = null;
+      if (!this.socket?.connected) {
+        this.serverReachable = false;
+        this.notifyReachability(false);
+      }
+    }, UNREACHABLE_DEBOUNCE_MS);
+  }
+
+  private notifyReachability(reachable: boolean) {
+    const listeners = this.listeners.get('server_reachability');
+    if (listeners) {
+      listeners.forEach(callback => callback({ reachable, timestamp: new Date() }));
     }
   }
 
@@ -76,10 +117,22 @@ class WebSocketService {
   }
 
   disconnect() {
+    if (this.unreachableTimer) {
+      clearTimeout(this.unreachableTimer);
+      this.unreachableTimer = null;
+    }
+    if (this.visibilityHandler && typeof document !== 'undefined') {
+      document.removeEventListener('visibilitychange', this.visibilityHandler);
+      this.visibilityHandler = null;
+    }
     if (this.socket) {
       this.socket.disconnect();
       this.socket = null;
     }
+    // Drop accumulated subscribers — caller is responsible for re-registering
+    // on the next connect(). This prevents handler accumulation across HMR
+    // and any future reconnect-with-different-clientId flows.
+    this.listeners.clear();
   }
 
   on(event: string, callback: Function) {

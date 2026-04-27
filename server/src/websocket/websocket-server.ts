@@ -36,8 +36,8 @@ export class WebSocketServer {
         origin: '*',
         methods: ['GET', 'POST'],
       },
-      pingTimeout: 5000,
-      pingInterval: 3000,
+      pingTimeout: 20000,
+      pingInterval: 25000,
     });
 
     this.setupEventHandlers();

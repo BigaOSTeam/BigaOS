@@ -92,7 +92,6 @@ function AppContent() {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [serverReachable, setServerReachable] = useState(true);
-  const [, forceUpdate] = useState(0);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showOnlineBanner, setShowOnlineBanner] = useState(false);
   const [systemUpdating, setSystemUpdating] = useState(false);
@@ -102,6 +101,9 @@ function AppContent() {
   const systemUpdatingRef = useRef(false);
   const wasOfflineRef = useRef<boolean | null>(null);
   const startPageAppliedRef = useRef(false);
+  const reloadPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shutdownCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const shutdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { setCurrentDepth, setSidebarPosition } = useSettings();
   const { installingPlugins } = usePlugins();
 
@@ -128,7 +130,6 @@ function AppContent() {
   }, []);
   const { activeView, navigationParams, navigate, goBack } = useNavigation();
   const { clientId } = useClient();
-  const repaintIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // In chart-only mode, redirect dashboard to chart
   useEffect(() => {
@@ -145,31 +146,6 @@ function AppContent() {
       goBack();
     }
   }, [chartOnly, navigate, goBack]);
-
-  // Force a repaint periodically to recover from rendering freezes
-  const forceRepaint = useCallback(() => {
-    // Trigger a minimal re-render
-    forceUpdate(n => n + 1);
-
-    // Also force browser repaint by toggling a style
-    const root = document.getElementById('root');
-    if (root) {
-      root.style.transform = 'translateZ(1px)';
-      requestAnimationFrame(() => {
-        root.style.transform = 'translateZ(0)';
-      });
-    }
-  }, []);
-
-  // Set up periodic repaint check (every 3 seconds)
-  useEffect(() => {
-    repaintIntervalRef.current = setInterval(forceRepaint, 3000);
-    return () => {
-      if (repaintIntervalRef.current) {
-        clearInterval(repaintIntervalRef.current);
-      }
-    };
-  }, [forceRepaint]);
 
   useEffect(() => {
     wsService.connect(clientId);
@@ -207,12 +183,16 @@ function AppContent() {
     });
 
     wsService.on('sensor_update', (data: any) => {
-      if (data.data) {
-        setSensorData(data.data);
-        // Update current depth for alarm checking
-        if (data.data.environment?.depth?.belowTransducer !== undefined) {
-          setCurrentDepth(data.data.environment.depth.belowTransducer);
-        }
+      // Server occasionally emits malformed packets when a PGN handler throws
+      // mid-stream; require the top-level shape before adopting the payload.
+      const payload = data?.data;
+      if (!payload || typeof payload !== 'object' || !payload.navigation || !payload.environment) {
+        return;
+      }
+      setSensorData(payload);
+      const depth = payload.environment?.depth?.belowTransducer;
+      if (typeof depth === 'number') {
+        setCurrentDepth(depth);
       }
     });
 
@@ -242,12 +222,24 @@ function AppContent() {
 
     // Listen for system update/reboot events
     const startReloadPoll = () => {
+      // Idempotent — if a poll is already running (e.g. system_updating fired
+      // twice, or update was followed by reboot), don't stack a second one.
+      if (reloadPollRef.current) return;
       // Fallback: poll the server health endpoint in case WebSocket
       // reconnection event doesn't fire reliably after a full reboot.
-      const poll = setInterval(() => {
+      reloadPollRef.current = setInterval(() => {
         fetch('/health').then(r => {
-          if (r.ok) { clearInterval(poll); window.location.reload(); }
-        }).catch(() => {});
+          if (r.ok) {
+            if (reloadPollRef.current) {
+              clearInterval(reloadPollRef.current);
+              reloadPollRef.current = null;
+            }
+            window.location.reload();
+          }
+        }).catch((err) => {
+          // Expected while server is down mid-update; log at debug level only.
+          console.debug('[reload-poll] /health unreachable:', err?.message);
+        });
       }, 3000);
     };
 
@@ -265,22 +257,39 @@ function AppContent() {
 
     wsService.on('system_shutting_down', () => {
       setSystemShuttingDown(true);
+      // Cancel any prior shutdown watcher before installing a new one.
+      if (shutdownCheckRef.current) clearInterval(shutdownCheckRef.current);
+      if (shutdownTimeoutRef.current) clearTimeout(shutdownTimeoutRef.current);
+
       let serverWentDown = false;
-      const checkGone = setInterval(() => {
+      const stopShutdownWatch = () => {
+        if (shutdownCheckRef.current) {
+          clearInterval(shutdownCheckRef.current);
+          shutdownCheckRef.current = null;
+        }
+        if (shutdownTimeoutRef.current) {
+          clearTimeout(shutdownTimeoutRef.current);
+          shutdownTimeoutRef.current = null;
+        }
+      };
+
+      shutdownCheckRef.current = setInterval(() => {
         fetch('/health').then(() => {
           // Server is reachable — if it went down and came back, it was a restart
           if (serverWentDown) {
-            clearInterval(checkGone);
+            stopShutdownWatch();
             setSystemShuttingDown(false);
             window.location.reload();
           }
-        }).catch(() => {
+        }).catch((err) => {
           serverWentDown = true;
+          console.debug('[shutdown-watch] /health unreachable:', err?.message);
         });
       }, 2000);
+
       // Safety timeout: clear overlay after 30s no matter what
-      setTimeout(() => {
-        clearInterval(checkGone);
+      shutdownTimeoutRef.current = setTimeout(() => {
+        stopShutdownWatch();
         setSystemShuttingDown(false);
       }, 30000);
     });
@@ -297,6 +306,18 @@ function AppContent() {
     fetchInitialData();
 
     return () => {
+      if (reloadPollRef.current) {
+        clearInterval(reloadPollRef.current);
+        reloadPollRef.current = null;
+      }
+      if (shutdownCheckRef.current) {
+        clearInterval(shutdownCheckRef.current);
+        shutdownCheckRef.current = null;
+      }
+      if (shutdownTimeoutRef.current) {
+        clearTimeout(shutdownTimeoutRef.current);
+        shutdownTimeoutRef.current = null;
+      }
       wsService.disconnect();
     };
   }, [setCurrentDepth, setSidebarPosition]);
