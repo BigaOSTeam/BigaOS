@@ -10,7 +10,7 @@ interface PressureForecastItemProps {
   longitude: number;
 }
 
-export const PressureForecastItem: React.FC<PressureForecastItemProps> = ({
+export const PressureForecastItem = React.memo<PressureForecastItemProps>(({
   latitude,
   longitude,
 }) => {
@@ -81,4 +81,4 @@ export const PressureForecastItem: React.FC<PressureForecastItemProps> = ({
       )}
     </div>
   );
-};
+});

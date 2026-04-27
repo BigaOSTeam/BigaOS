@@ -7,7 +7,7 @@ interface HeadingItemProps {
   heading: number;
 }
 
-export const HeadingItem: React.FC<HeadingItemProps> = ({ heading }) => {
+export const HeadingItem = React.memo<HeadingItemProps>(({ heading }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const getCardinalDirection = (deg: number): string => {
@@ -45,4 +45,4 @@ export const HeadingItem: React.FC<HeadingItemProps> = ({ heading }) => {
       <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{getCardinalDirection(radToDeg(heading))}</div>
     </div>
   );
-};
+});

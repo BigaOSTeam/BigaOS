@@ -11,7 +11,7 @@ interface SeaTempForecastItemProps {
   longitude: number;
 }
 
-export const SeaTempForecastItem: React.FC<SeaTempForecastItemProps> = ({
+export const SeaTempForecastItem = React.memo<SeaTempForecastItemProps>(({
   latitude,
   longitude,
 }) => {
@@ -83,4 +83,4 @@ export const SeaTempForecastItem: React.FC<SeaTempForecastItemProps> = ({
       )}
     </div>
   );
-};
+});

@@ -12,7 +12,7 @@ interface WeatherForecastItemProps {
   longitude: number;
 }
 
-export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
+export const WeatherForecastItem = React.memo<WeatherForecastItemProps>(({
   latitude,
   longitude,
 }) => {
@@ -192,4 +192,4 @@ export const WeatherForecastItem: React.FC<WeatherForecastItemProps> = ({
       )}
     </div>
   );
-};
+});

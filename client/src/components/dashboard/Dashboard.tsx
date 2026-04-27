@@ -400,6 +400,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [showColsPicker, showRowsPicker, showAddMenu, editMode, handleExitEditMode]);
 
+  // Forecast tiles only need ~1km accuracy. Quantizing to a 0.01° grid stops
+  // their lat/lon-keyed effects from refetching on every 5Hz GPS jitter and
+  // lets React.memo short-circuit re-renders when the boat hasn't moved far.
+  const forecastLat = Math.round(sensorData.navigation.position.latitude * 100) / 100;
+  const forecastLon = Math.round(sensorData.navigation.position.longitude * 100) / 100;
+
   const renderItemContent = (item: DashboardItemConfig) => {
     switch (item.type) {
       case 'speed':
@@ -424,7 +430,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           />
         );
       case 'position':
-        return <PositionItem position={sensorData.navigation.position} />;
+        return (
+          <PositionItem
+            latitude={sensorData.navigation.position.latitude}
+            longitude={sensorData.navigation.position.longitude}
+          />
+        );
       case 'battery':
         return (
           <BatteryItem
@@ -444,47 +455,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           />
         );
       case 'weather-forecast':
-        return (
-          <WeatherForecastItem
-            latitude={sensorData.navigation.position.latitude}
-            longitude={sensorData.navigation.position.longitude}
-          />
-        );
+        return <WeatherForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'wave-forecast':
-        return (
-          <WaveForecastItem
-            latitude={sensorData.navigation.position.latitude}
-            longitude={sensorData.navigation.position.longitude}
-          />
-        );
+        return <WaveForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'gust-forecast':
-        return (
-          <GustForecastItem
-            latitude={sensorData.navigation.position.latitude}
-            longitude={sensorData.navigation.position.longitude}
-          />
-        );
+        return <GustForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'pressure-forecast':
-        return (
-          <PressureForecastItem
-            latitude={sensorData.navigation.position.latitude}
-            longitude={sensorData.navigation.position.longitude}
-          />
-        );
+        return <PressureForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'sea-temp-forecast':
-        return (
-          <SeaTempForecastItem
-            latitude={sensorData.navigation.position.latitude}
-            longitude={sensorData.navigation.position.longitude}
-          />
-        );
+        return <SeaTempForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'temp-forecast':
-        return (
-          <TempForecastItem
-            latitude={sensorData.navigation.position.latitude}
-            longitude={sensorData.navigation.position.longitude}
-          />
-        );
+        return <TempForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'roll':
         return <RollItem roll={sensorData.navigation.attitude.roll} />;
       case 'pitch':

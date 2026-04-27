@@ -7,7 +7,7 @@ interface DepthItemProps {
   depth: number;
 }
 
-export const DepthItem: React.FC<DepthItemProps> = ({ depth }) => {
+export const DepthItem = React.memo<DepthItemProps>(({ depth }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { depthUnit, depthAlarm, isDepthAlarmTriggered, convertDepth } = useSettings();
@@ -71,4 +71,4 @@ export const DepthItem: React.FC<DepthItemProps> = ({ depth }) => {
       <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{depthConversions[depthUnit].label}</div>
     </div>
   );
-};
+});

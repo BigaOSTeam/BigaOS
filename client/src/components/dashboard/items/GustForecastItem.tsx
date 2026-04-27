@@ -12,7 +12,7 @@ interface GustForecastItemProps {
   longitude: number;
 }
 
-export const GustForecastItem: React.FC<GustForecastItemProps> = ({
+export const GustForecastItem = React.memo<GustForecastItemProps>(({
   latitude,
   longitude,
 }) => {
@@ -121,4 +121,4 @@ export const GustForecastItem: React.FC<GustForecastItemProps> = ({
       )}
     </div>
   );
-};
+});

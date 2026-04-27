@@ -19,7 +19,7 @@ const formatTimeRemaining = (seconds: number): string => {
   return `${m}m`;
 };
 
-export const BatteryDrawItem: React.FC<BatteryDrawItemProps> = ({
+export const BatteryDrawItem = React.memo<BatteryDrawItemProps>(({
   current,
   power,
   temperature,
@@ -68,4 +68,4 @@ export const BatteryDrawItem: React.FC<BatteryDrawItemProps> = ({
       </div>
     </div>
   );
-};
+});

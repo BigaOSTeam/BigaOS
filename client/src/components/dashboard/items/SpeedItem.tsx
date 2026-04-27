@@ -7,7 +7,7 @@ interface SpeedItemProps {
   speed: number; // Speed in knots
 }
 
-export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
+export const SpeedItem = React.memo<SpeedItemProps>(({ speed }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { speedUnit, convertSpeed } = useSettings();
@@ -44,4 +44,4 @@ export const SpeedItem: React.FC<SpeedItemProps> = ({ speed }) => {
       </div>
     </div>
   );
-};
+});

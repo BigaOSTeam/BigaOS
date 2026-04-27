@@ -9,7 +9,7 @@ interface SwitchItemProps {
   activeColor?: string;
 }
 
-export const SwitchItem: React.FC<SwitchItemProps> = ({ switchId, activeColor }) => {
+export const SwitchItem = React.memo<SwitchItemProps>(({ switchId, activeColor }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { getSwitchById, isClientOnline } = useSwitches();
@@ -137,4 +137,4 @@ export const SwitchItem: React.FC<SwitchItemProps> = ({ switchId, activeColor })
       )}
     </div>
   );
-};
+});

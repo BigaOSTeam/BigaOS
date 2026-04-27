@@ -8,7 +8,7 @@ interface WindItemProps {
   angleApparent: number;
 }
 
-export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent }) => {
+export const WindItem = React.memo<WindItemProps>(({ speedApparent, angleApparent }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { windUnit, convertWind } = useSettings();
@@ -82,4 +82,4 @@ export const WindItem: React.FC<WindItemProps> = ({ speedApparent, angleApparent
       </div>
     </div>
   );
-};
+});

@@ -14,7 +14,7 @@ const getRollColor = (deg: number): string => {
   return '#EF5350';
 };
 
-export const RollItem: React.FC<RollItemProps> = ({ roll }) => {
+export const RollItem = React.memo<RollItemProps>(({ roll }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const deg = radToDeg(roll);
@@ -75,4 +75,4 @@ export const RollItem: React.FC<RollItemProps> = ({ roll }) => {
       </div>
     </div>
   );
-};
+});

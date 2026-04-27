@@ -11,7 +11,7 @@ interface WaveForecastItemProps {
   longitude: number;
 }
 
-export const WaveForecastItem: React.FC<WaveForecastItemProps> = ({
+export const WaveForecastItem = React.memo<WaveForecastItemProps>(({
   latitude,
   longitude,
 }) => {
@@ -182,4 +182,4 @@ export const WaveForecastItem: React.FC<WaveForecastItemProps> = ({
       )}
     </div>
   );
-};
+});

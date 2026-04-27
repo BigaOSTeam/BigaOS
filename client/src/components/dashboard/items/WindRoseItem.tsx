@@ -9,7 +9,7 @@ interface WindRoseItemProps {
   angleTrue: number;
 }
 
-export const WindRoseItem: React.FC<WindRoseItemProps> = ({
+export const WindRoseItem = React.memo<WindRoseItemProps>(({
   speedApparent,
   angleApparent,
   angleTrue,
@@ -164,4 +164,4 @@ export const WindRoseItem: React.FC<WindRoseItemProps> = ({
       </svg>
     </div>
   );
-};
+});

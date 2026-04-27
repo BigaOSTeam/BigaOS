@@ -77,7 +77,12 @@ export const InstrumentsView: React.FC<InstrumentsViewProps> = ({
     {
       label: t('dashboard.position'),
       view: 'position',
-      content: <PositionItem position={sensorData.navigation.position} />,
+      content: (
+        <PositionItem
+          latitude={sensorData.navigation.position.latitude}
+          longitude={sensorData.navigation.position.longitude}
+        />
+      ),
     },
     {
       label: t('dashboard.battery'),

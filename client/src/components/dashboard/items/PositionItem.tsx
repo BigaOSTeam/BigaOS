@@ -1,13 +1,13 @@
 import React from 'react';
-import { GeoPosition } from '../../../types';
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface PositionItemProps {
-  position: GeoPosition;
+  latitude: number;
+  longitude: number;
 }
 
-export const PositionItem: React.FC<PositionItemProps> = ({ position }) => {
+export const PositionItem = React.memo<PositionItemProps>(({ latitude, longitude }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const formatCoord = (value: number, isLat: boolean): string => {
@@ -40,12 +40,12 @@ export const PositionItem: React.FC<PositionItemProps> = ({ position }) => {
         textAlign: 'center',
       }}>
         <div style={{ fontSize: 'clamp(10px, 12cqmin, 48px)', color: theme.colors.dataPosition, fontFamily: 'monospace' }}>
-          {formatCoord(position.latitude, true)}
+          {formatCoord(latitude, true)}
         </div>
         <div style={{ fontSize: 'clamp(10px, 12cqmin, 48px)', color: theme.colors.dataPosition, fontFamily: 'monospace', marginTop: 'clamp(2px, 1cqmin, 8px)' }}>
-          {formatCoord(position.longitude, false)}
+          {formatCoord(longitude, false)}
         </div>
       </div>
     </div>
   );
-};
+});

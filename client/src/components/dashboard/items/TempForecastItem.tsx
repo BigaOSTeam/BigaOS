@@ -18,7 +18,7 @@ const getTempColor = (temp: number): string => {
   return '#EF5350';
 };
 
-export const TempForecastItem: React.FC<TempForecastItemProps> = ({
+export const TempForecastItem = React.memo<TempForecastItemProps>(({
   latitude,
   longitude,
 }) => {
@@ -92,4 +92,4 @@ export const TempForecastItem: React.FC<TempForecastItemProps> = ({
       )}
     </div>
   );
-};
+});

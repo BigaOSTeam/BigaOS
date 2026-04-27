@@ -14,7 +14,7 @@ const getPitchColor = (deg: number): string => {
   return '#EF5350';
 };
 
-export const PitchItem: React.FC<PitchItemProps> = ({ pitch }) => {
+export const PitchItem = React.memo<PitchItemProps>(({ pitch }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const deg = radToDeg(pitch);
@@ -89,4 +89,4 @@ export const PitchItem: React.FC<PitchItemProps> = ({ pitch }) => {
       </div>
     </div>
   );
-};
+});
