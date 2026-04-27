@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { ClientProvider } from '../../context/ClientContext';
+import { ClientSettingsProvider } from '../../context/ClientSettingsContext';
 import { SetupWizard } from './SetupWizard';
 import App from '../../App';
 import { applyThemeToDOM, StandaloneThemeProvider } from '../../context/ThemeContext';
@@ -130,7 +131,9 @@ export const ClientGate: React.FC = () => {
 
   return (
     <ClientProvider clientId={clientId}>
-      <App />
+      <ClientSettingsProvider>
+        <App />
+      </ClientSettingsProvider>
     </ClientProvider>
   );
 };
