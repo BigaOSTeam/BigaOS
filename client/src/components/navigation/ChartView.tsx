@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
+import { useClientSetting } from '../../context/ClientSettingsContext';
 import { SearchResult } from '../../services/geocoding';
 import { navigationAPI, geocodingAPI } from '../../services/api';
 import { wsService } from '../../services/websocket';
@@ -136,20 +137,17 @@ export const ChartView = React.memo<ChartViewProps>(({
   const [autoCenter, setAutoCenter] = useState(true);
   const [depthSettingsOpen, setDepthSettingsOpen] = useState(false);
   const [weatherPanelOpen, setWeatherPanelOpen] = useState(false);
-  const [useSatellite, setUseSatellite] = useState(() => {
-    const saved = localStorage.getItem('chartUseSatellite');
-    return saved ? JSON.parse(saved) : false;
-  });
+  const [useSatellite, setUseSatellite] = useClientSetting<boolean>('chartUseSatellite', false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
   const [isOffline, setIsOffline] = useState(false);
   const [debugMode, setDebugMode] = useState<DebugMode>('off');
-  const [weatherOverlayEnabled, setWeatherOverlayEnabled] = useState(() => {
-    const saved = localStorage.getItem('chartWeatherOverlay');
-    return saved ? JSON.parse(saved) : false;
-  });
+  const [weatherOverlayEnabled, setWeatherOverlayEnabled] = useClientSetting<boolean>(
+    'chartWeatherOverlay',
+    false
+  );
   const [weatherOverlayHidden, setWeatherOverlayHidden] = useState(false);
   const [navDataError, setNavDataError] = useState<string | null>(null);
   const [routeError, setRouteError] = useState<{
@@ -687,19 +685,14 @@ export const ChartView = React.memo<ChartViewProps>(({
     }
   }, [position.latitude, position.longitude, navigationTarget, routeWaypoints]);
 
-  // Save satellite view preference and update map background color
+  // Update map background color when satellite preference changes. Persistence
+  // is handled by useClientSetting above.
   useEffect(() => {
-    localStorage.setItem('chartUseSatellite', JSON.stringify(useSatellite));
     const container = mapRef.current?.getContainer();
     if (container) {
       container.style.background = useSatellite ? '#0b1a2e' : '#aad3df';
     }
   }, [useSatellite]);
-
-  // Save weather overlay preference
-  useEffect(() => {
-    localStorage.setItem('chartWeatherOverlay', JSON.stringify(weatherOverlayEnabled));
-  }, [weatherOverlayEnabled]);
 
   // Memoize boat icon to prevent recreation on every render
   // Round heading to nearest degree to reduce unnecessary updates

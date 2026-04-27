@@ -6,6 +6,7 @@ import { WeatherGridPoint } from '../../../types';
 import { getWindColor, getWaveColor, getWaterTempColor, getCurrentColor } from '../../../utils/weather.utils';
 import { TWO_PI } from '../../../utils/angle';
 import { useSettings } from '../../../context/SettingsContext';
+import { useClientSetting } from '../../../context/ClientSettingsContext';
 
 // Debounce delay for fetch requests (ms)
 const FETCH_DEBOUNCE_MS = 3000;
@@ -1234,11 +1235,14 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
 export function useWeatherOverlay() {
   const [enabled, setEnabled] = React.useState(false);
   const [forecastHour, setForecastHour] = React.useState(0);
-  const [displayMode, setDisplayModeState] = React.useState<WeatherDisplayMode>(() => {
-    const saved = localStorage.getItem('weatherDisplayMode');
-    const validModes: WeatherDisplayMode[] = ['wind', 'waves', 'swell', 'current', 'water-temp'];
-    return validModes.includes(saved as WeatherDisplayMode) ? saved as WeatherDisplayMode : 'wind';
-  });
+  const [storedDisplayMode, setStoredDisplayMode] = useClientSetting<WeatherDisplayMode>(
+    'weatherDisplayMode',
+    'wind'
+  );
+  const validModes: WeatherDisplayMode[] = ['wind', 'waves', 'swell', 'current', 'water-temp'];
+  const displayMode: WeatherDisplayMode = validModes.includes(storedDisplayMode)
+    ? storedDisplayMode
+    : 'wind';
   const [loading, setLoading] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -1246,10 +1250,12 @@ export function useWeatherOverlay() {
     setEnabled((prev) => !prev);
   }, []);
 
-  const setDisplayMode = React.useCallback((mode: WeatherDisplayMode) => {
-    setDisplayModeState(mode);
-    localStorage.setItem('weatherDisplayMode', mode);
-  }, []);
+  const setDisplayMode = React.useCallback(
+    (mode: WeatherDisplayMode) => {
+      setStoredDisplayMode(mode);
+    },
+    [setStoredDisplayMode]
+  );
 
   return {
     enabled,
