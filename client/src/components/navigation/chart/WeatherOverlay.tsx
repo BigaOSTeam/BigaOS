@@ -8,8 +8,12 @@ import { TWO_PI } from '../../../utils/angle';
 import { useSettings } from '../../../context/SettingsContext';
 import { useClientSetting } from '../../../context/ClientSettingsContext';
 
-// Debounce delay for fetch requests (ms)
+// Debounce delay for the weather data fetch — kept long because the response
+// is large and the upstream API is rate-limited.
 const FETCH_DEBOUNCE_MS = 3000;
+// Water grid is small and server-cached; refetch quickly after a pan so the
+// land-mask catches up before the user notices a gap in the overlay.
+const WATER_GRID_DEBOUNCE_MS = 400;
 
 interface WaterGridPoint {
   lat: number;
@@ -1054,11 +1058,17 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     const diagonal = Math.sqrt(latRange * latRange + lonRange * lonRange);
     const spacing = diagonal / 15;
 
-    // Snap to grid boundaries - exactly like render function
-    const startLat = Math.max(-90, Math.floor(south / spacing) * spacing);
-    const endLat = Math.min(90, Math.ceil(north / spacing) * spacing);
-    const startLon = Math.max(-180, Math.floor(west / spacing) * spacing);
-    const endLon = Math.min(180, Math.ceil(east / spacing) * spacing);
+    // Fetch beyond the viewport so a small pan doesn't immediately fall
+    // outside the grid's coverage. Buffer = half the viewport on each side,
+    // so the user can pan up to ~50% of the visible area before hitting an
+    // un-fetched region. Keeps the cached key stable across small movements
+    // because the snapped bounds line up.
+    const latBuffer = latRange / 2;
+    const lonBuffer = lonRange / 2;
+    const startLat = Math.max(-90, Math.floor((south - latBuffer) / spacing) * spacing);
+    const endLat = Math.min(90, Math.ceil((north + latBuffer) / spacing) * spacing);
+    const startLon = Math.max(-180, Math.floor((west - lonBuffer) / spacing) * spacing);
+    const endLon = Math.min(180, Math.ceil((east + lonBuffer) / spacing) * spacing);
 
     // Create key based on the actual grid
     const waterGridKey = `${startLat.toFixed(4)},${startLon.toFixed(4)},${endLat.toFixed(4)},${endLon.toFixed(4)},${spacing.toFixed(4)}`;
@@ -1188,7 +1198,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     }
     waterGridDebounceRef.current = setTimeout(() => {
       fetchWaterGrid();
-    }, FETCH_DEBOUNCE_MS);
+    }, WATER_GRID_DEBOUNCE_MS);
   }, [fetchWaterGrid]);
 
   // Cleanup debounce timers on unmount
