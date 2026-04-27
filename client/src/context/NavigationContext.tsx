@@ -1,10 +1,11 @@
-import React, { createContext, useContext, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useCallback, useEffect, ReactNode } from 'react';
 import { ViewType } from '../types/dashboard';
+import { useClientSettings, useClientSetting } from './ClientSettingsContext';
 
 // Navigation parameters for different views
 export interface NavigationParams {
   settings?: {
-    tab?: 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'plugins' | 'clients' | 'advanced';
+    tab?: 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'plugins' | 'clients' | 'display' | 'advanced';
   };
 }
 
@@ -23,51 +24,50 @@ interface NavigationProviderProps {
   children: ReactNode;
 }
 
-function getInitialView(): { view: ActiveView; params: NavigationParams } {
-  const chartOnly = localStorage.getItem('bigaos-chart-only') === '1';
-
-  // Restore last view from localStorage
-  const savedView = localStorage.getItem('bigaos-active-view') as ActiveView | null;
-  const savedParamsRaw = localStorage.getItem('bigaos-nav-params');
-  let savedParams: NavigationParams = {};
-  if (savedParamsRaw) {
-    try { savedParams = JSON.parse(savedParamsRaw); } catch { /* ignore */ }
-  }
-
-  if (savedView) {
-    // In chart-only mode, dashboard becomes chart; other views are kept
-    if (chartOnly && savedView === 'dashboard') {
-      return { view: 'chart', params: {} };
-    }
-    return { view: savedView, params: savedParams };
-  }
-
-  // No saved view — default to chart (if chart-only) or dashboard
-  return { view: chartOnly ? 'chart' : 'dashboard', params: {} };
-}
-
 export const NavigationProvider: React.FC<NavigationProviderProps> = ({ children }) => {
-  const initial = getInitialView();
-  const [activeView, setActiveView] = useState<ActiveView>(initial.view);
-  const [navigationParams, setNavigationParams] = useState<NavigationParams>(initial.params);
+  const { settings, loaded } = useClientSettings();
+  const [, setActiveViewSetting] = useClientSetting<ActiveView | undefined>('activeView', undefined);
+  const [, setNavParamsSetting] = useClientSetting<NavigationParams | undefined>(
+    'navigationParams',
+    undefined
+  );
 
-  const navigate = useCallback((view: ActiveView, params?: NavigationParams) => {
-    setActiveView(view);
-    setNavigationParams(params || {});
-    localStorage.setItem('bigaos-active-view', view);
-    if (params && Object.keys(params).length > 0) {
-      localStorage.setItem('bigaos-nav-params', JSON.stringify(params));
-    } else {
-      localStorage.removeItem('bigaos-nav-params');
+  const [activeView, setActiveView] = useState<ActiveView>('dashboard');
+  const [navigationParams, setNavigationParams] = useState<NavigationParams>({});
+
+  // Once client settings load from the server, restore the last active view.
+  // In chart-only kiosk mode, dashboard collapses into chart.
+  const restoredRef = React.useRef(false);
+  useEffect(() => {
+    if (!loaded || restoredRef.current) return;
+    restoredRef.current = true;
+    const chartOnly = !!settings.chartOnly;
+    const savedView = settings.activeView as ActiveView | undefined;
+    const savedParams = (settings.navigationParams as NavigationParams | undefined) || {};
+    if (savedView) {
+      setActiveView(chartOnly && savedView === 'dashboard' ? 'chart' : savedView);
+      setNavigationParams(savedParams);
+    } else if (chartOnly) {
+      setActiveView('chart');
     }
-  }, []);
+  }, [loaded, settings]);
+
+  const navigate = useCallback(
+    (view: ActiveView, params?: NavigationParams) => {
+      setActiveView(view);
+      setNavigationParams(params || {});
+      setActiveViewSetting(view);
+      setNavParamsSetting(params && Object.keys(params).length > 0 ? params : undefined);
+    },
+    [setActiveViewSetting, setNavParamsSetting]
+  );
 
   const goBack = useCallback(() => {
     setActiveView('dashboard');
     setNavigationParams({});
-    localStorage.setItem('bigaos-active-view', 'dashboard');
-    localStorage.removeItem('bigaos-nav-params');
-  }, []);
+    setActiveViewSetting('dashboard');
+    setNavParamsSetting(undefined);
+  }, [setActiveViewSetting, setNavParamsSetting]);
 
   return (
     <NavigationContext.Provider value={{ activeView, navigationParams, navigate, goBack }}>

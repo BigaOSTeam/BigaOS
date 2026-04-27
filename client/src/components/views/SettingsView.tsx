@@ -30,6 +30,7 @@ import { DisplayTab } from '../settings/DisplayTab';
 import { ServerConnectionSection } from '../settings/ServerConnectionSection';
 
 import { useClient } from '../../context/ClientContext';
+import { useNavigation } from '../../context/NavigationContext';
 import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LANGUAGES, LanguageCode } from '../../i18n/languages';
@@ -55,6 +56,7 @@ interface SettingsViewProps {
 
 export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab, backTarget = 'dashboard' }) => {
   const { theme } = useTheme();
+  const { navigate } = useNavigation();
   const [activeTab, setActiveTab] = useState<SettingsTab>(initialTab || 'general');
   const [dataFiles, setDataFiles] = useState<DataFileInfo[]>([]);
   const [loadingFiles, setLoadingFiles] = useState(true);
@@ -1290,7 +1292,9 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
       onClick={() => {
         setActiveTab(tab.id);
         setMenuOpen(false);
-        localStorage.setItem('bigaos-nav-params', JSON.stringify({ settings: { tab: tab.id } }));
+        // Persist active settings tab via NavigationContext → server, so a
+        // reload restores the tab the user was last on.
+        navigate('settings', { settings: { tab: tab.id } });
       }}
       style={{
         display: 'flex',

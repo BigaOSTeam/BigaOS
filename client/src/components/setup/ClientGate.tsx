@@ -76,8 +76,6 @@ export const ClientGate: React.FC = () => {
       try {
         localStorage.removeItem('bigaos-client-id');
         localStorage.removeItem('bigaos-client-name');
-        localStorage.removeItem('bigaos-active-view');
-        localStorage.removeItem('bigaos-nav-params');
       } catch { /* read-only */ }
       setClientId(null);
     };
