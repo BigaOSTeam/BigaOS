@@ -121,7 +121,7 @@ interface ChartViewProps {
   hideSidebar?: boolean;
 }
 
-export const ChartView: React.FC<ChartViewProps> = ({
+export const ChartView = React.memo<ChartViewProps>(({
   position,
   heading,
   speed,
@@ -2539,4 +2539,4 @@ export const ChartView: React.FC<ChartViewProps> = ({
 
     </div>
   );
-};
+});

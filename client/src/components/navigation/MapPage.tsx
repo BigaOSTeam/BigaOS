@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { ChartView } from './ChartView';
 import { SensorData, GeoPosition } from '../../types';
 import { wsService } from '../../services/websocket';
@@ -237,15 +237,20 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
     );
   }
 
-  // Build demo position as GeoPosition type
-  const demoPosition: GeoPosition = {
-    latitude: dummyLat,
-    longitude: dummyLon,
-    timestamp: new Date(),
-  };
-
-  // Use demo values when in demo mode, otherwise use real sensor data
-  const position = demoMode ? demoPosition : sensorData.navigation.position;
+  // Use demo values when in demo mode, otherwise use real sensor data.
+  // Quantize lat/lon to ~1m precision (5 decimals ≈ 1.1m at the equator) so
+  // sub-meter GPS jitter at 5Hz doesn't force a full ChartView re-render —
+  // at typical chart zoom 1px is several meters, so finer precision is
+  // invisible anyway. useMemo keeps the object reference stable when the
+  // quantized values haven't changed.
+  const rawLat = demoMode ? dummyLat : sensorData.navigation.position.latitude;
+  const rawLon = demoMode ? dummyLon : sensorData.navigation.position.longitude;
+  const qLat = Math.round(rawLat * 100000) / 100000;
+  const qLon = Math.round(rawLon * 100000) / 100000;
+  const position = useMemo<GeoPosition>(
+    () => ({ latitude: qLat, longitude: qLon }),
+    [qLat, qLon]
+  );
   const heading = demoMode ? dummyHeading : sensorData.navigation.heading;
   const speed = demoMode ? dummySpeed : sensorData.navigation.speedOverGround;
 

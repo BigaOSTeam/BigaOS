@@ -46,6 +46,8 @@ export class PluginManager extends EventEmitter {
   private sensorMapping: SensorMappingService;
   private registryUrl: string = 'https://raw.githubusercontent.com/BigaOSTeam/BigaOS/main/plugin-sources/dist/registry.json';
   private cachedRegistry: PluginRegistry | null = null;
+  private cachedRegistryAt: number = 0;
+  private readonly REGISTRY_TTL_MS = 30 * 60 * 1000; // 30 min
 
   constructor(dataEmitter: EventEmitter, sensorMapping: SensorMappingService, pluginsDir?: string) {
     super();
@@ -546,17 +548,25 @@ export class PluginManager extends EventEmitter {
    * Fetch available plugins from the GitHub registry.
    */
   async fetchRegistry(forceRefresh?: boolean): Promise<PluginRegistry | null> {
-    if (this.cachedRegistry && !forceRefresh) return this.cachedRegistry;
+    if (
+      this.cachedRegistry &&
+      !forceRefresh &&
+      Date.now() - this.cachedRegistryAt < this.REGISTRY_TTL_MS
+    ) {
+      return this.cachedRegistry;
+    }
     if (!this.registryUrl) return null;
 
     try {
       const response = await fetch(this.registryUrl);
       if (!response.ok) throw new Error(`Registry fetch failed: ${response.status}`);
       this.cachedRegistry = await response.json() as PluginRegistry;
+      this.cachedRegistryAt = Date.now();
       return this.cachedRegistry;
     } catch (err) {
       console.error('[PluginManager] Failed to fetch registry:', err);
-      return null;
+      // Serve stale on fetch failure — better than nothing if GitHub is briefly down.
+      return this.cachedRegistry;
     }
   }
 
@@ -566,6 +576,7 @@ export class PluginManager extends EventEmitter {
   async setRegistryUrl(url: string): Promise<void> {
     this.registryUrl = url;
     this.cachedRegistry = null;
+    this.cachedRegistryAt = 0;
     await dbWorker.setSetting('pluginRegistryUrl', JSON.stringify(url));
   }
 

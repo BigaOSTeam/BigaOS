@@ -1,7 +1,7 @@
 export interface GeoPosition {
   latitude: number;
   longitude: number;
-  timestamp: Date;
+  timestamp?: Date;
 }
 
 export interface SensorData {
