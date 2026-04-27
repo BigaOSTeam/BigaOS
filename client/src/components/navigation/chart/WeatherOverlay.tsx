@@ -11,9 +11,10 @@ import { useClientSetting } from '../../../context/ClientSettingsContext';
 // Debounce delay for the weather data fetch — kept long because the response
 // is large and the upstream API is rate-limited.
 const FETCH_DEBOUNCE_MS = 3000;
-// Water grid is small and server-cached; refetch quickly after a pan so the
-// land-mask catches up before the user notices a gap in the overlay.
-const WATER_GRID_DEBOUNCE_MS = 400;
+// Water grid is small and server-cached, and the fetch itself early-returns
+// when the snapped bounds key is unchanged — so we coalesce only the briefest
+// burst of events and otherwise refetch as fast as the user can move.
+const WATER_GRID_DEBOUNCE_MS = 100;
 
 interface WaterGridPoint {
   lat: number;
@@ -1217,18 +1218,23 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   // fitBounds, centre-on-GPS), reposition the canvas and refetch. The
   // moveend that ended the animation fired with hidden=true (stale closure
   // in useMapEvents from the previous render), so its own reset/fetch
-  // branch was skipped.
+  // branch was skipped. Bypass the debounce since the user just finished a
+  // discrete gesture — we want the overlay back immediately.
   useEffect(() => {
     if (wasHiddenRef.current && !hidden && enabled && layerRef.current) {
       layerRef.current.reset();
-      debouncedFetchWeather();
+      // Cancel any debounced fetches that are still pending — we're about
+      // to fire fresh ones synchronously.
+      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+      if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
+      fetchWeatherData();
       const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
       if (marineDisplayModes.includes(displayMode)) {
-        debouncedFetchWaterGrid();
+        fetchWaterGrid();
       }
     }
     wasHiddenRef.current = hidden;
-  }, [hidden, enabled, displayMode, debouncedFetchWeather, debouncedFetchWaterGrid]);
+  }, [hidden, enabled, displayMode, fetchWeatherData, fetchWaterGrid]);
 
   // Map events
   useMapEvents({
@@ -1261,6 +1267,14 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       if (enabled && !hidden && layerRef.current) {
         layerRef.current.setVisible(true);
         layerRef.current.reset();
+        // Refetch directly — the moveend that follows a zoom otherwise has to
+        // wait through the debounce, leaving the overlay empty in any newly
+        // exposed area after a zoom-out (or with stale data after a zoom-in).
+        fetchWeatherData();
+        const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
+        if (marineDisplayModes.includes(displayMode)) {
+          fetchWaterGrid();
+        }
       }
     },
   });
