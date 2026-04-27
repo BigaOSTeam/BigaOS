@@ -5,6 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
+import { useClientSetting } from '../../context/ClientSettingsContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { API_BASE_URL } from '../../utils/urls';
 import { ViewLayout } from './shared';
@@ -99,11 +100,8 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
   const { t } = useLanguage();
   const [isWide, setIsWide] = useState(window.innerWidth > window.innerHeight);
 
-  // Use same map type preference as ChartView
-  const [useSatellite] = useState(() => {
-    const saved = localStorage.getItem('chartUseSatellite');
-    return saved ? JSON.parse(saved) : false;
-  });
+  // Mirror the chart's satellite preference (per-client server setting).
+  const [useSatellite] = useClientSetting<boolean>('chartUseSatellite', false);
 
   useEffect(() => {
     const onResize = () => setIsWide(window.innerWidth > window.innerHeight);

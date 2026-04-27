@@ -1,16 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { ClientProvider } from '../../context/ClientContext';
 import { ClientSettingsProvider } from '../../context/ClientSettingsContext';
+import { BoatSettingsProvider } from '../../context/BoatSettingsContext';
 import { SetupWizard } from './SetupWizard';
 import App from '../../App';
 import { applyThemeToDOM, StandaloneThemeProvider } from '../../context/ThemeContext';
-import { themes, type ThemeMode } from '../../styles/themes';
+import { themes } from '../../styles/themes';
 import { wsService } from '../../services/websocket';
 import { API_BASE_URL } from '../../utils/urls';
 
-// Apply saved theme immediately before any render (avoids flash)
-const savedTheme = (localStorage.getItem('bigaos-theme-mode') || 'dark') as ThemeMode;
-applyThemeToDOM(themes[savedTheme] || themes.dark, savedTheme);
+// Apply default dark theme before any render. The real theme arrives once
+// SettingsContext loads it from the server; until then we paint dark to
+// avoid a flash of unstyled content on the loading screen.
+applyThemeToDOM(themes.dark, 'dark');
 
 /** Extract client ID from URL path: /c/:clientId */
 function getClientIdFromUrl(): string | null {
@@ -20,46 +22,45 @@ function getClientIdFromUrl(): string | null {
 
 export const ClientGate: React.FC = () => {
   const [clientId, setClientId] = useState<string | null>(null);
+  const [clientName, setClientName] = useState<string>('Unknown');
+  const [clientType, setClientType] = useState<string>('display');
   const [checking, setChecking] = useState(true);
 
   useEffect(() => {
-    // Priority 1: client ID from URL path (/c/:clientId) — works without localStorage
+    // Priority 1: client ID from URL path (/c/:clientId) — kiosk install
+    // Priority 2: client ID from localStorage (mobile / dev fallback)
     const urlClientId = getClientIdFromUrl();
-    // Priority 2: client ID from localStorage (normal flow)
     const storedId = localStorage.getItem('bigaos-client-id');
     const candidateId = urlClientId || storedId;
-    const storedName = localStorage.getItem('bigaos-client-name');
 
     if (!candidateId) {
       setChecking(false);
       return;
     }
 
-    // Validate the client still exists on the server
+    // Validate the client still exists on the server, and pull its name
+    // from the authoritative source (the clients table) for display.
     fetch(`${API_BASE_URL}/clients/${candidateId}`)
       .then((res) => {
         if (res.ok) {
           return res.json().then((data) => {
             setClientId(candidateId);
-            // Refresh localStorage from server (best-effort for non-readonly systems)
+            setClientName(data.client?.name || 'Unknown');
+            if (data.client?.clientType) setClientType(data.client.clientType);
+            // Persist clientId on devices where LS is writable. Pi kiosks use
+            // the URL form so the LS write is irrelevant there.
             try {
-              const name = data.client?.name || storedName || 'Unknown';
               localStorage.setItem('bigaos-client-id', candidateId);
-              localStorage.setItem('bigaos-client-name', name);
-              if (data.client?.clientType) {
-                localStorage.setItem('bigaos-client-type', data.client.clientType);
-              }
             } catch { /* read-only filesystem — ignore */ }
           });
         } else if (!urlClientId) {
           // Client was deleted — only clear localStorage if we weren't URL-based
           localStorage.removeItem('bigaos-client-id');
-          localStorage.removeItem('bigaos-client-name');
         }
         // URL client that doesn't exist: fall through to wizard
       })
       .catch(() => {
-        // Server unreachable — trust the ID we have and proceed
+        // Server unreachable — trust the ID we have and proceed.
         setClientId(candidateId);
       })
       .finally(() => setChecking(false));
@@ -75,7 +76,6 @@ export const ClientGate: React.FC = () => {
       if (getClientIdFromUrl()) return;
       try {
         localStorage.removeItem('bigaos-client-id');
-        localStorage.removeItem('bigaos-client-name');
       } catch { /* read-only */ }
       setClientId(null);
     };
@@ -84,13 +84,13 @@ export const ClientGate: React.FC = () => {
     return () => { wsService.off('client_deleted', handleDeleted); };
   }, [clientId]);
 
-  const handleWizardComplete = (id: string, name: string, clientType: string) => {
+  const handleWizardComplete = (id: string, name: string, type: string) => {
     try {
       localStorage.setItem('bigaos-client-id', id);
-      localStorage.setItem('bigaos-client-name', name);
-      localStorage.setItem('bigaos-client-type', clientType);
     } catch { /* read-only */ }
     setClientId(id);
+    setClientName(name);
+    setClientType(type);
   };
 
   if (checking) {
@@ -128,9 +128,11 @@ export const ClientGate: React.FC = () => {
   }
 
   return (
-    <ClientProvider clientId={clientId}>
+    <ClientProvider clientId={clientId} initialClientName={clientName} initialClientType={clientType}>
       <ClientSettingsProvider>
-        <App />
+        <BoatSettingsProvider>
+          <App />
+        </BoatSettingsProvider>
       </ClientSettingsProvider>
     </ClientProvider>
   );

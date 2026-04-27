@@ -37,12 +37,8 @@ import { useSwitches } from '../../context/SwitchContext';
 import { useClient } from '../../context/ClientContext';
 import { useClientSetting } from '../../context/ClientSettingsContext';
 
-// clientType still lives in localStorage as part of identity bootstrap; the
-// rest of dashboard layout state has moved to per-client server settings.
-const IS_REMOTE_CLIENT = typeof window !== 'undefined' && localStorage.getItem('bigaos-client-type') === 'remote';
-const DEFAULT_GRID_COLS = IS_REMOTE_CLIENT ? 2 : 6;
+// clientType comes from ClientContext (sourced from the server's clients table).
 const DEFAULT_GRID_ROWS = 3;
-const DEFAULT_GRID_CONFIG = { cols: DEFAULT_GRID_COLS, rows: DEFAULT_GRID_ROWS };
 const DEFAULT_SIDEBAR_POSITION: DashboardSidebarPosition = 'left';
 
 interface DashboardProps {
@@ -86,8 +82,10 @@ const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
 export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) => {
   const { theme } = useTheme();
   const { t, language } = useLanguage();
-  const { clientId: _clientId } = useClient();
-  void _clientId;
+  const { clientType } = useClient();
+  const isRemoteClient = clientType === 'remote';
+  const defaultGridCols = isRemoteClient ? 2 : 6;
+  const DEFAULT_GRID_CONFIG = { cols: defaultGridCols, rows: DEFAULT_GRID_ROWS };
   const { toggleSwitch, getSwitchById, isClientOnline } = useSwitches();
   const [switchConfigItem, setSwitchConfigItem] = useState<string | null>(null);
 
@@ -156,7 +154,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     'dashboardGridConfig',
     DEFAULT_GRID_CONFIG
   );
-  const gridCols = storedGridConfig?.cols || DEFAULT_GRID_COLS;
+  const gridCols = storedGridConfig?.cols || defaultGridCols;
   const gridRows = storedGridConfig?.rows || DEFAULT_GRID_ROWS;
 
   const handleSidebarPositionChange = useCallback((position: DashboardSidebarPosition) => {

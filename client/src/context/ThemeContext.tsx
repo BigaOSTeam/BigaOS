@@ -74,7 +74,6 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     applyThemeToDOM(currentTheme, themeMode);
-    localStorage.setItem('bigaos-theme-mode', themeMode);
   }, [currentTheme, themeMode]);
 
   const value = useMemo(() => ({
@@ -98,17 +97,18 @@ export const useTheme = (): ThemeContextType => {
 };
 
 /**
- * Standalone ThemeProvider that reads from localStorage instead of SettingsContext.
- * Use this for components rendered outside the main provider tree (e.g. SetupWizard).
+ * Standalone ThemeProvider for components rendered outside the main provider
+ * tree (e.g. SetupWizard, before a clientId / settings are available).
+ * Always uses dark mode since we have no source of truth at that point.
  */
 export const StandaloneThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const mode = (localStorage.getItem('bigaos-theme-mode') || 'dark') as ThemeMode;
-  const currentTheme = themes[mode] || themes.dark;
+  const mode: ThemeMode = 'dark';
+  const currentTheme = themes[mode];
 
   const value = useMemo(() => ({
     theme: currentTheme,
     themeMode: mode,
-  }), [currentTheme, mode]);
+  }), [currentTheme]);
 
   return (
     <ThemeContext.Provider value={value}>

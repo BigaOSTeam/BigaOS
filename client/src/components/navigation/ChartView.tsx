@@ -13,6 +13,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
 import { useClientSetting } from '../../context/ClientSettingsContext';
+import { useBoatSetting } from '../../context/BoatSettingsContext';
 import { SearchResult } from '../../services/geocoding';
 import { navigationAPI, geocodingAPI } from '../../services/api';
 import { wsService } from '../../services/websocket';
@@ -157,11 +158,8 @@ export const ChartView = React.memo<ChartViewProps>(({
     suggestions: string[];
   } | null>(null);
 
-  // Marker state
-  const [customMarkers, setCustomMarkers] = useState<CustomMarker[]>(() => {
-    const saved = localStorage.getItem('chartMarkers');
-    return saved ? JSON.parse(saved) : [];
-  });
+  // Marker state — boat-wide so every screen sees the same set.
+  const [customMarkers, setCustomMarkers] = useBoatSetting<CustomMarker[]>('chartMarkers', []);
   const [contextMenu, setContextMenu] = useState<{
     lat: number;
     lon: number;
@@ -215,19 +213,14 @@ export const ChartView = React.memo<ChartViewProps>(({
     return icons;
   }, [customMarkers]);
 
-  // Navigation state
-  const [navigationTarget, setNavigationTarget] = useState<CustomMarker | null>(
-    () => {
-      const saved = localStorage.getItem('navigationTarget');
-      return saved ? JSON.parse(saved) : null;
-    }
+  // Navigation state — also boat-wide; whole crew is going to the same place.
+  const [navigationTarget, setNavigationTarget] = useBoatSetting<CustomMarker | null>(
+    'navigationTarget',
+    null
   );
-  const [routeWaypoints, setRouteWaypoints] = useState<
+  const [routeWaypoints, setRouteWaypoints] = useBoatSetting<
     Array<{ lat: number; lon: number }>
-  >(() => {
-    const saved = localStorage.getItem('routeWaypoints');
-    return saved ? JSON.parse(saved) : [];
-  });
+  >('routeWaypoints', []);
   const [routeLoading, setRouteLoading] = useState(false);
 
   // Autopilot state
@@ -422,28 +415,14 @@ export const ChartView = React.memo<ChartViewProps>(({
     }
   }, []);
 
-  // Save markers to localStorage
+  // Markers / routes / navigation target are persisted via BoatSettings; no
+  // local persistence layer is needed. We still clear waypoints when the
+  // target is cleared so a stale route can't outlive its destination.
   useEffect(() => {
-    localStorage.setItem('chartMarkers', JSON.stringify(customMarkers));
-  }, [customMarkers]);
-
-  // Save navigation target to localStorage
-  useEffect(() => {
-    if (navigationTarget) {
-      localStorage.setItem('navigationTarget', JSON.stringify(navigationTarget));
-    } else {
-      localStorage.removeItem('navigationTarget');
-      localStorage.removeItem('routeWaypoints');
+    if (!navigationTarget && routeWaypoints.length > 0) {
       setRouteWaypoints([]);
     }
-  }, [navigationTarget]);
-
-  // Save route waypoints to localStorage (separate effect to avoid infinite loop)
-  useEffect(() => {
-    if (navigationTarget && routeWaypoints.length > 0) {
-      localStorage.setItem('routeWaypoints', JSON.stringify(routeWaypoints));
-    }
-  }, [routeWaypoints, navigationTarget]);
+  }, [navigationTarget, routeWaypoints.length, setRouteWaypoints]);
 
   // Smooth heading transition function
   const smoothTransitionToHeading = useCallback((targetHeading: number) => {

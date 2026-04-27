@@ -68,7 +68,6 @@ export const ClientsTab: React.FC = () => {
       if (isSelf) {
         try {
           localStorage.removeItem('bigaos-client-id');
-          localStorage.removeItem('bigaos-client-name');
         } catch { /* read-only */ }
         window.location.reload();
       }
