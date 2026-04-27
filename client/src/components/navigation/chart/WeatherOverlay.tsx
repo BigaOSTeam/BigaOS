@@ -854,12 +854,16 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   const [isLoading, setIsLoading] = React.useState(false);
   const { convertWind, convertDepth, convertTemperature } = useSettings();
 
-  // Hide/show overlay based on hidden prop
+  // Hide/show overlay synchronously when the hidden prop flips. The
+  // recovery-on-show logic lives in a separate effect further down — it
+  // needs to call the debounced fetch helpers, which aren't defined yet
+  // at this point in the file.
   useEffect(() => {
     if (layerRef.current) {
       layerRef.current.setVisible(!hidden);
     }
   }, [hidden]);
+  const wasHiddenRef = useRef(hidden);
 
   // Fetch weather data for current bounds
   const fetchWeatherData = useCallback(async () => {
@@ -1208,6 +1212,23 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
     };
   }, []);
+
+  // When the overlay un-hides after a programmatic animation (flyTo,
+  // fitBounds, centre-on-GPS), reposition the canvas and refetch. The
+  // moveend that ended the animation fired with hidden=true (stale closure
+  // in useMapEvents from the previous render), so its own reset/fetch
+  // branch was skipped.
+  useEffect(() => {
+    if (wasHiddenRef.current && !hidden && enabled && layerRef.current) {
+      layerRef.current.reset();
+      debouncedFetchWeather();
+      const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
+      if (marineDisplayModes.includes(displayMode)) {
+        debouncedFetchWaterGrid();
+      }
+    }
+    wasHiddenRef.current = hidden;
+  }, [hidden, enabled, displayMode, debouncedFetchWeather, debouncedFetchWaterGrid]);
 
   // Map events
   useMapEvents({
