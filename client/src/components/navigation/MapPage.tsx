@@ -126,6 +126,15 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
     return () => clearInterval(interval);
   }, [demoMode]);
 
+  // Mirror navigation state into refs so the position-update interval can read
+  // current values without being torn down on every state change.
+  const dummySpeedRef = useRef(dummySpeed);
+  const dummyHeadingRef = useRef(dummyHeading);
+  const dummyLatRef = useRef(dummyLat);
+  useEffect(() => { dummySpeedRef.current = dummySpeed; }, [dummySpeed]);
+  useEffect(() => { dummyHeadingRef.current = dummyHeading; }, [dummyHeading]);
+  useEffect(() => { dummyLatRef.current = dummyLat; }, [dummyLat]);
+
   // Update position based on speed and heading (local calculation)
   useEffect(() => {
     if (!demoMode) return;
@@ -136,16 +145,19 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
       const deltaTime = (now - lastUpdateRef.current) / 1000; // seconds
       lastUpdateRef.current = now;
 
-      if (dummySpeed > 0) {
+      const speed = dummySpeedRef.current;
+      if (speed > 0) {
+        const heading = dummyHeadingRef.current;
+        const lat = dummyLatRef.current;
         // Convert speed from knots to degrees per second
         // 1 knot = 1.852 km/h = 0.0005144 km/s
         // At equator, 1 degree of lat ≈ 111 km
         // So 1 knot ≈ 0.0005144 / 111 ≈ 0.00000463 degrees/second
-        const speedInDegreesPerSecond = dummySpeed * 0.00000463;
+        const speedInDegreesPerSecond = speed * 0.00000463;
 
         // Calculate movement (heading is already in radians)
-        const deltaLat = Math.cos(dummyHeading) * speedInDegreesPerSecond * deltaTime;
-        const deltaLon = Math.sin(dummyHeading) * speedInDegreesPerSecond * deltaTime / Math.cos((dummyLat * Math.PI) / 180);
+        const deltaLat = Math.cos(heading) * speedInDegreesPerSecond * deltaTime;
+        const deltaLon = Math.sin(heading) * speedInDegreesPerSecond * deltaTime / Math.cos((lat * Math.PI) / 180);
 
         setDummyLat(prev => prev + deltaLat);
         setDummyLon(prev => prev + deltaLon);
@@ -153,7 +165,7 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
     }, 100); // Update position 10 times per second
 
     return () => clearInterval(interval);
-  }, [demoMode, dummySpeed, dummyHeading, dummyLat]);
+  }, [demoMode]);
 
   // Sync demo values to server via WebSocket (throttled)
   const lastServerUpdateRef = useRef<number>(0);

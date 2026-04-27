@@ -353,14 +353,20 @@ export class WebSocketServer {
       // ================================================================
 
       socket.on('terminal_logs', (data: { lines?: number }) => {
-        const { exec } = require('child_process');
-        const lines = data?.lines || 200;
-        exec(`journalctl -u bigaos --no-pager -n ${lines} --output=short-iso`, { maxBuffer: 1024 * 512 }, (err: any, stdout: string, stderr: string) => {
-          socket.emit('terminal_logs_sync', {
-            logs: err ? `Error reading logs: ${err.message}` : stdout,
-            timestamp: new Date(),
-          });
-        });
+        const { execFile } = require('child_process');
+        const requested = Number(data?.lines);
+        const lines = Number.isInteger(requested) && requested > 0 && requested <= 10000 ? requested : 200;
+        execFile(
+          'journalctl',
+          ['-u', 'bigaos', '--no-pager', '-n', String(lines), '--output=short-iso'],
+          { maxBuffer: 1024 * 512 },
+          (err: any, stdout: string, _stderr: string) => {
+            socket.emit('terminal_logs_sync', {
+              logs: err ? `Error reading logs: ${err.message}` : stdout,
+              timestamp: new Date(),
+            });
+          }
+        );
       });
 
       let logTailProcess: any = null;

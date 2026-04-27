@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import GridLayout, { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { SensorData } from '../../types';
@@ -287,6 +287,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     return findNextAvailablePosition(1, 1) !== null;
   }, [findNextAvailablePosition]);
 
+  // Persist current items to localStorage + server. Called from drag/resize
+  // *stop* handlers (not onLayoutChange, which fires every drag tick).
+  const persistItemsRef = useRef<DashboardItemConfig[]>(items);
+  useEffect(() => { persistItemsRef.current = items; }, [items]);
+  const persistLayout = useCallback(() => {
+    const current = persistItemsRef.current;
+    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(current));
+    syncLayoutToServer(current, { cols: gridCols, rows: gridRows });
+  }, [gridCols, gridRows, syncLayoutToServer]);
+
   const handleLayoutChange = useCallback((newLayout: Layout[]) => {
     const boundedLayout = newLayout.map(layoutItem => {
       let { x, y, w, h } = layoutItem;
@@ -299,17 +309,21 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       return { ...layoutItem, x, y, w, h };
     });
 
-    const updatedItems = items.map((item) => {
-      const layoutItem = boundedLayout.find((l) => l.i === item.id);
-      if (layoutItem) {
-        return { ...item, layout: layoutItem };
-      }
-      return item;
+    setItems(prevItems => {
+      let changed = false;
+      const updated = prevItems.map((item) => {
+        const li = boundedLayout.find((l) => l.i === item.id);
+        if (!li) return item;
+        const cur = item.layout;
+        if (cur.x === li.x && cur.y === li.y && cur.w === li.w && cur.h === li.h) {
+          return item;
+        }
+        changed = true;
+        return { ...item, layout: { ...cur, x: li.x, y: li.y, w: li.w, h: li.h } };
+      });
+      return changed ? updated : prevItems;
     });
-    setItems(updatedItems);
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(updatedItems));
-    syncLayoutToServer(updatedItems, { cols: gridCols, rows: gridRows });
-  }, [items, gridCols, gridRows, syncLayoutToServer]);
+  }, [effectiveCols, effectiveRows]);
 
   const handleDeleteItem = useCallback((id: string) => {
     setItems(prevItems => {
@@ -746,6 +760,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
               newItem.x = effectiveCols - newItem.w;
             }
           }}
+          onDragStop={persistLayout}
+          onResizeStop={persistLayout}
         >
           {items.map((item) => (
             <div key={item.id}>
