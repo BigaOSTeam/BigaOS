@@ -26,6 +26,7 @@ import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { useClient } from './context/ClientContext';
+import { useClientSettings, useClientSetting } from './context/ClientSettingsContext';
 import { wsService } from './services/websocket';
 import { sensorAPI } from './services/api';
 import './styles/globals.css';
@@ -97,7 +98,6 @@ function AppContent() {
   const [systemUpdating, setSystemUpdating] = useState(false);
   const [systemRebooting, setSystemRebooting] = useState(false);
   const [systemShuttingDown, setSystemShuttingDown] = useState(false);
-  const [clientSettingsLoaded, setClientSettingsLoaded] = useState(false);
   const systemUpdatingRef = useRef(false);
   const wasOfflineRef = useRef<boolean | null>(null);
   const startPageAppliedRef = useRef(false);
@@ -106,30 +106,26 @@ function AppContent() {
   const shutdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const { setCurrentDepth, setSidebarPosition } = useSettings();
   const { installingPlugins } = usePlugins();
-
-  // Chart-only mode: simple client-specific toggle stored in localStorage
-  const [chartOnly, setChartOnly] = useState(() => localStorage.getItem('bigaos-chart-only') === '1');
-  useEffect(() => {
-    const handleClientSettingsChanged = (data: { key: string; value: any }) => {
-      if (data.key === 'chartOnly') {
-        const val = !!data.value;
-        setChartOnly(val);
-        localStorage.setItem('bigaos-chart-only', val ? '1' : '0');
-      }
-    };
-    // Listen for same-tab changes from ChartTab
-    const handleLocalChange = () => {
-      setChartOnly(localStorage.getItem('bigaos-chart-only') === '1');
-    };
-    wsService.on('client_settings_changed', handleClientSettingsChanged);
-    window.addEventListener('bigaos-chart-only-changed', handleLocalChange);
-    return () => {
-      wsService.off('client_settings_changed', handleClientSettingsChanged);
-      window.removeEventListener('bigaos-chart-only-changed', handleLocalChange);
-    };
-  }, []);
+  const { settings: clientSettings, loaded: clientSettingsLoaded } = useClientSettings();
+  const [chartOnly] = useClientSetting<boolean>('chartOnly', false);
   const { activeView, navigationParams, navigate, goBack } = useNavigation();
   const { clientId } = useClient();
+
+  // Apply per-client settings sourced from the server. The ClientSettings
+  // context owns subscription/storage; here we just react to the values that
+  // need to drive other pieces of app state (general sidebar, startup page).
+  useEffect(() => {
+    if (!clientSettingsLoaded) return;
+    const sb = clientSettings.sidebarPosition as 'left' | 'right' | undefined;
+    if (sb === 'left' || sb === 'right') {
+      setSidebarPosition(sb);
+    }
+    const startPage = clientSettings.startPage as ViewType | undefined;
+    if (startPage && !startPageAppliedRef.current) {
+      startPageAppliedRef.current = true;
+      navigate(startPage);
+    }
+  }, [clientSettingsLoaded, clientSettings, setSidebarPosition, navigate]);
 
   // In chart-only mode, redirect dashboard to chart
   useEffect(() => {
@@ -149,38 +145,6 @@ function AppContent() {
 
   useEffect(() => {
     wsService.connect(clientId);
-
-    // Fetch per-client settings from server on startup
-    wsService.emit('get_client_settings', { clientId });
-    wsService.on('client_settings_sync', (data: { settings: Record<string, any> }) => {
-      if (data.settings.chartOnly !== undefined) {
-        const val = !!data.settings.chartOnly;
-        setChartOnly(val);
-        try { localStorage.setItem('bigaos-chart-only', val ? '1' : '0'); } catch {}
-        window.dispatchEvent(new Event('bigaos-chart-only-changed'));
-      }
-      if (data.settings.sidebarPosition) {
-        setSidebarPosition(data.settings.sidebarPosition);
-      }
-      if (data.settings.dashboardLayout) {
-        try { localStorage.setItem('bigaos-dashboard-layout', JSON.stringify(data.settings.dashboardLayout)); } catch {}
-        window.dispatchEvent(new Event('bigaos-dashboard-changed'));
-      }
-      if (data.settings.dashboardGridConfig) {
-        try { localStorage.setItem('bigaos-grid-config', JSON.stringify(data.settings.dashboardGridConfig)); } catch {}
-        window.dispatchEvent(new Event('bigaos-dashboard-changed'));
-      }
-      if (data.settings.dashboardSidebarPosition) {
-        try { localStorage.setItem('bigaos-dashboard-sidebar-position', data.settings.dashboardSidebarPosition); } catch {}
-        window.dispatchEvent(new Event('bigaos-dashboard-changed'));
-      }
-      // Startup page: navigate on first sync (boot) only
-      if (data.settings.startPage && !startPageAppliedRef.current) {
-        startPageAppliedRef.current = true;
-        navigate(data.settings.startPage);
-      }
-      setClientSettingsLoaded(true);
-    });
 
     wsService.on('sensor_update', (data: any) => {
       // Server occasionally emits malformed packets when a PGN handler throws

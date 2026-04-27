@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import GridLayout, { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { SensorData } from '../../types';
@@ -35,14 +35,15 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useSwitches } from '../../context/SwitchContext';
 import { useClient } from '../../context/ClientContext';
-import { wsService } from '../../services/websocket';
+import { useClientSetting } from '../../context/ClientSettingsContext';
 
-const LAYOUT_STORAGE_KEY = 'bigaos-dashboard-layout';
-const GRID_CONFIG_KEY = 'bigaos-grid-config';
-const SIDEBAR_POSITION_KEY = 'bigaos-dashboard-sidebar-position';
+// clientType still lives in localStorage as part of identity bootstrap; the
+// rest of dashboard layout state has moved to per-client server settings.
 const IS_REMOTE_CLIENT = typeof window !== 'undefined' && localStorage.getItem('bigaos-client-type') === 'remote';
 const DEFAULT_GRID_COLS = IS_REMOTE_CLIENT ? 2 : 6;
 const DEFAULT_GRID_ROWS = 3;
+const DEFAULT_GRID_CONFIG = { cols: DEFAULT_GRID_COLS, rows: DEFAULT_GRID_ROWS };
+const DEFAULT_SIDEBAR_POSITION: DashboardSidebarPosition = 'left';
 
 interface DashboardProps {
   sensorData: SensorData;
@@ -85,18 +86,21 @@ const migrateItems = (items: DashboardItemConfig[]): DashboardItemConfig[] => {
 export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) => {
   const { theme } = useTheme();
   const { t, language } = useLanguage();
-  const { clientId } = useClient();
+  const { clientId: _clientId } = useClient();
+  void _clientId;
   const { toggleSwitch, getSwitchById, isClientOnline } = useSwitches();
   const [switchConfigItem, setSwitchConfigItem] = useState<string | null>(null);
 
   // Dashboard sidebar position - independent from chart sidebar, saved per client
-  const [sidebarPosition, setSidebarPosition] = useState<DashboardSidebarPosition>(() => {
-    const saved = localStorage.getItem(SIDEBAR_POSITION_KEY);
-    if (saved && ['left', 'right', 'top', 'bottom'].includes(saved)) {
-      return saved as DashboardSidebarPosition;
-    }
-    return 'left';
-  });
+  const [storedSidebarPosition, setStoredSidebarPosition] = useClientSetting<DashboardSidebarPosition>(
+    'dashboardSidebarPosition',
+    DEFAULT_SIDEBAR_POSITION
+  );
+  const sidebarPosition: DashboardSidebarPosition = ['left', 'right', 'top', 'bottom'].includes(
+    storedSidebarPosition as string
+  )
+    ? storedSidebarPosition
+    : DEFAULT_SIDEBAR_POSITION;
 
   const getItemTypeLabel = (type: DashboardItemType): string => {
     const labelKeys: Record<DashboardItemType, string> = {
@@ -121,22 +125,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     return t(labelKeys[type]);
   };
 
-  const [items, setItems] = useState<DashboardItemConfig[]>(() => {
-    const saved = localStorage.getItem(LAYOUT_STORAGE_KEY);
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        const migrated = migrateItems(parsed);
-        if (JSON.stringify(parsed) !== JSON.stringify(migrated)) {
-          localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(migrated));
-        }
-        return migrated;
-      } catch {
-        return DEFAULT_DASHBOARD_ITEMS;
-      }
+  const [storedItems, setStoredItems] = useClientSetting<DashboardItemConfig[]>(
+    'dashboardLayout',
+    DEFAULT_DASHBOARD_ITEMS
+  );
+  // Migrate legacy item shapes once per change. Persist back if migration
+  // actually altered the data so the server holds the canonical form.
+  const items = useMemo(
+    () => (Array.isArray(storedItems) ? migrateItems(storedItems) : DEFAULT_DASHBOARD_ITEMS),
+    [storedItems]
+  );
+  useEffect(() => {
+    if (
+      Array.isArray(storedItems) &&
+      JSON.stringify(storedItems) !== JSON.stringify(items)
+    ) {
+      // Migration changed something — push the canonical form to the server.
+      setStoredItems(items);
     }
-    return DEFAULT_DASHBOARD_ITEMS;
-  });
+  }, [storedItems, items, setStoredItems]);
 
   const [editMode, setEditMode] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
@@ -144,85 +151,28 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const [showColsPicker, setShowColsPicker] = useState(false);
   const [showRowsPicker, setShowRowsPicker] = useState(false);
 
-  // Grid configuration state
-  const [gridCols, setGridCols] = useState(() => {
-    const saved = localStorage.getItem(GRID_CONFIG_KEY);
-    if (saved) {
-      try {
-        const config = JSON.parse(saved);
-        return config.cols || DEFAULT_GRID_COLS;
-      } catch {
-        return DEFAULT_GRID_COLS;
-      }
-    }
-    return DEFAULT_GRID_COLS;
-  });
-
-  const [gridRows, setGridRows] = useState(() => {
-    const saved = localStorage.getItem(GRID_CONFIG_KEY);
-    if (saved) {
-      try {
-        const config = JSON.parse(saved);
-        return config.rows || DEFAULT_GRID_ROWS;
-      } catch {
-        return DEFAULT_GRID_ROWS;
-      }
-    }
-    return DEFAULT_GRID_ROWS;
-  });
-
-  // Sync layout and grid config to server for cross-device persistence
-  const syncLayoutToServer = useCallback((layout: DashboardItemConfig[], gridConfig: { cols: number; rows: number }) => {
-    wsService.emit('client_settings_update', { clientId, key: 'dashboardLayout', value: layout });
-    wsService.emit('client_settings_update', { clientId, key: 'dashboardGridConfig', value: gridConfig });
-  }, [clientId]);
+  // Grid configuration state — single object setting holding both cols and rows.
+  const [storedGridConfig, setStoredGridConfig] = useClientSetting<{ cols: number; rows: number }>(
+    'dashboardGridConfig',
+    DEFAULT_GRID_CONFIG
+  );
+  const gridCols = storedGridConfig?.cols || DEFAULT_GRID_COLS;
+  const gridRows = storedGridConfig?.rows || DEFAULT_GRID_ROWS;
 
   const handleSidebarPositionChange = useCallback((position: DashboardSidebarPosition) => {
-    setSidebarPosition(position);
-    localStorage.setItem(SIDEBAR_POSITION_KEY, position);
-    wsService.emit('client_settings_update', { clientId, key: 'dashboardSidebarPosition', value: position });
-  }, [clientId]);
-
-  // Listen for layout changes from server (e.g. when switching to existing client)
-  useEffect(() => {
-    const handleDashboardChanged = () => {
-      const savedLayout = localStorage.getItem(LAYOUT_STORAGE_KEY);
-      const savedGrid = localStorage.getItem(GRID_CONFIG_KEY);
-      const savedSidebarPos = localStorage.getItem(SIDEBAR_POSITION_KEY);
-      if (savedLayout) {
-        try { setItems(migrateItems(JSON.parse(savedLayout))); } catch {}
-      }
-      if (savedGrid) {
-        try {
-          const config = JSON.parse(savedGrid);
-          if (config.cols) setGridCols(config.cols);
-          if (config.rows) setGridRows(config.rows);
-        } catch {}
-      }
-      if (savedSidebarPos && ['left', 'right', 'top', 'bottom'].includes(savedSidebarPos)) {
-        setSidebarPosition(savedSidebarPos as DashboardSidebarPosition);
-      }
-    };
-    window.addEventListener('bigaos-dashboard-changed', handleDashboardChanged);
-    return () => window.removeEventListener('bigaos-dashboard-changed', handleDashboardChanged);
-  }, []);
+    setStoredSidebarPosition(position);
+  }, [setStoredSidebarPosition]);
 
   // Save grid config and clear items when grid size changes
   const handleGridColsChange = useCallback((newCols: number) => {
-    setGridCols(newCols);
-    setItems([]);
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify([]));
-    localStorage.setItem(GRID_CONFIG_KEY, JSON.stringify({ cols: newCols, rows: gridRows }));
-    syncLayoutToServer([], { cols: newCols, rows: gridRows });
-  }, [gridRows, syncLayoutToServer]);
+    setStoredGridConfig({ cols: newCols, rows: gridRows });
+    setStoredItems([]);
+  }, [gridRows, setStoredGridConfig, setStoredItems]);
 
   const handleGridRowsChange = useCallback((newRows: number) => {
-    setGridRows(newRows);
-    setItems([]);
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify([]));
-    localStorage.setItem(GRID_CONFIG_KEY, JSON.stringify({ cols: gridCols, rows: newRows }));
-    syncLayoutToServer([], { cols: gridCols, rows: newRows });
-  }, [gridCols, syncLayoutToServer]);
+    setStoredGridConfig({ cols: gridCols, rows: newRows });
+    setStoredItems([]);
+  }, [gridCols, setStoredGridConfig, setStoredItems]);
 
   useEffect(() => {
     const handleResize = () => {
@@ -287,15 +237,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     return findNextAvailablePosition(1, 1) !== null;
   }, [findNextAvailablePosition]);
 
-  // Persist current items to localStorage + server. Called from drag/resize
-  // *stop* handlers (not onLayoutChange, which fires every drag tick).
-  const persistItemsRef = useRef<DashboardItemConfig[]>(items);
-  useEffect(() => { persistItemsRef.current = items; }, [items]);
-  const persistLayout = useCallback(() => {
-    const current = persistItemsRef.current;
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(current));
-    syncLayoutToServer(current, { cols: gridCols, rows: gridRows });
-  }, [gridCols, gridRows, syncLayoutToServer]);
+  // Local working copy maintained during a drag/resize. react-grid-layout
+  // fires onLayoutChange every tick, so we keep the live shape in pure local
+  // state and only commit to the server on drag/resize stop.
+  const [pendingItems, setPendingItems] = useState<DashboardItemConfig[] | null>(null);
+  const displayedItems = pendingItems ?? items;
 
   const handleLayoutChange = useCallback((newLayout: Layout[]) => {
     const boundedLayout = newLayout.map(layoutItem => {
@@ -309,9 +255,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       return { ...layoutItem, x, y, w, h };
     });
 
-    setItems(prevItems => {
+    setPendingItems((prev) => {
+      const base = prev ?? items;
       let changed = false;
-      const updated = prevItems.map((item) => {
+      const updated = base.map((item) => {
         const li = boundedLayout.find((l) => l.i === item.id);
         if (!li) return item;
         const cur = item.layout;
@@ -321,18 +268,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         changed = true;
         return { ...item, layout: { ...cur, x: li.x, y: li.y, w: li.w, h: li.h } };
       });
-      return changed ? updated : prevItems;
+      return changed ? updated : prev;
     });
-  }, [effectiveCols, effectiveRows]);
+  }, [effectiveCols, effectiveRows, items]);
+
+  const persistLayout = useCallback(() => {
+    setPendingItems((dragging) => {
+      if (dragging) setStoredItems(dragging);
+      return null;
+    });
+  }, [setStoredItems]);
 
   const handleDeleteItem = useCallback((id: string) => {
-    setItems(prevItems => {
-      const updatedItems = prevItems.filter((item) => item.id !== id);
-      localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(updatedItems));
-      syncLayoutToServer(updatedItems, { cols: gridCols, rows: gridRows });
-      return updatedItems;
-    });
-  }, [gridCols, gridRows, syncLayoutToServer]);
+    setStoredItems(items.filter((item) => item.id !== id));
+  }, [items, setStoredItems]);
 
   const handleAddItem = (type: DashboardItemType) => {
     const config = ITEM_TYPE_CONFIG[type];
@@ -359,10 +308,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       },
     };
 
-    const updatedItems = [...items, newItem];
-    setItems(updatedItems);
-    localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(updatedItems));
-    syncLayoutToServer(updatedItems, { cols: gridCols, rows: gridRows });
+    setStoredItems([...items, newItem]);
     setShowAddMenu(false);
   };
 
@@ -637,9 +583,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     }
   };
 
-  // Build layout for grid items
+  // Build layout for grid items — uses the live drag copy so visual feedback
+  // tracks the user's pointer rather than the last server-confirmed state.
   const layout: Layout[] = useMemo(() => {
-    return items.map((item) => ({
+    return displayedItems.map((item) => ({
       ...item.layout,
       isDraggable: editMode,
       isResizable: editMode,
@@ -647,7 +594,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       minH: 1,
       maxH: effectiveRows,
     }));
-  }, [items, editMode, effectiveRows]);
+  }, [displayedItems, editMode, effectiveRows]);
 
   // Compute grid container offset based on sidebar position
   const gridContainerStyle: React.CSSProperties = {
@@ -744,7 +691,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           onDragStop={persistLayout}
           onResizeStop={persistLayout}
         >
-          {items.map((item) => (
+          {displayedItems.map((item) => (
             <div key={item.id}>
               <DashboardItem
                 targetView={item.targetView}
@@ -1162,13 +1109,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         <SwitchConfigDialog
           config={items.find(i => i.id === switchConfigItem)?.switchConfig}
           onSave={(config) => {
-            setItems(prev => {
-              const updated = prev.map(item =>
+            setStoredItems(
+              items.map((item) =>
                 item.id === switchConfigItem ? { ...item, switchConfig: config } : item
-              );
-              localStorage.setItem(LAYOUT_STORAGE_KEY, JSON.stringify(updated));
-              return updated;
-            });
+              )
+            );
           }}
           onClose={() => setSwitchConfigItem(null)}
         />

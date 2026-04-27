@@ -1,78 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useSettings, SidebarPosition } from '../../context/SettingsContext';
-import { useClient } from '../../context/ClientContext';
+import { useClientSetting } from '../../context/ClientSettingsContext';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { wsService } from '../../services/websocket';
 import { SLabel, SOptionGroup, SToggle } from '../ui/SettingsUI';
 
 export const ChartTab: React.FC = () => {
   const { theme } = useTheme();
+  // sidebarPosition is owned by SettingsContext (which now reads from
+  // ClientSettings under the hood); we drive it through the same setter.
   const { sidebarPosition, setSidebarPosition } = useSettings();
-  const { clientId } = useClient();
   const { t } = useLanguage();
 
-  // Client-specific Chart Only setting
-  const [chartOnly, setChartOnly] = useState(() => {
-    return localStorage.getItem('bigaos-chart-only') === '1';
-  });
-
-  // Listen for client settings changes (e.g. from another tab or remote)
-  useEffect(() => {
-    const handleSettingsChanged = (data: { key: string; value: any }) => {
-      if (data.key === 'chartOnly') {
-        const val = !!data.value;
-        setChartOnly(val);
-        localStorage.setItem('bigaos-chart-only', val ? '1' : '0');
-      }
-      if (data.key === 'sidebarPosition') {
-        setSidebarPosition(data.value as SidebarPosition);
-      }
-    };
-
-    wsService.on('client_settings_changed', handleSettingsChanged);
-    return () => { wsService.off('client_settings_changed', handleSettingsChanged); };
-  }, [setSidebarPosition]);
-
-  // Load client-specific settings on mount
-  useEffect(() => {
-    wsService.emit('get_client_settings', { clientId });
-
-    const handleSync = (data: { settings: Record<string, any> }) => {
-      if (data.settings.chartOnly !== undefined) {
-        const val = !!data.settings.chartOnly;
-        setChartOnly(val);
-        localStorage.setItem('bigaos-chart-only', val ? '1' : '0');
-      }
-      if (data.settings.sidebarPosition) {
-        setSidebarPosition(data.settings.sidebarPosition as SidebarPosition);
-      }
-    };
-
-    wsService.on('client_settings_sync', handleSync);
-    return () => { wsService.off('client_settings_sync', handleSync); };
-  }, [clientId, setSidebarPosition]);
+  const [chartOnly, setChartOnly] = useClientSetting<boolean>('chartOnly', false);
+  const [, setStoredSidebarPosition] = useClientSetting<SidebarPosition>('sidebarPosition', 'left');
 
   const handleChartOnlyChange = useCallback((enabled: boolean) => {
     setChartOnly(enabled);
-    localStorage.setItem('bigaos-chart-only', enabled ? '1' : '0');
-    // Notify same-tab listeners (App.tsx) since 'storage' event only fires cross-tab
-    window.dispatchEvent(new Event('bigaos-chart-only-changed'));
-    wsService.emit('client_settings_update', {
-      clientId,
-      key: 'chartOnly',
-      value: enabled,
-    });
-  }, [clientId]);
+  }, [setChartOnly]);
 
   const handleSidebarPositionChange = useCallback((position: SidebarPosition) => {
     setSidebarPosition(position);
-    wsService.emit('client_settings_update', {
-      clientId,
-      key: 'sidebarPosition',
-      value: position,
-    });
-  }, [clientId, setSidebarPosition]);
+    setStoredSidebarPosition(position);
+  }, [setSidebarPosition, setStoredSidebarPosition]);
 
   const sidebarPositionOptions: SidebarPosition[] = ['left', 'right'];
   const sidebarPositionLabels: Record<SidebarPosition, string> = {

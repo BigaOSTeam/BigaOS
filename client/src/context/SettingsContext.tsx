@@ -464,8 +464,11 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [depthAlarm, setDepthAlarmState] = useState<number | null>(defaultSettings.depthAlarm);
   const [soundAlarmEnabled, setSoundAlarmEnabledState] = useState<boolean>(defaultSettings.soundAlarmEnabled);
   const [language, setLanguageState] = useState<LanguageCode>(defaultSettings.language);
+  // sidebarPosition is per-client and now backed by ClientSettings; we keep
+  // a local mirror so consumers don't need to thread the per-client context
+  // through SettingsContext, but the source of truth is the server.
   const [sidebarPosition, setSidebarPositionState] = useState<SidebarPosition>(
-    () => (localStorage.getItem('bigaos-sidebar-position') as SidebarPosition) || defaultSettings.sidebarPosition
+    defaultSettings.sidebarPosition
   );
   const [themeMode, setThemeModeState] = useState<ThemeMode>(defaultSettings.themeMode);
   const [mapTileUrls, setMapTileUrlsState] = useState<MapTileUrls>(defaultSettings.mapTileUrls);
@@ -739,8 +742,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
   const setSidebarPosition = useCallback((position: SidebarPosition) => {
     setSidebarPositionState(position);
-    // Client-specific: save to localStorage only (not global settings)
-    localStorage.setItem('bigaos-sidebar-position', position);
+    // Per-client persistence is owned by ChartTab via ClientSettings — this
+    // setter just updates the local mirror used elsewhere in SettingsContext.
   }, []);
 
   const setThemeMode = useCallback((mode: ThemeMode) => {
