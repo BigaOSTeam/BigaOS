@@ -350,6 +350,11 @@ class WeatherCanvasLayer extends L.Layer {
   private frame: number | null = null;
   private dataPoints: DataPoint[] = [];
   private waterGrid: WaterGridPoint[] = [];
+  // Spacing (in degrees) of the water grid. Used as a max-distance threshold
+  // in isPointOnOcean so a stale grid that doesn't cover the current viewport
+  // can't false-positive on land cells just because the nearest stored point
+  // happens to be ocean from an earlier pan.
+  private waterGridSpacing: number = 0;
   private windConverter: (knots: number) => number = (knots) => knots;
   private heightConverter: (meters: number) => number = (meters) => meters;
   private tempConverter: (celsius: number) => number = (celsius) => celsius;
@@ -410,8 +415,9 @@ class WeatherCanvasLayer extends L.Layer {
     this.redraw();
   }
 
-  setWaterGrid(grid: WaterGridPoint[]): void {
+  setWaterGrid(grid: WaterGridPoint[], spacing: number = 0): void {
     this.waterGrid = grid;
+    this.waterGridSpacing = spacing;
     this.redraw();
   }
 
@@ -430,6 +436,15 @@ class WeatherCanvasLayer extends L.Layer {
         minDist = dist;
         nearest = point;
       }
+    }
+
+    // Reject if the nearest stored point is outside the grid's coverage.
+    // Squared distance vs (spacing × 1.5)²: 1.5 gives a small buffer for
+    // points right at the grid edge while still clamping far-away matches
+    // (which happen when the grid was fetched for an earlier viewport).
+    if (this.waterGridSpacing > 0) {
+      const thresholdSq = (this.waterGridSpacing * 1.5) ** 2;
+      if (minDist > thresholdSq) return false;
     }
 
     // Only return true for ocean (Marine API doesn't cover lakes)
@@ -827,6 +842,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   const layerRef = useRef<WeatherCanvasLayer | null>(null);
   const dataPointsRef = useRef<DataPoint[]>([]);
   const waterGridRef = useRef<WaterGridPoint[]>([]);
+  const waterGridSpacingRef = useRef<number>(0);
   const lastFetchKey = useRef<string>('');
   const lastWaterGridKey = useRef<string>('');
   const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -1066,7 +1082,8 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       }));
 
       waterGridRef.current = waterPoints;
-      layerRef.current?.setWaterGrid(waterPoints);
+      waterGridSpacingRef.current = spacing;
+      layerRef.current?.setWaterGrid(waterPoints, spacing);
     } catch (error) {
       console.error('[WeatherOverlay] Water grid fetch failed:', error);
       // Continue without water filtering if fetch fails
@@ -1095,7 +1112,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       layer.setDataPoints(dataPointsRef.current);
     }
     if (waterGridRef.current.length > 0) {
-      layer.setWaterGrid(waterGridRef.current);
+      layer.setWaterGrid(waterGridRef.current, waterGridSpacingRef.current);
     }
     fetchWeatherData();
     const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
