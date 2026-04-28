@@ -52,6 +52,20 @@ repositories {
     }
 }
 
+// Kotlin 1.8 merged stdlib-jdk7/jdk8 into kotlin-stdlib. Old transitive deps
+// still pin 1.6.21 stdlib-jdk7/jdk8 which collide on dex; force them to the
+// stdlib version (no extra classes shipped — stdlib already covers them).
+configurations.all {
+    resolutionStrategy.eachDependency { details ->
+        if (details.requested.group == 'org.jetbrains.kotlin'
+            && (details.requested.name == 'kotlin-stdlib-jdk7'
+                || details.requested.name == 'kotlin-stdlib-jdk8'
+                || details.requested.name == 'kotlin-stdlib')) {
+            details.useVersion '1.8.22'
+        }
+    }
+}
+
 dependencies {
     implementation fileTree(include: ['*.jar'], dir: 'libs')
     implementation "androidx.appcompat:appcompat:$androidxAppCompatVersion"
