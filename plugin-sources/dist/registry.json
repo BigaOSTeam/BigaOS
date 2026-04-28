@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-03-26T00:00:00Z",
+  "updatedAt": "2026-04-28T00:00:00Z",
   "plugins": [
     {
       "id": "bigaos-demo-driver",
@@ -155,11 +155,11 @@
     {
       "id": "bigaos-tailscale",
       "name": "Tailscale VPN",
-      "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere.",
+      "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere using your boat's stable Tailscale machine name (e.g. http://bigaos:3000) — no need to chase IP addresses.",
       "author": "BigaOS Team",
       "type": "service",
       "flag": "official",
-      "latestVersion": "1.1.0",
+      "latestVersion": "1.2.0",
       "capabilities": [
         "settings",
         "network"
@@ -167,6 +167,12 @@
       "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
       "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-tailscale",
       "versions": [
+        {
+          "version": "1.2.0",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
+          "releaseDate": "2026-04-28",
+          "changelog": "Setup instructions now guide users toward MagicDNS / machine-name access (http://bigaos:3000) instead of pasting changing IPs."
+        },
         {
           "version": "1.1.0",
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
