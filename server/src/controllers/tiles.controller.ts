@@ -22,6 +22,8 @@ import {
 } from '../utils/tile-math';
 import { connectivityService } from '../services/connectivity.service';
 import db from '../database/database';
+import { assertSafeOutboundUrl } from '../utils/url-safety';
+import { safeJoin, isNumericSegment } from '../utils/path-safety';
 
 // Default geocoding URL
 const DEFAULT_NOMINATIM_URL = 'https://photon.komoot.io';
@@ -759,9 +761,18 @@ class TilesController {
     abortSignal: AbortSignal,
     regionId: string
   ): Promise<boolean> {
+    // Coords must be non-negative integers; layer is a fixed enum.
+    if (
+      !['street', 'satellite', 'nautical'].includes(layer) ||
+      !Number.isInteger(coord.z) || coord.z < 0 ||
+      !Number.isInteger(coord.x) || coord.x < 0 ||
+      !Number.isInteger(coord.y) || coord.y < 0
+    ) {
+      return false;
+    }
     // Use relative path for tile refs (from tilesDir)
     const relativeTilePath = `${layer}/${coord.z}/${coord.x}/${coord.y}.png`;
-    const tilePath = path.join(this.tilesDir, relativeTilePath);
+    const tilePath = safeJoin(this.tilesDir, layer, String(coord.z), String(coord.x), `${coord.y}.png`);
 
     // If tile already exists, just add reference and return
     if (fs.existsSync(tilePath)) {
@@ -806,7 +817,14 @@ class TilesController {
       }
 
       const url = getTileUrl(layer, coord.z, coord.x, coord.y);
-      const protocol = url.startsWith('https') ? https : http;
+      let parsedUrl: URL;
+      try {
+        parsedUrl = assertSafeOutboundUrl(url, 'tile url');
+      } catch (err) {
+        reject(err as Error);
+        return;
+      }
+      const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
       // Ensure directory exists
       const dir = path.dirname(tilePath);
@@ -820,7 +838,7 @@ class TilesController {
       };
       abortSignal.addEventListener('abort', abortHandler, { once: true });
 
-      const req = protocol.get(url, {
+      const req = protocol.get(parsedUrl, {
         headers: {
           'User-Agent': 'BigaOS/1.0 (Offline Map Downloader)',
         }
@@ -890,9 +908,16 @@ class TilesController {
         return;
       }
 
-      const protocol = url.startsWith('https') ? https : http;
+      let parsedUrl: URL;
+      try {
+        parsedUrl = assertSafeOutboundUrl(url, 'redirect url');
+      } catch (err) {
+        reject(err as Error);
+        return;
+      }
+      const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
-      const req = protocol.get(url, {
+      const req = protocol.get(parsedUrl, {
         headers: {
           'User-Agent': 'BigaOS/1.0 (Offline Map Downloader)',
         }
@@ -939,7 +964,20 @@ class TilesController {
     // Remove .png extension from y if present
     const yValue = y.replace('.png', '');
 
-    const tilePath = path.join(this.tilesDir, source, z, x, `${yValue}.png`);
+    // z/x/y must be plain integers; reject anything else so they can't
+    // contain path separators or `..` segments.
+    if (!isNumericSegment(z) || !isNumericSegment(x) || !isNumericSegment(yValue)) {
+      res.status(400).json({ error: 'Invalid tile coordinate' });
+      return;
+    }
+
+    let tilePath: string;
+    try {
+      tilePath = safeJoin(this.tilesDir, source, z, x, `${yValue}.png`);
+    } catch {
+      res.status(400).json({ error: 'Invalid tile path' });
+      return;
+    }
 
     // Try to serve local tile first
     if (fs.existsSync(tilePath)) {
@@ -1012,9 +1050,16 @@ class TilesController {
    */
   private proxyTile(url: string, res: Response): Promise<void> {
     return new Promise((resolve, reject) => {
-      const protocol = url.startsWith('https') ? https : http;
+      let parsedUrl: URL;
+      try {
+        parsedUrl = assertSafeOutboundUrl(url, 'tile url');
+      } catch (err) {
+        reject(err as Error);
+        return;
+      }
+      const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
-      const req = protocol.get(url, {
+      const req = protocol.get(parsedUrl, {
         headers: {
           'User-Agent': 'BigaOS/1.0 (Tile Proxy)',
         }
@@ -1186,21 +1231,22 @@ class TilesController {
 
     try {
       const nominatimUrl = this.getNominatimUrl();
+      const safeNominatim = assertSafeOutboundUrl(nominatimUrl, 'nominatimUrl');
       const params = new URLSearchParams({
         q,
         limit: limit.toString(),
         lang: lang.toString(),
       });
+      // Build the request URL relative to the validated base.
+      const requestUrl = new URL('api', safeNominatim.toString().replace(/\/?$/, '/'));
+      requestUrl.search = params.toString();
 
-      const response = await fetch(
-        `${nominatimUrl}/api?${params.toString()}`,
-        {
-          headers: {
-            'Accept-Language': lang.toString(),
-            'User-Agent': 'BigaOS/1.0',
-          },
-        }
-      );
+      const response = await fetch(requestUrl, {
+        headers: {
+          'Accept-Language': lang.toString(),
+          'User-Agent': 'BigaOS/1.0',
+        },
+      });
 
       if (!response.ok) {
         throw new Error(`Search failed: ${response.statusText}`);

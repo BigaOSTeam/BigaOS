@@ -71,6 +71,41 @@ class Semaphore {
 // Global semaphore for API requests
 const apiSemaphore = new Semaphore(MAX_CONCURRENT_API_REQUESTS);
 
+// Allowlist of hosts the weather/marine API URL may point at. Settings are
+// user-configurable, so without a check we'd let arbitrary URLs flow into
+// fetch() (SSRF). Open-Meteo serves multiple regional subdomains, so we
+// allow exact match plus any *.open-meteo.com host.
+const WEATHER_API_HOST_SUFFIXES = ['.open-meteo.com'];
+const WEATHER_API_HOST_EXACT = ['open-meteo.com'];
+
+function isAllowedWeatherHost(hostname: string): boolean {
+  const host = hostname.toLowerCase();
+  if (WEATHER_API_HOST_EXACT.includes(host)) return true;
+  return WEATHER_API_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix));
+}
+
+/**
+ * Validate a weather/marine API URL string.
+ * Returns the parsed URL if it's a https URL pointing at an allowed host;
+ * throws otherwise. Used at the settings boundary and again before fetch
+ * (defense in depth).
+ */
+function assertAllowedWeatherUrl(raw: string, label: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(raw);
+  } catch {
+    throw new Error(`${label} is not a valid URL`);
+  }
+  if (parsed.protocol !== 'https:') {
+    throw new Error(`${label} must use https`);
+  }
+  if (!isAllowedWeatherHost(parsed.hostname)) {
+    throw new Error(`${label} host not allowed: ${parsed.hostname}`);
+  }
+  return parsed;
+}
+
 // In-flight request deduplication
 const inFlightRequests = new Map<string, Promise<WeatherForecast | null>>();
 
@@ -94,6 +129,12 @@ class WeatherService {
    * Update settings at runtime
    */
   updateSettings(settings: Partial<WeatherSettings>): void {
+    if (settings.weatherApiUrl !== undefined) {
+      assertAllowedWeatherUrl(settings.weatherApiUrl, 'weatherApiUrl');
+    }
+    if (settings.marineApiUrl !== undefined) {
+      assertAllowedWeatherUrl(settings.marineApiUrl, 'marineApiUrl');
+    }
     this.settings = { ...this.settings, ...settings };
 
     // Restart auto-fetch if interval changed
@@ -499,8 +540,9 @@ class WeatherService {
       forecast_days: days.toString(),
     });
 
-    const url = `${this.settings.weatherApiUrl}?${params}`;
-    return this.fetchWithRateLimit<OpenMeteoWeatherResponse>(url, 'Weather API', false);
+    const base = assertAllowedWeatherUrl(this.settings.weatherApiUrl, 'weatherApiUrl');
+    base.search = params.toString();
+    return this.fetchWithRateLimit<OpenMeteoWeatherResponse>(base.toString(), 'Weather API', false);
   }
 
   /**
@@ -514,8 +556,9 @@ class WeatherService {
       forecast_days: days.toString(),
     });
 
-    const url = `${this.settings.marineApiUrl}?${params}`;
-    return this.fetchWithRateLimit<OpenMeteoMarineResponse>(url, 'Marine API', true);
+    const base = assertAllowedWeatherUrl(this.settings.marineApiUrl, 'marineApiUrl');
+    base.search = params.toString();
+    return this.fetchWithRateLimit<OpenMeteoMarineResponse>(base.toString(), 'Marine API', true);
   }
 
   /**

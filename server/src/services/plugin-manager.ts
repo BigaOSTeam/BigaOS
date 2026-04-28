@@ -39,6 +39,16 @@ interface PluginInstance {
   i18n?: Record<string, Record<string, string>>;
 }
 
+// Plugin ids become path segments and child_process arguments. Restrict to
+// a safe alphabet so registry entries can't break out of the plugins dir or
+// inject shell metacharacters into spawn calls.
+const PLUGIN_ID_RE = /^[a-z0-9][a-z0-9._-]{0,63}$/i;
+function assertValidPluginId(id: string): void {
+  if (typeof id !== 'string' || !PLUGIN_ID_RE.test(id)) {
+    throw new Error(`Invalid plugin id: ${JSON.stringify(id)}`);
+  }
+}
+
 export class PluginManager extends EventEmitter {
   private plugins: Map<string, PluginInstance> = new Map();
   private pluginsDir: string;
@@ -346,6 +356,7 @@ export class PluginManager extends EventEmitter {
    * Install a plugin from the registry.
    */
   async installPlugin(registryEntry: RegistryEntry, version?: string): Promise<boolean> {
+    assertValidPluginId(registryEntry.id);
     const targetVersion = version || registryEntry.latestVersion;
     const versionEntry = registryEntry.versions.find(v => v.version === targetVersion);
     if (!versionEntry) return false;
@@ -428,9 +439,10 @@ export class PluginManager extends EventEmitter {
       const setupScript = path.join(pluginDir, 'setup.sh');
       if (fs.existsSync(setupScript)) {
         console.log(`[PluginManager] Running setup.sh for ${registryEntry.id}...`);
-        const { execSync } = require('child_process');
+        const { execFileSync } = require('child_process');
         try {
-          const output = execSync(`sudo bash "${setupScript}"`, {
+          // argv form (no shell): setupScript can never escape into a shell command
+          const output = execFileSync('sudo', ['bash', setupScript], {
             cwd: pluginDir,
             timeout: 120000,
             stdio: 'pipe',
@@ -496,6 +508,7 @@ export class PluginManager extends EventEmitter {
    * Uninstall a plugin.
    */
   async uninstallPlugin(pluginId: string): Promise<boolean> {
+    assertValidPluginId(pluginId);
     const plugin = this.plugins.get(pluginId);
     if (!plugin) return false;
 
@@ -512,9 +525,10 @@ export class PluginManager extends EventEmitter {
     const uninstallScript = path.join(pluginDir, 'uninstall.sh');
     if (fs.existsSync(uninstallScript)) {
       console.log(`[PluginManager] Running uninstall.sh for ${pluginId}...`);
-      const { execSync } = require('child_process');
+      const { execFileSync } = require('child_process');
       try {
-        const output = execSync(`sudo bash "${uninstallScript}"`, {
+        // argv form (no shell): uninstallScript can never escape into a shell command
+        const output = execFileSync('sudo', ['bash', uninstallScript], {
           cwd: pluginDir,
           timeout: 60000,
           stdio: 'pipe',

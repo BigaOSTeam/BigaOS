@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createServer } from 'http';
 import dotenv from 'dotenv';
@@ -77,8 +78,18 @@ async function startServer() {
     });
   });
 
-  // SPA fallback - serve index.html for non-API routes
-  app.use((req, res, next) => {
+  // SPA fallback - serve index.html for non-API routes.
+  // Generous rate limit so unrelated abusers can't pin one process on
+  // serving index.html, but loose enough that normal SPA load + reload
+  // bursts pass through unharmed.
+  const spaFallbackLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 300,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many requests',
+  });
+  app.use(spaFallbackLimiter, (req, res, next) => {
     if (req.path.startsWith('/api') || req.path === '/health') {
       res.status(404).json({ error: 'Endpoint not found' });
     } else {

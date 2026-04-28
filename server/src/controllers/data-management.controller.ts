@@ -15,6 +15,8 @@ import { pipeline } from 'stream/promises';
 import { createGunzip } from 'zlib';
 import * as tar from 'tar';
 import { wsServerInstance } from '../websocket/websocket-server';
+import { assertSafeOutboundUrl } from '../utils/url-safety';
+import { safeJoin, isSafeFilenameSegment } from '../utils/path-safety';
 
 // Try to import unzipper, fall back gracefully if not available
 let unzipper: typeof import('unzipper') | null = null;
@@ -273,6 +275,13 @@ export class DataManagementController {
     }
 
     try {
+      assertSafeOutboundUrl(url, 'url');
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+      return;
+    }
+
+    try {
       const config = this.loadUrlConfig();
 
       // If URL matches default, remove from config
@@ -295,9 +304,16 @@ export class DataManagementController {
    */
   protected getRemoteFileInfo(url: string): Promise<{ date?: string; size?: number }> {
     return new Promise((resolve) => {
-      const protocol = url.startsWith('https') ? https : http;
+      let parsedUrl: URL;
+      try {
+        parsedUrl = assertSafeOutboundUrl(url, 'remote info url');
+      } catch {
+        resolve({});
+        return;
+      }
+      const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
-      const req = protocol.request(url, { method: 'HEAD' }, (response) => {
+      const req = protocol.request(parsedUrl, { method: 'HEAD' }, (response) => {
         // Handle redirects
         if (response.statusCode === 301 || response.statusCode === 302) {
           const redirectUrl = response.headers.location;
@@ -355,6 +371,11 @@ export class DataManagementController {
   async downloadFile(req: Request, res: Response): Promise<void> {
     const { fileId } = req.params;
 
+    if (!isSafeFilenameSegment(fileId)) {
+      res.status(400).json({ error: 'Invalid file ID' });
+      return;
+    }
+
     const fileConfig = this.fileConfigs.find(f => f.id === fileId);
     if (!fileConfig) {
       res.status(404).json({ error: 'Unknown file ID' });
@@ -374,6 +395,13 @@ export class DataManagementController {
     const urlConfig = this.loadUrlConfig();
     const url = this.getFileUrl(fileId, urlConfig);
 
+    try {
+      assertSafeOutboundUrl(url, 'download url');
+    } catch (err) {
+      res.status(400).json({ error: (err as Error).message });
+      return;
+    }
+
     // Ensure data directory exists
     if (!fs.existsSync(this.dataDir)) {
       fs.mkdirSync(this.dataDir, { recursive: true });
@@ -392,9 +420,10 @@ export class DataManagementController {
     const activeDownload: ActiveDownload = { progress, abortController };
     this.activeDownloads.set(fileId, activeDownload);
 
-    // Start download in background
+    // Start download in background. Pass fileId as a separate argument so the
+    // format string is fixed (avoids tainted-format-string concerns).
     this.performDownload(fileId, url, fileConfig).catch(error => {
-      console.error(`Download failed for ${fileId}:`, error);
+      console.error('Download failed for %s:', fileId, error);
       const download = this.activeDownloads.get(fileId);
       if (download) {
         download.progress.status = 'error';
@@ -422,9 +451,15 @@ export class DataManagementController {
    * Get temp file path for download
    */
   protected getTempFilePath(fileId: string, fileType: 'zip' | 'tar.gz' | 'gzip' | 'raw', url: string): string {
+    if (!isSafeFilenameSegment(fileId)) {
+      throw new Error('Invalid file id for temp path');
+    }
     const ext = fileType === 'zip' ? '.zip' : fileType === 'tar.gz' ? '.tar.gz' : fileType === 'gzip' ? '.gz' : '';
-    const fileName = ext ? `${fileId}${ext}` : path.basename(url);
-    return path.join(this.dataDir, fileName);
+    const rawName = ext ? `${fileId}${ext}` : path.basename(new URL(url).pathname);
+    if (!isSafeFilenameSegment(rawName)) {
+      throw new Error('Invalid temp file name');
+    }
+    return safeJoin(this.dataDir, rawName);
   }
 
   /**
@@ -477,18 +512,26 @@ export class DataManagementController {
         this.cleanupTempFile(tempFilePath);
         break;
 
-      case 'gzip':
+      case 'gzip': {
         progress.status = 'extracting';
         this.broadcastProgress(progress);
-        const extractedFileName = path.basename(url, '.gz');
-        await this.extractGzip(tempFilePath, path.join(targetDir, extractedFileName));
+        const extractedFileName = path.basename(new URL(url).pathname, '.gz');
+        if (!isSafeFilenameSegment(extractedFileName)) {
+          throw new Error('Invalid extracted file name');
+        }
+        await this.extractGzip(tempFilePath, safeJoin(targetDir, extractedFileName));
         this.cleanupTempFile(tempFilePath);
         break;
+      }
 
-      case 'raw':
-        const finalFileName = path.basename(url);
-        fs.renameSync(tempFilePath, path.join(targetDir, finalFileName));
+      case 'raw': {
+        const finalFileName = path.basename(new URL(url).pathname);
+        if (!isSafeFilenameSegment(finalFileName)) {
+          throw new Error('Invalid final file name');
+        }
+        fs.renameSync(tempFilePath, safeJoin(targetDir, finalFileName));
         break;
+      }
     }
   }
 
@@ -591,15 +634,23 @@ export class DataManagementController {
           return;
         }
 
-        const protocol = requestUrl.startsWith('https') ? https : http;
+        let parsedUrl: URL;
+        try {
+          parsedUrl = assertSafeOutboundUrl(requestUrl, 'download url');
+        } catch (err) {
+          abortSignal.removeEventListener('abort', abortHandler);
+          reject(err as Error);
+          return;
+        }
+        const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
-        currentReq = protocol.get(requestUrl, (response) => {
+        currentReq = protocol.get(parsedUrl, (response) => {
           // Handle redirects
           if (response.statusCode === 301 || response.statusCode === 302 || response.statusCode === 307 || response.statusCode === 308) {
             const redirectUrl = response.headers.location;
             if (redirectUrl) {
               // Handle relative redirects
-              const newUrl = redirectUrl.startsWith('http') ? redirectUrl : new URL(redirectUrl, requestUrl).toString();
+              const newUrl = redirectUrl.startsWith('http') ? redirectUrl : new URL(redirectUrl, parsedUrl).toString();
               performRequest(newUrl, redirectCount + 1);
               return;
             }

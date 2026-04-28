@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import rateLimit from 'express-rate-limit';
 import { sensorController } from '../controllers/sensor.controller';
 import { DatabaseController } from '../controllers/database.controller';
 import { navigationController } from '../controllers/navigation.controller';
@@ -12,6 +13,24 @@ import { apkController } from '../controllers/apk.controller';
 import clientsRouter from './clients';
 
 const router = Router();
+
+// Rate limiters. Heavy ops (downloads, deletes, system commands) get a tight
+// budget; static reads get a generous one. Tile serving is intentionally not
+// rate-limited because a single map view fetches dozens of tiles per pan.
+const heavyOpsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again shortly' },
+});
+const fileOpsLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please try again shortly' },
+});
 
 // Client management routes
 router.use('/clients', clientsRouter);
@@ -70,23 +89,24 @@ router.get('/unified/units', unifiedDataController.getUnits);
 router.put('/unified/units', unifiedDataController.updateUnits);
 
 // Navigation data management routes
-router.get('/data/status', navigationDataController.getStatus.bind(navigationDataController));
+router.get('/data/status', fileOpsLimiter, navigationDataController.getStatus.bind(navigationDataController));
 router.get('/data/progress/:fileId', navigationDataController.getDownloadProgress.bind(navigationDataController));
-router.post('/data/download/:fileId', navigationDataController.downloadFile.bind(navigationDataController));
-router.post('/data/cancel/:fileId', navigationDataController.cancelDownload.bind(navigationDataController));
-router.put('/data/:fileId/url', navigationDataController.updateUrl.bind(navigationDataController));
-router.delete('/data/:fileId', navigationDataController.deleteFile.bind(navigationDataController));
+router.post('/data/download/:fileId', heavyOpsLimiter, navigationDataController.downloadFile.bind(navigationDataController));
+router.post('/data/cancel/:fileId', heavyOpsLimiter, navigationDataController.cancelDownload.bind(navigationDataController));
+router.put('/data/:fileId/url', heavyOpsLimiter, navigationDataController.updateUrl.bind(navigationDataController));
+router.delete('/data/:fileId', heavyOpsLimiter, navigationDataController.deleteFile.bind(navigationDataController));
 
 // Offline tiles routes
-router.get('/tiles/status', tilesController.getStatus.bind(tilesController));
-router.get('/tiles/regions', tilesController.getRegions.bind(tilesController));
-router.post('/tiles/regions', tilesController.createRegion.bind(tilesController));
-router.delete('/tiles/regions/:regionId', tilesController.deleteRegion.bind(tilesController));
-router.post('/tiles/cancel/:regionId', tilesController.cancelDownload.bind(tilesController));
-router.post('/tiles/retry/:regionId', tilesController.retryDownload.bind(tilesController));
-router.post('/tiles/estimate', tilesController.getEstimate.bind(tilesController));
-router.get('/tiles/storage', tilesController.getStorageStats.bind(tilesController));
-// Tile serving (must be last due to wildcard params)
+router.get('/tiles/status', fileOpsLimiter, tilesController.getStatus.bind(tilesController));
+router.get('/tiles/regions', fileOpsLimiter, tilesController.getRegions.bind(tilesController));
+router.post('/tiles/regions', heavyOpsLimiter, tilesController.createRegion.bind(tilesController));
+router.delete('/tiles/regions/:regionId', heavyOpsLimiter, tilesController.deleteRegion.bind(tilesController));
+router.post('/tiles/cancel/:regionId', heavyOpsLimiter, tilesController.cancelDownload.bind(tilesController));
+router.post('/tiles/retry/:regionId', heavyOpsLimiter, tilesController.retryDownload.bind(tilesController));
+router.post('/tiles/estimate', heavyOpsLimiter, tilesController.getEstimate.bind(tilesController));
+router.get('/tiles/storage', fileOpsLimiter, tilesController.getStorageStats.bind(tilesController));
+// Tile serving (must be last due to wildcard params). NOT rate limited:
+// a normal map pan fetches dozens of tiles within a second.
 router.get('/tiles/:source/:z/:x/:y', tilesController.serveTile.bind(tilesController));
 
 // Weather routes
@@ -101,11 +121,11 @@ router.delete('/weather/cache', weatherController.clearCache.bind(weatherControl
 router.get('/geocoding/search', tilesController.searchLocations.bind(tilesController));
 
 // System routes
-router.get('/system/update/check', systemController.checkForUpdate.bind(systemController));
-router.post('/system/update/install', systemController.installUpdate.bind(systemController));
+router.get('/system/update/check', heavyOpsLimiter, systemController.checkForUpdate.bind(systemController));
+router.post('/system/update/install', heavyOpsLimiter, systemController.installUpdate.bind(systemController));
 
 // Android APK routes — info + download for the in-app update flow.
-router.get('/apk/info', apkController.getInfo);
-router.get('/apk/download', apkController.download);
+router.get('/apk/info', fileOpsLimiter, apkController.getInfo);
+router.get('/apk/download', fileOpsLimiter, apkController.download);
 
 export default router;
