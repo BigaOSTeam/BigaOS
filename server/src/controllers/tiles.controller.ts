@@ -824,6 +824,23 @@ class TilesController {
         reject(err as Error);
         return;
       }
+      // Defence-in-depth (and a CodeQL-recognised inline sanitiser):
+      // refuse explicit loopback hosts and the most obvious private
+      // IPv4 ranges right at the call site.
+      const tileHost = parsedUrl.hostname.toLowerCase();
+      if (
+        tileHost === 'localhost' ||
+        tileHost === '127.0.0.1' ||
+        tileHost === '::1' ||
+        tileHost === '0.0.0.0' ||
+        tileHost.startsWith('10.') ||
+        tileHost.startsWith('192.168.') ||
+        tileHost.startsWith('169.254.') ||
+        /^172\.(1[6-9]|2\d|3[01])\./.test(tileHost)
+      ) {
+        reject(new Error('tile url host not allowed'));
+        return;
+      }
       const protocol = parsedUrl.protocol === 'https:' ? https : http;
 
       // Ensure directory exists

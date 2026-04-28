@@ -473,11 +473,31 @@ class WeatherService {
     apiName: string,
     optional: boolean = false
   ): Promise<T | null> {
+    // Re-check the host inline at the fetch site (CodeQL recognises the
+    // string-literal hostname comparisons as an SSRF sanitiser whereas it
+    // can't trace through the helper).
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      return null;
+    }
+    if (parsed.protocol !== 'https:') return null;
+    const host = parsed.hostname.toLowerCase();
+    if (
+      host !== 'open-meteo.com' &&
+      host !== 'api.open-meteo.com' &&
+      host !== 'marine-api.open-meteo.com' &&
+      !host.endsWith('.open-meteo.com')
+    ) {
+      return null;
+    }
+
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
       await apiSemaphore.acquire();
 
       try {
-        const response = await fetch(url);
+        const response = await fetch(parsed.toString());
 
         if (response.status === 429) {
           // Rate limited - release, wait and retry

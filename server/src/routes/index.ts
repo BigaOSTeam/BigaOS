@@ -31,6 +31,15 @@ const fileOpsLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again shortly' },
 });
+// Tile serving fires a few dozen requests per pan, so the limit is set
+// generously — only meant to bound abusive bursts, not normal use.
+const tileServeLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  limit: 1200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: 'Too many tile requests',
+});
 
 // Client management routes
 router.use('/clients', clientsRouter);
@@ -105,9 +114,8 @@ router.post('/tiles/cancel/:regionId', heavyOpsLimiter, tilesController.cancelDo
 router.post('/tiles/retry/:regionId', heavyOpsLimiter, tilesController.retryDownload.bind(tilesController));
 router.post('/tiles/estimate', heavyOpsLimiter, tilesController.getEstimate.bind(tilesController));
 router.get('/tiles/storage', fileOpsLimiter, tilesController.getStorageStats.bind(tilesController));
-// Tile serving (must be last due to wildcard params). NOT rate limited:
-// a normal map pan fetches dozens of tiles within a second.
-router.get('/tiles/:source/:z/:x/:y', tilesController.serveTile.bind(tilesController));
+// Tile serving (must be last due to wildcard params).
+router.get('/tiles/:source/:z/:x/:y', tileServeLimiter, tilesController.serveTile.bind(tilesController));
 
 // Weather routes
 router.get('/weather/current', weatherController.getCurrent.bind(weatherController));
