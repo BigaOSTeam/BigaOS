@@ -54,11 +54,11 @@ jobs:
           tar -czf ../bigaos-${GITHUB_REF_NAME}.tar.gz .
 
       # ---- Android APK build ----
-      - name: Setup JDK 17
+      - name: Setup JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
 
       - name: Setup Android SDK
         uses: android-actions/setup-android@v3
