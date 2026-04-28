@@ -8,6 +8,7 @@ import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
 import { unifiedDataController } from '../controllers/unified-data.controller';
 import { systemController } from '../controllers/system.controller';
+import { apkController } from '../controllers/apk.controller';
 import clientsRouter from './clients';
 
 const router = Router();
@@ -102,5 +103,9 @@ router.get('/geocoding/search', tilesController.searchLocations.bind(tilesContro
 // System routes
 router.get('/system/update/check', systemController.checkForUpdate.bind(systemController));
 router.post('/system/update/install', systemController.installUpdate.bind(systemController));
+
+// Android APK routes — info + download for the in-app update flow.
+router.get('/apk/info', apkController.getInfo);
+router.get('/apk/download', apkController.download);
 
 export default router;

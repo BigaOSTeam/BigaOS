@@ -713,6 +713,8 @@ plugins.disconnect=Trennen
 plugins.tailscale_ip=Tailscale IP
 plugins.tailscale_hostname=Hostname
 plugins.tailscale_subnet=Lokales Subnetz
+plugins.tailscale_connect_url_hint=Diese URL in der BigaOS-App eintragen:
+plugins.tailscale_connect_url_note=MagicDNS muss in der Tailscale-Admin-Konsole aktiviert sein, damit der Hostname aufgelöst wird.
 
 # ==================== Slot-Typ-Bezeichnungen ====================
 slot.position=GPS-Position
@@ -798,6 +800,7 @@ update.ago=vor {time}
 update.check_failed=Update-Prüfung fehlgeschlagen
 update.view_changelog=Änderungsprotokoll ansehen
 update.new_version_available=BigaOS v{version} ist verfügbar
+update.apk_available=App-Update verfügbar — Tippen, um v{latest} zu laden (installiert: v{current})
 update.overlay_title=BigaOS wird aktualisiert
 update.overlay_message=Dies kann eine Minute dauern. Die App verbindet sich automatisch neu.
 reboot.overlay_title=Neustart

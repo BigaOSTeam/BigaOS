@@ -1,14 +1,15 @@
 {
   "id": "bigaos-tailscale",
   "name": "Tailscale VPN",
-  "version": "1.1.0",
-  "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere.",
+  "version": "1.2.0",
+  "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere using your boat's stable Tailscale machine name (e.g. http://bigaos:3000) — no need to chase IP addresses.",
   "author": "BigaOS Team",
   "type": "service",
   "main": "index.js",
   "flag": "official",
   "capabilities": ["settings", "network"],
   "versions": [
+    { "version": "1.2.0", "date": "2026-04-28", "changelog": "Setup instructions now guide users toward MagicDNS / machine-name access (http://bigaos:3000) instead of pasting changing IPs." },
     { "version": "1.1.0", "date": "2026-03-26", "changelog": "Fix permissions (set operator in setup), add connect/disconnect loading & error feedback in UI" },
     { "version": "1.0.0", "date": "2026-03-23", "changelog": "Initial release" }
   ],

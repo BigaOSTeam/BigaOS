@@ -483,6 +483,37 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
               </span>
             </div>
 
+            {pluginStatus.connected && pluginStatus.hostname && (
+              <div
+                style={{
+                  padding: theme.space.sm,
+                  marginTop: theme.space.sm,
+                  marginBottom: theme.space.sm,
+                  background: `${theme.colors.primary}15`,
+                  border: `1px solid ${theme.colors.primary}40`,
+                  borderRadius: theme.radius.sm,
+                }}
+              >
+                <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginBottom: '4px' }}>
+                  {t('plugins.tailscale_connect_url_hint') || 'Use this URL in the BigaOS mobile app:'}
+                </div>
+                <div
+                  style={{
+                    fontSize: theme.fontSize.md,
+                    fontWeight: theme.fontWeight.semibold,
+                    color: theme.colors.textPrimary,
+                    fontFamily: 'monospace',
+                    wordBreak: 'break-all',
+                  }}
+                >
+                  http://{pluginStatus.hostname}:3000
+                </div>
+                <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginTop: '4px' }}>
+                  {t('plugins.tailscale_connect_url_note') ||
+                    'MagicDNS must be enabled in your Tailscale admin console for the hostname to resolve.'}
+                </div>
+              </div>
+            )}
             {pluginStatus.tailscaleIP && (
               <div style={{ display: 'flex', justifyContent: 'space-between', padding: `${theme.space.xs} 0` }}>
                 <span style={{ fontSize: theme.fontSize.sm, color: theme.colors.textMuted }}>

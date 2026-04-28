@@ -62,6 +62,7 @@ step "Checking latest release..."
 RELEASE_JSON=$(curl -sSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
 LATEST_TAG=$(echo "$RELEASE_JSON" | grep '"tag_name"' | head -1 | sed 's/.*: "//;s/".*//')
 ASSET_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": "[^"]*\.tar\.gz"' | head -1 | sed 's/.*: "//;s/"//')
+APK_URL=$(echo "$RELEASE_JSON" | grep -o '"browser_download_url": "[^"]*\.apk"' | head -1 | sed 's/.*: "//;s/"//')
 
 if [ -z "$LATEST_TAG" ] || [ -z "$ASSET_URL" ]; then
   error "Could not fetch release info from GitHub."
@@ -199,6 +200,25 @@ EOF
   sudo systemctl daemon-reload
   sudo systemctl enable "$SERVICE_NAME"
   info "Service created and enabled"
+fi
+
+# ── Cache the matching Android APK ─────────────────────────
+# Mobile clients on the boat's tailnet download the APK from the server
+# instead of GitHub, so they don't need internet to update the app. Keep
+# only the latest — older APKs are useless once superseded.
+if [ -n "$APK_URL" ]; then
+  step "Caching APK..."
+  mkdir -p "$INSTALL_DIR/apk"
+  rm -f "$INSTALL_DIR/apk"/bigaos-*.apk 2>/dev/null || true
+  APK_FILENAME="bigaos-${LATEST_TAG}.apk"
+  if curl -fsSL -o "$INSTALL_DIR/apk/$APK_FILENAME" "$APK_URL"; then
+    info "APK cached: $APK_FILENAME"
+  else
+    warn "APK download failed — server will still run but in-app update won't work until next install."
+    rm -f "$INSTALL_DIR/apk/$APK_FILENAME" 2>/dev/null || true
+  fi
+else
+  warn "No APK asset on this release — skipping APK cache."
 fi
 
 # ── Clean up ───────────────────────────────────────────────

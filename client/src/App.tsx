@@ -28,6 +28,7 @@ import { ThemeProvider, useTheme } from './context/ThemeContext';
 import { useClient } from './context/ClientContext';
 import { useClientSettings, useClientSetting } from './context/ClientSettingsContext';
 import { wsService } from './services/websocket';
+import { checkApkUpdate, openApkDownload, ApkUpdateState } from './utils/apkUpdate';
 import { sensorAPI } from './services/api';
 import './styles/globals.css';
 
@@ -104,6 +105,7 @@ function AppContent() {
   const reloadPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shutdownCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shutdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [apkUpdate, setApkUpdate] = useState<ApkUpdateState | null>(null);
   const { setCurrentDepth, setSidebarPosition } = useSettings();
   const { installingPlugins } = usePlugins();
   const { settings: clientSettings, loaded: clientSettingsLoaded } = useClientSettings();
@@ -265,7 +267,13 @@ function AppContent() {
         severity: 'info',
         tone: 'none',
       });
+      // Re-check APK availability — a new server release usually means a new
+      // APK has been cached too. No-op on web clients.
+      checkApkUpdate().then(setApkUpdate).catch(() => {});
     });
+
+    // Initial APK update check (Capacitor only).
+    checkApkUpdate().then(setApkUpdate).catch(() => {});
 
     fetchInitialData();
 
@@ -406,6 +414,42 @@ function AppContent() {
 
   const overlayProps = { updating: systemUpdating, rebooting: systemRebooting, shuttingDown: systemShuttingDown };
 
+  // App-update banner (Capacitor only). Persistent — sticks around until the
+  // user installs the new APK and the version match clears it.
+  const ApkUpdateBanner = () => {
+    if (!apkUpdate?.available) return null;
+    return (
+      <div
+        onClick={() => openApkDownload(apkUpdate.downloadUrl)}
+        style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          background: 'rgba(59, 130, 246, 0.95)',
+          color: '#fff',
+          padding: '8px 16px',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '8px',
+          zIndex: 10001,
+          fontSize: '14px',
+          fontWeight: 500,
+          boxShadow: '0 2px 8px rgba(0, 0, 0, 0.3)',
+          cursor: 'pointer',
+        }}
+      >
+        <span>
+          {t('update.apk_available', {
+            current: apkUpdate.installedVersion || '?',
+            latest: apkUpdate.latestVersion || '?',
+          })}
+        </span>
+      </div>
+    );
+  };
+
   // Server unreachable banner (shown at top of screen)
   // Suppress during plugin installs — server blocks on execSync (npm install / setup.sh)
   const ServerUnreachableBanner = () => {
@@ -460,6 +504,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -478,6 +523,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -490,6 +536,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -502,6 +549,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -514,6 +562,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -526,6 +575,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -538,6 +588,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -558,6 +609,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -574,6 +626,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -586,6 +639,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -598,6 +652,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -610,6 +665,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -622,6 +678,7 @@ function AppContent() {
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />
+        <ApkUpdateBanner />
         <SystemUpdatingOverlay {...overlayProps} />
       </>
     );
@@ -640,6 +697,7 @@ function AppContent() {
       <DemoModeBanner />
       <ConnectivityBanner />
       <ServerUnreachableBanner />
+      <ApkUpdateBanner />
       <SystemUpdatingOverlay {...overlayProps} />
     </div>
   );
