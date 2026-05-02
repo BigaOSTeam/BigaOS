@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-04-28T00:00:00Z",
+  "updatedAt": "2026-05-02T00:00:00Z",
   "plugins": [
     {
       "id": "bigaos-demo-driver",
@@ -28,11 +28,11 @@
     {
       "id": "bigaos-macarthur-hat",
       "name": "MacArthur HAT",
-      "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus and ICM-20948 IMU via I2C.",
+      "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus, ICM-20948 IMU via I2C, and ADS1115 4-channel ADC for resistive tank senders.",
       "author": "BigaOS Team",
       "type": "driver",
       "flag": "official",
-      "latestVersion": "1.5.2",
+      "latestVersion": "1.6.0",
       "capabilities": [
         "sensor-data",
         "settings",
@@ -149,6 +149,12 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
           "releaseDate": "2026-03-20",
           "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping"
+        },
+        {
+          "version": "1.6.0",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+          "releaseDate": "2026-05-02",
+          "changelog": "ADS1115 tank input support — 4 raw analog_voltage streams for resistive tank senders, calibrated server-side via the new Tanks settings tab"
         }
       ]
     },
