@@ -150,7 +150,28 @@ mkdir -p "$INSTALL_DIR/plugins"
 # ── Install server dependencies ────────────────────────────
 step "Installing dependencies..."
 cd "$INSTALL_DIR/server"
-npm install --production --silent
+npm install --production --no-audit --no-fund
+
+# Catch partial installs (OOM during better-sqlite3's native build is
+# the usual culprit on a Pi) before the service restarts against an
+# incomplete node_modules tree.
+step "Verifying dependencies..."
+if ! node -e "
+const pkg = require('./package.json');
+const missing = Object.keys(pkg.dependencies || {}).filter(d => {
+  try { require.resolve(d); return false; } catch { return true; }
+});
+if (missing.length) { console.error('Missing: ' + missing.join(', ')); process.exit(1); }
+"; then
+  echo ""
+  error "Dependency tree is incomplete after npm install."
+  error "This usually means npm was killed mid-build (often OOM on a Pi)."
+  error ""
+  error "To recover, SSH in and run:"
+  error "  cd $INSTALL_DIR/server && npm install --production"
+  error "  sudo systemctl restart $SERVICE_NAME"
+  exit 1
+fi
 
 # ── Create .env if missing ─────────────────────────────────
 if [ ! -f "$INSTALL_DIR/server/.env" ]; then
