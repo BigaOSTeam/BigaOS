@@ -13,6 +13,12 @@
         <item name="windowActionBar">false</item>
         <item name="windowNoTitle">true</item>
         <item name="android:background">@null</item>
+        <!-- Match the app's dark navy bg so the reserved system-bar strips
+             blend into the chrome instead of appearing as default blue. -->
+        <item name="android:statusBarColor">#0a1929</item>
+        <item name="android:navigationBarColor">#0a1929</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
     </style>
 
 
