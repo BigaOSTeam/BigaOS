@@ -902,7 +902,6 @@ export const ChartView = React.memo<ChartViewProps>(({
   // Event handlers
   const handleRecenter = () => {
     setAutoCenter(true);
-    // Animation is handled by MapController when autoCenter transitions to true
   };
 
   const handleMapDrag = () => setAutoCenter(false);
@@ -1301,8 +1300,7 @@ export const ChartView = React.memo<ChartViewProps>(({
         <MapController
           position={position}
           autoCenter={autoCenter}
-          onDrag={handleMapDrag}
-          onAnimationStart={() => setWeatherOverlayHidden(true)}
+          onUserInteract={handleMapDrag}
         />
         <ZoomTracker onZoomChange={setMapZoom} />
         <LongPressHandler onLongPress={handleLongPress} />

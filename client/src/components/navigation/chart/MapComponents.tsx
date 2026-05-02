@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { GeoPosition } from '../../../types';
@@ -8,8 +8,8 @@ import { radToDeg } from '../../../utils/angle';
 interface MapControllerProps {
   position: GeoPosition;
   autoCenter: boolean;
-  onDrag: () => void;
-  onAnimationStart?: () => void;
+  /** Called when the user pans or zooms — both gestures disable follow-GPS. */
+  onUserInteract: () => void;
 }
 
 /**
@@ -18,58 +18,32 @@ interface MapControllerProps {
 export const MapController: React.FC<MapControllerProps> = ({
   position,
   autoCenter,
-  onDrag,
-  onAnimationStart,
+  onUserInteract,
 }) => {
   const map = useMap();
-  const prevAutoCenterRef = useRef(autoCenter);
-  const isFlyingRef = useRef(false);
 
+  // Keep the boat centered while autoCenter is on. setView with animate:false
+  // is used unconditionally — including the false→true recenter — because
+  // flyTo across long distances often arrives without loading destination
+  // tiles, and the animation isn't worth the failure mode.
   useEffect(() => {
     if (autoCenter) {
-      // If transitioning from false to true (user clicked recenter), animate with flyTo
-      if (!prevAutoCenterRef.current) {
-        isFlyingRef.current = true;
-        onAnimationStart?.();
-        map.flyTo([position.latitude, position.longitude], map.getZoom());
-
-        // Listen for moveend to know when flyTo animation completes
-        const handleMoveEnd = () => {
-          isFlyingRef.current = false;
-          map.off('moveend', handleMoveEnd);
-        };
-        map.on('moveend', handleMoveEnd);
-      } else if (!isFlyingRef.current) {
-        // Already centered and not flying, just update position silently as boat moves
-        map.setView([position.latitude, position.longitude], map.getZoom());
-      }
-      // If currently flying, don't interrupt - the animation will complete
+      map.setView([position.latitude, position.longitude], map.getZoom(), { animate: false });
     }
-    prevAutoCenterRef.current = autoCenter;
   }, [position.latitude, position.longitude, map, autoCenter]);
 
-  // Re-center on boat after zoom completes when autoCenter is enabled
+  // Any user-initiated pan or zoom disables follow-GPS so the user can
+  // explore freely. zoomstart fires on pinch and on the +/- buttons, but
+  // not on our setView calls above (zoom level is unchanged), so this is
+  // safe without a programmatic-zoom guard.
   useEffect(() => {
-    if (!autoCenter) return;
-
-    const handleZoomEnd = () => {
-      if (!isFlyingRef.current) {
-        map.setView([position.latitude, position.longitude], map.getZoom(), { animate: false });
-      }
-    };
-
-    map.on('zoomend', handleZoomEnd);
+    map.on('dragstart', onUserInteract);
+    map.on('zoomstart', onUserInteract);
     return () => {
-      map.off('zoomend', handleZoomEnd);
+      map.off('dragstart', onUserInteract);
+      map.off('zoomstart', onUserInteract);
     };
-  }, [map, autoCenter, position.latitude, position.longitude]);
-
-  useEffect(() => {
-    map.on('dragstart', onDrag);
-    return () => {
-      map.off('dragstart', onDrag);
-    };
-  }, [map, onDrag]);
+  }, [map, onUserInteract]);
 
   // Blur zoom buttons after click to remove focus state
   useEffect(() => {
