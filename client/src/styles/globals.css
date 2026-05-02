@@ -356,6 +356,13 @@ html, body {
   to { transform: rotate(360deg); }
 }
 
+@keyframes pluginInstallDone {
+  0%   { transform: scale(0.4); opacity: 0; }
+  35%  { transform: scale(1.2); opacity: 1; }
+  55%  { transform: scale(1); opacity: 1; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
 @keyframes depth-item-pulse {
   0%, 100% { background: rgba(239, 83, 80, 0.15); }
   50% { background: rgba(239, 83, 80, 0.35); }

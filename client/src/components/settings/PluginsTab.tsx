@@ -42,6 +42,7 @@ export const PluginsTab: React.FC = () => {
     refreshRegistry,
     installingPlugins,
     uninstallingPlugins,
+    recentlyInstalledPlugins,
     installPlugin,
     uninstallPlugin,
     sensorMappings,
@@ -383,6 +384,21 @@ export const PluginsTab: React.FC = () => {
               {plugin.status === 'missing' && (() => {
                 const rp = registryPlugins.find(r => r.id === plugin.id);
                 const isInstalling = installingPlugins.has(plugin.id);
+                const justInstalled = recentlyInstalledPlugins.has(plugin.id);
+                if (justInstalled) {
+                  return (
+                    <span style={{
+                      padding: `${theme.space.sm} ${theme.space.md}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      animation: 'pluginInstallDone 1.8s ease-out',
+                    }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  );
+                }
                 return rp ? (
                   <SButton
                     variant="primary"
@@ -406,6 +422,22 @@ export const PluginsTab: React.FC = () => {
                 const needsReboot = plugin.setupMessage?.toLowerCase().includes('reboot');
                 const hasUpdate = rp && rp.hasUpdate;
                 const isUpdating = installingPlugins.has(plugin.id);
+                const justInstalled = recentlyInstalledPlugins.has(plugin.id);
+
+                if (justInstalled) {
+                  return (
+                    <span style={{
+                      padding: `${theme.space.sm} ${theme.space.md}`,
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      animation: 'pluginInstallDone 1.8s ease-out',
+                    }}>
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                    </span>
+                  );
+                }
 
                 if (needsReboot && !hasUpdate) {
                   return (

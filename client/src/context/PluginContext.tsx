@@ -8,7 +8,7 @@
  * - Plugin actions (enable, disable, install, etc.)
  */
 
-import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
 import { wsService } from '../services/websocket';
 
 // ============================================================================
@@ -143,9 +143,15 @@ interface PluginContextType {
   registryLoading: boolean;
   refreshRegistry: () => void;
 
-  // Install/update/uninstall progress
-  installingPlugins: Set<string>;
+  // Install/update/uninstall progress.
+  // installingPlugins maps pluginId -> the installedVersion captured at install start
+  // (undefined for fresh installs). Used to detect *real* completion: a version
+  // change on the server side, not just any plugin_update emit.
+  installingPlugins: Map<string, string | undefined>;
   uninstallingPlugins: Set<string>;
+  // Plugins whose install/update just finished — held briefly so the UI can
+  // show a "done" checkmark instead of letting the button vanish.
+  recentlyInstalledPlugins: Set<string>;
 
   // Plugin actions
   installPlugin: (pluginId: string, version?: string) => void;
@@ -185,24 +191,54 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [plugins, setPlugins] = useState<PluginInfo[]>([]);
   const [registryPlugins, setRegistryPlugins] = useState<RegistryPlugin[]>([]);
   const [registryLoading, setRegistryLoading] = useState(false);
-  const [installingPlugins, setInstallingPlugins] = useState<Set<string>>(new Set());
+  const [installingPlugins, setInstallingPlugins] = useState<Map<string, string | undefined>>(new Map());
   const [uninstallingPlugins, setUninstallingPlugins] = useState<Set<string>>(new Set());
+  const [recentlyInstalledPlugins, setRecentlyInstalledPlugins] = useState<Set<string>>(new Set());
   const [sensorMappings, setSensorMappings] = useState<SensorMappingInfo[]>([]);
   const [debugData, setDebugData] = useState<DebugDataEntry[]>([]);
   const [sourceAvailability, setSourceAvailability] = useState<SlotAvailability[]>([]);
   const [pluginConfigs, setPluginConfigs] = useState<Record<string, Record<string, any>>>({});
   const [pluginActionResults, setPluginActionResults] = useState<Record<string, any>>({});
 
+  // Mirror plugins into a ref so installPlugin() can read the current version
+  // without re-binding its callback every time the plugin list changes.
+  const pluginsRef = useRef<PluginInfo[]>([]);
+  useEffect(() => { pluginsRef.current = plugins; }, [plugins]);
+
   useEffect(() => {
     const clearInstallingPlugins = (plugins: PluginInfo[]) => {
       setInstallingPlugins(prev => {
         if (prev.size === 0) return prev;
-        const installedIds = new Set(plugins.map(p => p.id));
-        const next = new Set(prev);
-        for (const id of prev) {
-          if (installedIds.has(id)) next.delete(id);
+        const next = new Map(prev);
+        const justFinished: string[] = [];
+        for (const [id, prevVersion] of prev) {
+          const p = plugins.find(pl => pl.id === id);
+          if (!p) continue;
+          // Install is complete when the installed version differs from what
+          // it was at install start. For fresh installs prevVersion is
+          // undefined; the first time the plugin appears with any version it
+          // counts as complete. For updates we wait for the version to change.
+          if (p.installedVersion !== prevVersion) {
+            next.delete(id);
+            justFinished.push(id);
+          }
         }
-        return next.size === prev.size ? prev : next;
+        if (justFinished.length === 0) return prev;
+        // Briefly mark these as "just installed" so the UI can flash a
+        // checkmark before the button disappears.
+        setRecentlyInstalledPlugins(s => {
+          const out = new Set(s);
+          for (const id of justFinished) out.add(id);
+          return out;
+        });
+        setTimeout(() => {
+          setRecentlyInstalledPlugins(s => {
+            const out = new Set(s);
+            for (const id of justFinished) out.delete(id);
+            return out;
+          });
+        }, 1800);
+        return next;
       });
     };
 
@@ -278,7 +314,8 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     const handleInstallError = (data: { pluginId: string; error: string }) => {
       console.warn(`[PluginContext] Install failed for ${data.pluginId}: ${data.error}`);
       setInstallingPlugins(prev => {
-        const next = new Set(prev);
+        if (!prev.has(data.pluginId)) return prev;
+        const next = new Map(prev);
         next.delete(data.pluginId);
         return next;
       });
@@ -322,7 +359,12 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   }, []);
 
   const installPlugin = useCallback((pluginId: string, version?: string) => {
-    setInstallingPlugins(prev => new Set(prev).add(pluginId));
+    const current = pluginsRef.current.find(p => p.id === pluginId);
+    setInstallingPlugins(prev => {
+      const next = new Map(prev);
+      next.set(pluginId, current?.installedVersion);
+      return next;
+    });
     wsService.emit('plugin_install', { pluginId, version });
   }, []);
 
@@ -400,6 +442,7 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     refreshRegistry,
     installingPlugins,
     uninstallingPlugins,
+    recentlyInstalledPlugins,
     installPlugin,
     uninstallPlugin,
     enablePlugin,
