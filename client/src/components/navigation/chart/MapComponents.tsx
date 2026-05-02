@@ -8,7 +8,8 @@ import { radToDeg } from '../../../utils/angle';
 interface MapControllerProps {
   position: GeoPosition;
   autoCenter: boolean;
-  /** Called when the user pans or zooms — both gestures disable follow-GPS. */
+  /** Called when the user pans or pinch-zooms — disables follow-GPS.
+   *  Clicking the +/- zoom buttons does NOT trigger this. */
   onUserInteract: () => void;
 }
 
@@ -32,33 +33,46 @@ export const MapController: React.FC<MapControllerProps> = ({
     }
   }, [position.latitude, position.longitude, map, autoCenter]);
 
-  // Any user-initiated pan or zoom disables follow-GPS so the user can
-  // explore freely. zoomstart fires on pinch and on the +/- buttons, but
-  // not on our setView calls above (zoom level is unchanged), so this is
-  // safe without a programmatic-zoom guard.
+  // Pan or pinch-zoom disables follow-GPS so the user can explore freely.
+  // Tapping the +/- zoom buttons should keep follow-GPS active, so we set
+  // a short-lived flag on those clicks and skip the disable for the next
+  // zoomstart it triggers.
   useEffect(() => {
+    const zoomContainer = map.getContainer().querySelector('.leaflet-control-zoom');
+    let zoomFromButton = false;
+    let buttonZoomTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const handleControlClick = (e: Event) => {
+      const target = e.target as HTMLElement;
+      if (target.tagName === 'A') {
+        zoomFromButton = true;
+        // Safety net in case the click is at min/max zoom and no zoomstart fires
+        if (buttonZoomTimer) clearTimeout(buttonZoomTimer);
+        buttonZoomTimer = setTimeout(() => { zoomFromButton = false; }, 500);
+        // Blur after click to drop the focus ring
+        setTimeout(() => target.blur(), 100);
+      }
+    };
+
+    const handleZoomStart = () => {
+      if (zoomFromButton) {
+        zoomFromButton = false;
+        return;
+      }
+      onUserInteract();
+    };
+
+    if (zoomContainer) zoomContainer.addEventListener('click', handleControlClick);
     map.on('dragstart', onUserInteract);
-    map.on('zoomstart', onUserInteract);
+    map.on('zoomstart', handleZoomStart);
+
     return () => {
+      if (zoomContainer) zoomContainer.removeEventListener('click', handleControlClick);
       map.off('dragstart', onUserInteract);
-      map.off('zoomstart', onUserInteract);
+      map.off('zoomstart', handleZoomStart);
+      if (buttonZoomTimer) clearTimeout(buttonZoomTimer);
     };
   }, [map, onUserInteract]);
-
-  // Blur zoom buttons after click to remove focus state
-  useEffect(() => {
-    const zoomContainer = document.querySelector('.leaflet-control-zoom');
-    if (zoomContainer) {
-      const handleClick = (e: Event) => {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'A') {
-          setTimeout(() => target.blur(), 100);
-        }
-      };
-      zoomContainer.addEventListener('click', handleClick);
-      return () => zoomContainer.removeEventListener('click', handleClick);
-    }
-  }, []);
 
   return null;
 };
