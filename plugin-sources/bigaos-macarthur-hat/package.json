@@ -1,6 +1,6 @@
 {
   "name": "bigaos-macarthur-hat",
-  "version": "1.5.2",
+  "version": "1.6.0",
   "description": "BigaOS driver plugin for the MacArthur HAT",
   "private": true,
   "dependencies": {

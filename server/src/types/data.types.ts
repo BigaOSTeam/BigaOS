@@ -76,6 +76,17 @@ export interface StandardPropulsionData {
 }
 
 /**
+ * Per-tank reading (NMEA2000 PGN 127505 shape).
+ * `level` is 0-100 %, `volume` and `capacity` are liters.
+ */
+export interface StandardTankData {
+  fluidType: string;       // FluidType, kept as string here to avoid a circular import
+  level: number;           // Percentage (0-100)
+  volume: number;          // Liters
+  capacity: number;        // Liters
+}
+
+/**
  * Complete sensor data packet in standard units
  */
 export interface StandardSensorData {
@@ -84,6 +95,8 @@ export interface StandardSensorData {
   environment: StandardEnvironmentData;
   electrical: StandardElectricalData;
   propulsion: StandardPropulsionData;
+  /** Map of tankId -> tank reading (only populated when tanks are configured). */
+  tanks?: Record<string, StandardTankData>;
 }
 
 // ============================================================================
@@ -187,6 +200,8 @@ export interface DisplaySensorData {
       throttle: number; // Percentage
     };
   };
+  /** Map of tankId -> tank reading (level/volume/capacity). */
+  tanks?: Record<string, StandardTankData>;
 }
 
 /**

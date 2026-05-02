@@ -92,6 +92,18 @@ function pushAllStreams() {
   api.pushSensorValue('tank_fresh', randomVariation(70, 1));
   api.pushSensorValue('tank_waste', randomVariation(30, 1));
 
+  // Simulated raw analog tank inputs (uncalibrated voltages).
+  // Each channel drifts on a different sine period so the calibration wizard
+  // visibly moves while you capture points. Range ~0.4–3.0 V — typical for a
+  // 3.3 V supply through a divider with a 0–190 Ω resistive sender.
+  const now = Date.now() / 1000;
+  const drift = (period, phase, baseV, ampV) =>
+    baseV + Math.sin((now / period) + phase) * ampV + (Math.random() - 0.5) * 0.01;
+  api.pushSensorValue('tank_input_0', drift(120, 0.0, 1.7, 1.3));
+  api.pushSensorValue('tank_input_1', drift(180, 1.5, 1.7, 1.0));
+  api.pushSensorValue('tank_input_2', drift(90,  3.0, 1.5, 0.8));
+  api.pushSensorValue('tank_input_3', drift(240, 4.5, 2.0, 0.6));
+
   // Anchor chain
   api.pushSensorValue('chain_counter', randomVariation(25, 0.5));
 }

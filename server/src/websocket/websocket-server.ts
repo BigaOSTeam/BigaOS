@@ -154,6 +154,17 @@ export class WebSocketServer {
         });
       });
     }
+
+    // Tank service events — broadcast when tank list changes so clients re-render.
+    const tankSvc = this.dataController.getTankService();
+    if (tankSvc) {
+      tankSvc.on('tanks_updated', (tanks: any) => {
+        this.io.emit('tanks_sync', {
+          tanks,
+          timestamp: new Date(),
+        });
+      });
+    }
   }
 
   /**
@@ -452,6 +463,65 @@ export class WebSocketServer {
         }
       });
 
+      // ================================================================
+      // Tank Handlers
+      // ================================================================
+
+      socket.on('get_tanks', () => {
+        if (this.dataController) {
+          const ts = this.dataController.getTankService();
+          if (ts) {
+            socket.emit('tanks_sync', { tanks: ts.list(), timestamp: new Date() });
+          }
+        }
+      });
+
+      socket.on('tank_save', async (data: any) => {
+        if (this.dataController) {
+          const ts = this.dataController.getTankService();
+          if (ts && data && typeof data === 'object') {
+            try {
+              await ts.save(data);
+            } catch (err: any) {
+              socket.emit('tank_error', { error: err.message || 'Failed to save tank' });
+            }
+          }
+        }
+      });
+
+      socket.on('tank_delete', async (data: { tankId: string }) => {
+        if (this.dataController) {
+          const ts = this.dataController.getTankService();
+          if (ts && data?.tankId) {
+            await ts.delete(data.tankId);
+          }
+        }
+      });
+
+      socket.on('tank_calibration_capture', async (data: { tankId: string; liters: number }) => {
+        if (this.dataController) {
+          const ts = this.dataController.getTankService();
+          if (ts && data?.tankId && typeof data.liters === 'number') {
+            const tank = await ts.captureCalibrationPoint(data.tankId, data.liters);
+            socket.emit('tank_calibration_captured', {
+              tankId: data.tankId,
+              tank,
+              rawVolts: ts.getCurrentRawVolts(data.tankId),
+              timestamp: new Date(),
+            });
+          }
+        }
+      });
+
+      socket.on('tank_calibration_clear', async (data: { tankId: string }) => {
+        if (this.dataController) {
+          const ts = this.dataController.getTankService();
+          if (ts && data?.tankId) {
+            await ts.clearCalibration(data.tankId);
+          }
+        }
+      });
+
       // Handle anchor alarm updates - forward to alert service AND broadcast
       socket.on('anchor_alarm_update', (data) => {
         if (this.dataController) {
@@ -565,10 +635,15 @@ export class WebSocketServer {
 
       socket.on('client_settings_update', async (data: { clientId: string; key: string; value: any }) => {
         try {
-          await dbWorker.setClientSetting(data.clientId, data.key, JSON.stringify(data.value));
+          // socket.io strips undefined fields during JSON serialization, so
+          // data.value can arrive as undefined when the client meant "clear
+          // this setting". Persist that as JSON null — the column is NOT NULL
+          // so we can't pass through undefined without violating the schema.
+          const value = data.value === undefined ? null : data.value;
+          await dbWorker.setClientSetting(data.clientId, data.key, JSON.stringify(value));
           this.io.to(`client:${data.clientId}`).emit('client_settings_changed', {
             key: data.key,
-            value: data.value,
+            value,
             timestamp: new Date(),
           });
         } catch (error) {
@@ -756,6 +831,14 @@ export class WebSocketServer {
           mappings: sm.getMappings(),
           debugData: sm.getDebugData(),
           sourceAvailability: sm.getSourceAvailability(),
+          timestamp: new Date(),
+        });
+      }
+
+      const ts = this.dataController.getTankService();
+      if (ts) {
+        socket.emit('tanks_sync', {
+          tanks: ts.list(),
           timestamp: new Date(),
         });
       }
@@ -1003,6 +1086,20 @@ export class WebSocketServer {
       const motor = data.propulsion.motor;
       if (motor.throttle !== undefined) {
         readings.push({ category: 'propulsion', sensorName: 'motor_throttle', value: motor.throttle, unit: '%' });
+      }
+    }
+
+    // Tank data — store one row per tank for level (%) and volume (L) so
+    // the detail view can pull a history series per-tank.
+    if (data.tanks) {
+      for (const [tankId, tank] of Object.entries(data.tanks)) {
+        if (!tank) continue;
+        if (typeof tank.level === 'number') {
+          readings.push({ category: 'tanks', sensorName: `${tankId}_level`, value: tank.level, unit: '%' });
+        }
+        if (typeof tank.volume === 'number') {
+          readings.push({ category: 'tanks', sensorName: `${tankId}_volume`, value: tank.volume, unit: 'L' });
+        }
       }
     }
 

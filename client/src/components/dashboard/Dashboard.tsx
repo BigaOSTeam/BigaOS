@@ -28,14 +28,17 @@ import {
   RollItem,
   PitchItem,
   SwitchItem,
+  TankItem,
 } from './items';
 import { DashboardSidebar } from './DashboardSidebar';
 import { SwitchConfigDialog } from './SwitchConfigDialog';
+import { TankConfigDialog } from './TankConfigDialog';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useSwitches } from '../../context/SwitchContext';
 import { useClient } from '../../context/ClientContext';
 import { useClientSetting } from '../../context/ClientSettingsContext';
+import { useNavigation } from '../../context/NavigationContext';
 
 // clientType comes from ClientContext (sourced from the server's clients table).
 const DEFAULT_GRID_ROWS = 3;
@@ -56,6 +59,7 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'battery': { label: 'Battery', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
   'battery-draw': { label: 'Battery Draw', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
   'switch': { label: 'Switch', targetView: 'settings', defaultSize: { w: 1, h: 1 } },
+  'tank': { label: 'Tank', targetView: 'tank', defaultSize: { w: 1, h: 2 } },
   'roll': { label: 'Roll', targetView: 'roll', defaultSize: { w: 1, h: 1 } },
   'pitch': { label: 'Pitch', targetView: 'pitch', defaultSize: { w: 1, h: 1 } },
   'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
@@ -87,7 +91,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   const defaultGridCols = isRemoteClient ? 2 : 6;
   const DEFAULT_GRID_CONFIG = { cols: defaultGridCols, rows: DEFAULT_GRID_ROWS };
   const { toggleSwitch, getSwitchById, isClientOnline } = useSwitches();
+  const { navigate } = useNavigation();
   const [switchConfigItem, setSwitchConfigItem] = useState<string | null>(null);
+  const [tankConfigItem, setTankConfigItem] = useState<string | null>(null);
 
   // Dashboard sidebar position - independent from chart sidebar, saved per client
   const [storedSidebarPosition, setStoredSidebarPosition] = useClientSetting<DashboardSidebarPosition>(
@@ -119,6 +125,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'roll': 'dashboard.roll',
       'pitch': 'dashboard.pitch',
       'switch': 'dashboard.switch',
+      'tank': 'dashboard.tank',
     };
     return t(labelKeys[type]);
   };
@@ -270,12 +277,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
     });
   }, [effectiveCols, effectiveRows, items]);
 
-  const persistLayout = useCallback(() => {
-    setPendingItems((dragging) => {
-      if (dragging) setStoredItems(dragging);
-      return null;
+  // Persist the layout RGL passes to us directly, instead of reading
+  // pendingItems via a state-updater callback. The callback approach is
+  // fragile in React 18 (StrictMode double-invokes updaters) and can race
+  // when resize ends before the last onLayoutChange tick has committed.
+  const persistLayout = useCallback((newLayout: Layout[]) => {
+    setPendingItems(null);
+    const updated = items.map((item) => {
+      const li = newLayout.find(l => l.i === item.id);
+      if (!li) return item;
+      const cur = item.layout;
+      if (cur.x === li.x && cur.y === li.y && cur.w === li.w && cur.h === li.h) {
+        return item;
+      }
+      return { ...item, layout: { ...cur, x: li.x, y: li.y, w: li.w, h: li.h } };
     });
-  }, [setStoredItems]);
+    // Only emit if anything actually changed to avoid spurious round-trips.
+    const changed = updated.some((u, i) => u !== items[i]);
+    if (changed) setStoredItems(updated);
+  }, [items, setStoredItems]);
 
   const handleDeleteItem = useCallback((id: string) => {
     setStoredItems(items.filter((item) => item.id !== id));
@@ -416,6 +436,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         return <PitchItem pitch={sensorData.navigation.attitude.pitch} />;
       case 'switch':
         return <SwitchItem switchId={item.switchConfig?.switchId} activeColor={item.switchConfig?.activeColor} />;
+      case 'tank':
+        return <TankItem tankId={item.tankConfig?.tankId} />;
       default:
         return null;
     }
@@ -576,6 +598,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>ON</div>
           </div>
         );
+      case 'tank':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <svg width="28" height="36" viewBox="0 0 28 36" fill="none" style={iconStyle}>
+              <rect x="3" y="2" width="22" height="32" rx="2" stroke="currentColor" strokeWidth="1.5" />
+              <rect x="5" y="14" width="18" height="18" fill="#4fc3f7" opacity="0.7" />
+            </svg>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-2px' }}>60%</div>
+          </div>
+        );
       default:
         return null;
     }
@@ -696,11 +728,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
                 onNavigate={onNavigate}
                 editMode={editMode}
                 onDelete={() => handleDeleteItem(item.id)}
-                onTap={item.type === 'switch' && item.switchConfig?.switchId ? () => {
-                  const sw = getSwitchById(item.switchConfig!.switchId);
-                  if (sw && isClientOnline(sw.targetClientId)) toggleSwitch(item.switchConfig!.switchId);
-                } : undefined}
-                onSettings={item.type === 'switch' ? () => setSwitchConfigItem(item.id) : undefined}
+                onTap={
+                  item.type === 'switch' && item.switchConfig?.switchId
+                    ? () => {
+                        const sw = getSwitchById(item.switchConfig!.switchId);
+                        if (sw && isClientOnline(sw.targetClientId)) toggleSwitch(item.switchConfig!.switchId);
+                      }
+                    : item.type === 'tank'
+                      ? () => navigate('tank', { tank: { tankId: item.tankConfig?.tankId } })
+                      : undefined
+                }
+                onSettings={
+                  item.type === 'switch'
+                    ? () => setSwitchConfigItem(item.id)
+                    : item.type === 'tank'
+                      ? () => setTankConfigItem(item.id)
+                      : undefined
+                }
               >
                 {renderItemContent(item)}
               </DashboardItem>
@@ -1114,6 +1158,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
             );
           }}
           onClose={() => setSwitchConfigItem(null)}
+        />
+      )}
+      {/* Tank Config Dialog */}
+      {tankConfigItem && (
+        <TankConfigDialog
+          config={items.find(i => i.id === tankConfigItem)?.tankConfig}
+          onSave={(config) => {
+            setStoredItems(
+              items.map((item) =>
+                item.id === tankConfigItem ? { ...item, tankConfig: config } : item
+              )
+            );
+          }}
+          onClose={() => setTankConfigItem(null)}
         />
       )}
     </div>

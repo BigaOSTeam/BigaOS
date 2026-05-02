@@ -3,7 +3,12 @@ import { SwitchDashboardConfig } from './switches';
 
 export type DashboardSidebarPosition = 'left' | 'right' | 'top' | 'bottom';
 
-export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch' | 'switches' | 'instruments';
+export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch' | 'switches' | 'instruments' | 'tank';
+
+export interface TankDashboardConfig {
+  /** Which configured tank this widget shows. Empty = first available. */
+  tankId?: string;
+}
 
 export interface DashboardItemConfig {
   id: string;
@@ -11,6 +16,7 @@ export interface DashboardItemConfig {
   targetView: ViewType;
   layout: Layout;
   switchConfig?: SwitchDashboardConfig;
+  tankConfig?: TankDashboardConfig;
 }
 
 export type DashboardItemType =
@@ -30,7 +36,8 @@ export type DashboardItemType =
   | 'temp-forecast'
   | 'roll'
   | 'pitch'
-  | 'switch';
+  | 'switch'
+  | 'tank';
 
 export interface DashboardLayout {
   items: DashboardItemConfig[];

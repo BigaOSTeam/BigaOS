@@ -35,7 +35,11 @@
       { "id": "rudder", "name": "Rudder Angle", "dataType": "rudder_angle", "unit": "degrees", "updateRate": 1 },
       { "id": "tank_fresh", "name": "Fresh Water Tank", "dataType": "tank_level", "unit": "%", "updateRate": 1 },
       { "id": "tank_waste", "name": "Waste Tank", "dataType": "tank_level", "unit": "%", "updateRate": 1 },
-      { "id": "chain_counter", "name": "Anchor Chain", "dataType": "chain_length", "unit": "m", "updateRate": 1 }
+      { "id": "chain_counter", "name": "Anchor Chain", "dataType": "chain_length", "unit": "m", "updateRate": 1 },
+      { "id": "tank_input_0", "name": "Demo Tank Input 0", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "description": "Simulated resistive tank sender, drifting between ~0.4 V (empty) and ~3.0 V (full)" },
+      { "id": "tank_input_1", "name": "Demo Tank Input 1", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "description": "Simulated resistive tank sender, drifting between ~0.4 V (empty) and ~3.0 V (full)" },
+      { "id": "tank_input_2", "name": "Demo Tank Input 2", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "description": "Simulated resistive tank sender, drifting between ~0.4 V (empty) and ~3.0 V (full)" },
+      { "id": "tank_input_3", "name": "Demo Tank Input 3", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "description": "Simulated resistive tank sender, drifting between ~0.4 V (empty) and ~3.0 V (full)" }
     ]
   }
 }

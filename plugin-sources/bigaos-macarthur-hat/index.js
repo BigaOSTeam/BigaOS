@@ -23,6 +23,7 @@ const { PGNHandlers } = require('./pgn-handlers');
 const { IMUConnection } = require('./imu-connection');
 const { IMUFusion } = require('./imu-fusion');
 const { IMUCalibration } = require('./imu-calibration');
+const { TankI2C } = require('./tank-i2c');
 
 let api = null;
 let canConnection = null;
@@ -31,6 +32,7 @@ let fromPgn = null;
 let imuConnection = null;
 let imuFusion = null;
 let imuCalibration = null;
+let tankI2C = null;
 let healthCheckTimer = null;
 let frameCount = 0;
 let parsedCount = 0;
@@ -318,6 +320,50 @@ module.exports = {
       api.log('IMU disabled by configuration');
     }
 
+    // ── ADS1115 Tank Inputs (independent of CAN/IMU) ────────────
+    const tankEnabled = await api.getSetting('tankI2CEnabled') === true;
+
+    if (tankEnabled) {
+      const tankAddress = await api.getSetting('tankI2CAddress') || '0x48';
+      const tankPollRate = await api.getSetting('tankPollRateHz') || 1;
+      const tankChannels = await api.getSetting('tankChannelsEnabled') || '0,1,2';
+
+      api.log(`ADS1115 config: address=${tankAddress}, pollRate=${tankPollRate}Hz, channels=${tankChannels}`);
+
+      tankI2C = new TankI2C({
+        address: tankAddress,
+        pollRateHz: tankPollRate,
+        channelsEnabled: tankChannels,
+      });
+
+      tankI2C.on('connected', () => {
+        api.log('ADS1115 connected for tank inputs');
+      });
+      tankI2C.on('reading', ({ channel, volts }) => {
+        const streamId = `tank_input_${channel}`;
+        api.pushSensorValue(streamId, volts);
+      });
+      tankI2C.on('error', (err) => {
+        api.log(`ADS1115 error: ${err.message}`);
+      });
+      tankI2C.on('disconnected', () => {
+        api.log('ADS1115 disconnected');
+      });
+
+      try {
+        await tankI2C.connect();
+      } catch (err) {
+        api.log(`ADS1115 initialization failed: ${err.message} (other interfaces continue)`);
+        api.triggerAlert({
+          name: 'Tank ADC Error',
+          message: `MacArthur HAT: ADS1115 not available (${err.message})`,
+          severity: 'warning',
+        });
+      }
+    } else {
+      api.log('ADS1115 tank inputs disabled by configuration');
+    }
+
     // Start health monitoring
     startHealthCheck();
 
@@ -338,6 +384,12 @@ module.exports = {
       imuConnection.disconnect();
       imuConnection.removeAllListeners();
       imuConnection = null;
+    }
+
+    if (tankI2C) {
+      tankI2C.disconnect();
+      tankI2C.removeAllListeners();
+      tankI2C = null;
     }
 
     if (canConnection) {

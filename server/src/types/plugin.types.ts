@@ -114,8 +114,28 @@ export type SensorSlotType =
   | 'motor_throttle'        // number (Percentage 0-100)
   | 'rpm'                   // number
   | 'fuel_level'            // number (Percentage 0-100)
+  // Tanks (calibrated, server-side)
+  | 'tank_level'            // number (Percentage 0-100)
+  | 'tank_volume'           // number (Liters)
+  // Raw analog (uncalibrated plugin input)
+  | 'analog_voltage'        // number (Volts)
   // Custom (plugins can use any string)
   | string;
+
+// ============================================================================
+// Tank / Fluid Types (NMEA2000 PGN 127505 vocabulary)
+// ============================================================================
+
+/**
+ * Fluid type as defined in NMEA2000 PGN 127505 (Fluid Level).
+ * Used to label tanks and pick the right icon/colors in the UI.
+ */
+export type FluidType =
+  | 'fuel'           // 0: Diesel
+  | 'fresh_water'    // 1: Fresh / drinking water
+  | 'gray_water'     // 2: Sink / shower drain
+  | 'black_water'    // 5: Sewage / waste
+  | 'gasoline';      // 6: Petrol
 
 /**
  * Declaration of a data stream that a driver plugin can provide.

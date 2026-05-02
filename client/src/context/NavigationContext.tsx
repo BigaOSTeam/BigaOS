@@ -5,7 +5,10 @@ import { useClientSettings, useClientSetting } from './ClientSettingsContext';
 // Navigation parameters for different views
 export interface NavigationParams {
   settings?: {
-    tab?: 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'plugins' | 'clients' | 'display' | 'advanced';
+    tab?: 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'tanks' | 'plugins' | 'clients' | 'display' | 'advanced';
+  };
+  tank?: {
+    tankId?: string;
   };
 }
 

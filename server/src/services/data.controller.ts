@@ -25,6 +25,7 @@ import { AlertService, alertService } from './alert.service';
 import { SwitchService, switchService } from './switch.service';
 import { SensorMappingService } from './sensor-mapping.service';
 import { PluginManager } from './plugin-manager';
+import { TankService } from './tank.service';
 import { dbWorker } from './database-worker.service';
 import {
   StandardSensorData,
@@ -54,6 +55,7 @@ export class DataController extends EventEmitter {
   private switchServiceInstance: SwitchService;
   private sensorMappingService: SensorMappingService | null = null;
   private pluginManager: PluginManager | null = null;
+  private tankService: TankService | null = null;
 
   // Reference to the demo driver module for demo navigation control
   private demoDriverModule: any = null;
@@ -144,10 +146,17 @@ export class DataController extends EventEmitter {
         this.onSensorData(data);
       });
 
+      // Initialize tank service — subscribes to analog_voltage streams and
+      // produces calibrated tank readings that get merged into StandardSensorData.
+      this.tankService = new TankService();
+      await this.tankService.initialize();
+
       // Listen for plugin sensor events on this (DataController) emitter
       // Plugins push data via PluginAPI -> this emitter -> SensorMappingService
       this.on('plugin_sensor_data', (event: PluginSensorValueEvent) => {
         this.sensorMappingService!.onSensorValue(event);
+        // TankService consumes analog_voltage events and produces calibrated readings.
+        this.tankService!.onSensorValue(event);
       });
 
       this.on('plugin_sensor_packet', (event: PluginSensorPacketEvent) => {
@@ -230,6 +239,13 @@ export class DataController extends EventEmitter {
    * Called when new sensor data is available
    */
   private onSensorData(data: StandardSensorData): void {
+    // Merge in tank readings (computed server-side from raw analog_voltage).
+    if (this.tankService) {
+      const tanks = this.tankService.getReadings();
+      if (Object.keys(tanks).length > 0) {
+        data = { ...data, tanks };
+      }
+    }
     this.currentSensorData = data;
 
     // Evaluate alerts against sensor data
@@ -367,7 +383,15 @@ export class DataController extends EventEmitter {
           throttle: data.propulsion.motor.throttle, // No conversion
         },
       },
+      tanks: data.tanks, // % and L are unit-agnostic, pass through
     };
+  }
+
+  /**
+   * Get the TankService (for WebSocket handlers).
+   */
+  getTankService(): TankService | null {
+    return this.tankService;
   }
 
   /**

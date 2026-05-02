@@ -15,12 +15,14 @@ import { RollView } from './components/views/RollView';
 import { PitchView } from './components/views/PitchView';
 import { SwitchesView } from './components/views/SwitchesView';
 import { InstrumentsView } from './components/views/InstrumentsView';
+import { TankView } from './components/views/TankView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { AlertProvider, useAlerts } from './context/AlertContext';
 import { PluginProvider, usePlugins } from './context/PluginContext';
 import { SwitchProvider } from './context/SwitchContext';
+import { TankProvider } from './context/TankContext';
 import { AlertContainer } from './components/alerts';
 import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
@@ -684,6 +686,19 @@ function AppContent() {
     );
   }
 
+  if (activeView === 'tank') {
+    return (
+      <>
+        <TankView tankId={navigationParams.tank?.tankId} onClose={handleGoBack} />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <ApkUpdateBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
   // Default: Dashboard view
   return (
     <div style={{
@@ -739,6 +754,7 @@ function App() {
           <PluginProvider>
             <PluginI18nBridge />
             <SwitchProvider>
+            <TankProvider>
             <AlertProvider>
               <ConfirmDialogProvider>
                 <AppContent />
@@ -746,6 +762,7 @@ function App() {
                 <VirtualKeyboard />
               </ConfirmDialogProvider>
             </AlertProvider>
+            </TankProvider>
             </SwitchProvider>
           </PluginProvider>
           </ThemeProvider>

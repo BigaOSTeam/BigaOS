@@ -1,8 +1,8 @@
 {
   "id": "bigaos-macarthur-hat",
   "name": "MacArthur HAT",
-  "version": "1.5.2",
-  "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus and ICM-20948 IMU via I2C.",
+  "version": "1.6.0",
+  "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus, ICM-20948 IMU via I2C, and ADS1115 4-channel ADC for resistive tank senders.",
   "author": "BigaOS Team",
   "type": "driver",
   "main": "index.js",
@@ -26,7 +26,8 @@
     { "version": "1.4.5", "date": "2026-02-15", "changelog": "Add plugin i18n support with EN/DE translations for config labels" },
     { "version": "1.5.0", "date": "2026-03-15", "changelog": "PGN 127506 support (SOC, time remaining), battery power (V×A), IMU calibration system with gyro bias, mounting offset, magnetometer hard/soft iron, and beta warmup" },
     { "version": "1.5.1", "date": "2026-03-20", "changelog": "Filter out invalid battery temperature (0K = no sensor), fix current display at zero" },
-    { "version": "1.5.2", "date": "2026-03-20", "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping" }
+    { "version": "1.5.2", "date": "2026-03-20", "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping" },
+    { "version": "1.6.0", "date": "2026-05-02", "changelog": "ADS1115 tank input support — 4 raw analog_voltage streams for resistive tank senders, calibrated server-side via the new Tanks settings tab" }
   ],
   "driver": {
     "protocol": "nmea2000",
@@ -60,7 +61,11 @@
       { "id": "fuel_level", "name": "Fuel Level", "dataType": "fuel_level", "unit": "%", "updateRate": 1, "interface": "nmea2000", "description": "Fuel tank level from PGN 127505" },
       { "id": "imu_roll", "name": "Roll (IMU)", "dataType": "roll", "unit": "radians", "updateRate": 10, "interface": "imu", "description": "Roll from ICM-20948 IMU via Madgwick AHRS fusion" },
       { "id": "imu_pitch", "name": "Pitch (IMU)", "dataType": "pitch", "unit": "radians", "updateRate": 10, "interface": "imu", "description": "Pitch from ICM-20948 IMU via Madgwick AHRS fusion" },
-      { "id": "imu_heading", "name": "Heading (IMU)", "dataType": "heading", "unit": "radians", "updateRate": 10, "interface": "imu", "description": "Magnetic heading from ICM-20948 magnetometer via AHRS fusion" }
+      { "id": "imu_heading", "name": "Heading (IMU)", "dataType": "heading", "unit": "radians", "updateRate": 10, "interface": "imu", "description": "Magnetic heading from ICM-20948 magnetometer via AHRS fusion" },
+      { "id": "tank_input_0", "name": "Tank Input 0", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "interface": "i2c", "description": "Raw voltage from ADS1115 channel 0 (uncalibrated — bind to a tank in Settings → Tanks)" },
+      { "id": "tank_input_1", "name": "Tank Input 1", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "interface": "i2c", "description": "Raw voltage from ADS1115 channel 1 (uncalibrated — bind to a tank in Settings → Tanks)" },
+      { "id": "tank_input_2", "name": "Tank Input 2", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "interface": "i2c", "description": "Raw voltage from ADS1115 channel 2 (uncalibrated — bind to a tank in Settings → Tanks)" },
+      { "id": "tank_input_3", "name": "Tank Input 3", "dataType": "analog_voltage", "unit": "V", "updateRate": 1, "interface": "i2c", "description": "Raw voltage from ADS1115 channel 3 (uncalibrated — bind to a tank in Settings → Tanks)" }
     ],
     "configSchema": [
       {
@@ -111,6 +116,34 @@
         "type": "string",
         "default": "0x68",
         "description": "I2C address of the ICM-20948 (0x68 or 0x69)"
+      },
+      {
+        "key": "tankI2CEnabled",
+        "label": "Enable ADS1115 Tank Inputs",
+        "type": "boolean",
+        "default": false,
+        "description": "Enable the ADS1115 ADC for resistive tank senders. Configure tanks in Settings → Tanks."
+      },
+      {
+        "key": "tankI2CAddress",
+        "label": "ADS1115 I2C Address",
+        "type": "string",
+        "default": "0x48",
+        "description": "I2C address of the ADS1115 (0x48, 0x49, 0x4A, or 0x4B depending on ADDR pin)"
+      },
+      {
+        "key": "tankPollRateHz",
+        "label": "Tank Poll Rate (Hz)",
+        "type": "number",
+        "default": 1,
+        "description": "How often to read tank levels. 1 Hz is plenty for tanks."
+      },
+      {
+        "key": "tankChannelsEnabled",
+        "label": "Enabled Tank Channels",
+        "type": "string",
+        "default": "0,1,2",
+        "description": "Comma-separated ADC channels to poll (0-3)."
       }
     ]
   }
