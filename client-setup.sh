@@ -481,30 +481,9 @@ if ! command -v swaybg &> /dev/null; then
 fi
 sudo apt-get install -y wtype 2>/dev/null || true
 
-# Build labwc from source (0.9.5+ needed for HideCursor + touch auto-hide cursor)
-LABWC_VER=$(labwc --version 2>/dev/null | grep -oP '[\d.]+' | head -1)
-if [ "$(printf '%s\n' "0.9.5" "$LABWC_VER" | sort -V | head -1)" != "0.9.5" ]; then
-  step "Building labwc 0.9.5+ (cursor hiding for kiosk)..."
-  sudo apt-get install -y build-essential meson ninja-build libffi-dev \
-    libxml2-dev libwayland-dev wayland-protocols libdrm-dev libgbm-dev \
-    libegl-dev libgles2-mesa-dev libinput-dev libudev-dev libpixman-1-dev \
-    libseat-dev libxcb1-dev libxcb-composite0-dev libxcb-render0-dev \
-    libxcb-xfixes0-dev libxcb-xinput-dev libxcb-shm0-dev libxcb-icccm4-dev \
-    libxcb-res0-dev libxkbcommon-dev libcairo2-dev libpango1.0-dev \
-    libglib2.0-dev libpng-dev libexpat1-dev hwdata xwayland glslang-tools \
-    2>/dev/null || true
-  LABWC_BUILD=$(mktemp -d)
-  if git clone --depth 1 https://github.com/labwc/labwc.git "$LABWC_BUILD/labwc" 2>/dev/null; then
-    cd "$LABWC_BUILD/labwc"
-    if meson setup build --prefix=/usr 2>/dev/null && ninja -C build 2>/dev/null; then
-      sudo ninja -C build install
-      info "labwc $(labwc --version 2>/dev/null | grep -oP '[\d.]+' | head -1) built and installed"
-    else
-      warn "labwc build failed — cursor may be visible on boot"
-    fi
-    cd - > /dev/null
-  fi
-  rm -rf "$LABWC_BUILD"
+# System labwc only — Trixie's 0.8.4 supports HideCursor; building 0.9.5+ pulls in wlroots+wayland subprojects that fail on Trixie.
+if ! command -v labwc &> /dev/null; then
+  sudo apt-get install -y labwc 2>/dev/null || warn "labwc not available — kiosk may not start"
 fi
 
 # Create the kiosk launcher script
