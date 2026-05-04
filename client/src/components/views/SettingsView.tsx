@@ -22,6 +22,7 @@ import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats, 
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { AlertsTab } from '../settings/AlertsTab';
 import { SwitchesTab } from '../settings/SwitchesTab';
+import { ButtonsTab } from '../settings/ButtonsTab';
 import { TanksTab } from '../settings/TanksTab';
 import { PluginsTab } from '../settings/PluginsTab';
 import { TerminalPanel } from '../settings/TerminalPanel';
@@ -47,7 +48,7 @@ import {
   SInfoBox,
 } from '../ui/SettingsUI';
 
-type SettingsTab = 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'tanks' | 'plugins' | 'clients' | 'display' | 'advanced';
+type SettingsTab = 'general' | 'chart' | 'vessel' | 'units' | 'downloads' | 'alerts' | 'switches' | 'buttons' | 'tanks' | 'plugins' | 'clients' | 'display' | 'advanced';
 
 interface SettingsViewProps {
   onClose: () => void;
@@ -450,6 +451,16 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <rect x="1" y="5" width="22" height="14" rx="7" />
           <circle cx="16" cy="12" r="4" />
+        </svg>
+      ),
+    },
+    {
+      id: 'buttons',
+      label: t('settings.buttons'),
+      icon: (
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" />
+          <circle cx="12" cy="12" r="4" />
         </svg>
       ),
     },
@@ -1284,6 +1295,8 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         return <AlertsTab />;
       case 'switches':
         return <SwitchesTab />;
+      case 'buttons':
+        return <ButtonsTab />;
       case 'tanks':
         return <TanksTab />;
       case 'plugins':

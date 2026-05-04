@@ -659,6 +659,7 @@ confirm.remove_data=Die heruntergeladenen Daten werden entfernt. Sie können sie
 
 # ==================== Switches ====================
 settings.switches=Schalter
+settings.buttons=Taster
 
 # ==================== Plugins ====================
 settings.plugins=Plugins
@@ -876,6 +877,54 @@ switches.client_offline=Zielgerät ist offline
 switches.configure=Konfigurieren
 switches.select_switch=Schalter auswählen
 switches.active_color=Aktive Farbe
+
+# ==================== Buttons (physische GPIO-Eingänge) ====================
+buttons.title=Taster
+buttons.description=Verbinde physische Taster mit GPIO-Pins eines Clients. Jeder Taster löst eine Aktion aus (Schalter umschalten, UI navigieren, Karte neu zentrieren ...).
+buttons.add=Taster hinzufügen
+buttons.edit=Taster bearbeiten
+buttons.delete=Taster löschen
+buttons.delete_confirm=Diesen Taster löschen?
+buttons.no_buttons=Noch keine Taster konfiguriert
+buttons.name=Name
+buttons.source_client=Quellgerät
+buttons.device_type=Gerätetyp
+buttons.gpio_pin=GPIO-Pin
+buttons.pull=Pull-Widerstand
+buttons.pull_desc_up=Pin liegt im Leerlauf auf HIGH (3.3V). Taster zwischen GPIO und GND verdrahten — beim Drücken zieht er den Pin auf LOW. Empfohlen; nutzt den internen Pull-Up des Pi, keine zusätzlichen Bauteile nötig.
+buttons.pull_desc_down=Pin liegt im Leerlauf auf LOW (GND). Taster zwischen GPIO und 3.3V verdrahten — beim Drücken zieht er den Pin auf HIGH. Nutzt den internen Pull-Down des Pi, keine zusätzlichen Bauteile nötig.
+buttons.pull_desc_none=Kein interner Pull-Widerstand. Der Pin floatet und löst zufällig aus, wenn deine Hardware keine externen Pull-Widerstände hat. Nur wählen, wenn du sicher bist, dass dein Board sie bereitstellt.
+buttons.trigger=Auslösekante
+buttons.trigger_desc_falling=Löst beim Übergang HIGH → LOW aus. Passt zu Pull-Up-Verdrahtung (Taster gegen GND) — feuert beim Drücken.
+buttons.trigger_desc_rising=Löst beim Übergang LOW → HIGH aus. Passt zu Pull-Down-Verdrahtung (Taster gegen 3.3V) — feuert beim Drücken.
+buttons.debounce_ms=Entprellung (ms)
+buttons.debounce_desc=Mechanische Kontakte vibrieren beim Drücken einige ms — der GPIO sieht das als mehrere Tastendrücke. Nach der ersten Flanke werden weitere Flanken in diesem Zeitfenster ignoriert. 50 ms reichen für die meisten Taster; günstige oder ausgeschlagene Taster brauchen 100–200 ms. Nur auf 0 setzen, wenn deine Hardware bereits entprellt.
+buttons.enabled=Aktiviert
+buttons.disabled=Deaktiviert
+buttons.pin_in_use=Dieser Pin wird bereits von einem anderen Taster auf dem Gerät verwendet
+buttons.action=Aktion
+buttons.action_switch=Schalter
+buttons.action_target_client=Zielgerät
+buttons.action_view=Ansicht
+buttons.action_tab=Einstellungs-Tab
+buttons.action_toggle_switch=Schalter umschalten
+buttons.action_chart_recenter=Karte zentrieren (GPS folgen)
+buttons.action_chart_zoom_in=Karte: Hineinzoomen
+buttons.action_chart_zoom_out=Karte: Herauszoomen
+buttons.action_navigate=Zu Ansicht wechseln
+buttons.action_settings_tab=Einstellungs-Tab öffnen
+buttons.summary_toggle_switch={name} umschalten
+buttons.summary_chart_recenter=Karte auf {client} zentrieren
+buttons.summary_chart_zoom_in=Karte auf {client} hineinzoomen
+buttons.summary_chart_zoom_out=Karte auf {client} herauszoomen
+buttons.summary_navigate={client} zu {view} navigieren
+buttons.summary_settings_tab=Einstellungen/{tab} auf {client} öffnen
+buttons.overlay_enabled=Beschriftung auf dem Bildschirm anzeigen
+buttons.overlay_desc=Zeigt den Namen dieses Tasters auf dem Bildschirm des Geräts, an dem er angeschlossen ist. Hilfreich, wenn der Taster selbst keine Beschriftung oder LED hat. Bei „Schalter umschalten“ wird zusätzlich der aktuelle Schalterstatus angezeigt.
+buttons.overlay_edge=Bildschirmkante
+buttons.overlay_percent=Position an der Kante
+buttons.overlay_percent_desc_horizontal=Position der Beschriftung entlang der Leiste: 0 % = links, 100 % = rechts. Stelle sie ungefähr dort ein, wo der physische Taster sitzt.
+buttons.overlay_percent_desc_vertical=Position der Beschriftung entlang der Leiste: 0 % = oben, 100 % = unten. Stelle sie ungefähr dort ein, wo der physische Taster sitzt.
 
 # ==================== Tanks ====================
 settings.tanks=Tanks

@@ -12,6 +12,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
+import { useChartControl } from '../../context/ChartControlContext';
 import { useClientSetting } from '../../context/ClientSettingsContext';
 import { useBoatSetting } from '../../context/BoatSettingsContext';
 import { SearchResult } from '../../services/geocoding';
@@ -905,6 +906,17 @@ export const ChartView = React.memo<ChartViewProps>(({
   };
 
   const handleMapDrag = () => setAutoCenter(false);
+
+  // Expose chart actions to UiActionListener (for physical button dispatch)
+  const chartControl = useChartControl();
+  useEffect(() => {
+    chartControl.register({
+      recenter: () => setAutoCenter(true),
+      zoomIn: () => { mapRef.current?.zoomIn(); },
+      zoomOut: () => { mapRef.current?.zoomOut(); },
+    });
+    return () => { chartControl.register(null); };
+  }, [chartControl]);
 
   const handleLongPress = (lat: number, lon: number, x: number, y: number) => {
     // Don't show context menu during anchor placement mode

@@ -22,6 +22,10 @@ import { NavigationProvider, useNavigation } from './context/NavigationContext';
 import { AlertProvider, useAlerts } from './context/AlertContext';
 import { PluginProvider, usePlugins } from './context/PluginContext';
 import { SwitchProvider } from './context/SwitchContext';
+import { ButtonProvider } from './context/ButtonContext';
+import { ChartControlProvider } from './context/ChartControlContext';
+import { UiActionListener } from './components/UiActionListener';
+import { ButtonOverlay } from './components/ButtonOverlay';
 import { TankProvider } from './context/TankContext';
 import { AlertContainer } from './components/alerts';
 import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
@@ -326,7 +330,7 @@ function AppContent() {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        height: '100dvh',
+        height: '100%',
         background: theme.colors.bgPrimary,
         color: theme.colors.textPrimary,
       }}>
@@ -703,7 +707,7 @@ function AppContent() {
   return (
     <div style={{
       width: '100%',
-      height: '100dvh',
+      height: '100%',
       background: theme.colors.bgPrimary,
       color: theme.colors.textPrimary,
       overflow: 'hidden',
@@ -754,15 +758,21 @@ function App() {
           <PluginProvider>
             <PluginI18nBridge />
             <SwitchProvider>
+            <ButtonProvider>
+            <ChartControlProvider>
             <TankProvider>
             <AlertProvider>
               <ConfirmDialogProvider>
                 <AppContent />
                 <AlertContainer />
                 <VirtualKeyboard />
+                <UiActionListener />
+                <ButtonOverlay />
               </ConfirmDialogProvider>
             </AlertProvider>
             </TankProvider>
+            </ChartControlProvider>
+            </ButtonProvider>
             </SwitchProvider>
           </PluginProvider>
           </ThemeProvider>

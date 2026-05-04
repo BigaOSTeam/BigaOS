@@ -21,6 +21,8 @@ import { DisplaySensorData } from '../types/data.types';
 import { TriggeredAlert, AlertSettings } from '../types/alert.types';
 import { SwitchDefinition, GpioResult } from '../types/switch.types';
 import { gpioService } from '../services/gpio.service';
+import { ButtonDefinition, UiActionMessage } from '../types/button.types';
+import { buttonActionExecutor } from '../services/button-action.service';
 import { UserUnitPreferences } from '../types/units.types';
 import { setLanguage as setI18nLanguage } from '../i18n/lang';
 
@@ -143,6 +145,32 @@ export class WebSocketServer {
       this.io.to(`gpio:${data.targetClientId}`).emit('gpio_command', data.command);
     });
 
+    // Button service events
+    const buttonSvc = this.dataController.getButtonService();
+    buttonSvc.on('buttons_changed', (data: { affectedClientIds: string[] }) => {
+      // Re-broadcast list to all browser clients so the Buttons tab updates
+      this.io.emit('buttons_sync', {
+        buttons: buttonSvc.getAllButtons(),
+        timestamp: new Date(),
+      });
+      // Push refreshed input config to each affected agent
+      const ids = data?.affectedClientIds || [];
+      for (const cid of ids) {
+        if (!cid) continue;
+        this.io.to(`agent:${cid}`).emit('inputs_update', {
+          inputs: buttonSvc.getAgentConfigForClient(cid),
+        });
+      }
+    });
+
+    // UI action forwarding (from button-action executor → target client browser)
+    buttonActionExecutor.on('ui_action_send', (msg: UiActionMessage) => {
+      this.io.to(`client:${msg.targetClientId}`).emit('ui_action', {
+        action: msg.action,
+        timestamp: new Date(),
+      });
+    });
+
     // Sensor mapping events
     const sensorMapping = this.dataController.getSensorMappingService();
     if (sensorMapping) {
@@ -196,6 +224,10 @@ export class WebSocketServer {
                 relayType: s.relayType,
                 state: s.state,
               })),
+            });
+            // Also send button (input) config so the agent spawns gpiomon listeners
+            socket.emit('inputs_init', {
+              inputs: this.dataController.getButtonService().getAgentConfigForClient(clientId),
             });
           }
         }
@@ -720,6 +752,61 @@ export class WebSocketServer {
       });
 
       // ================================================================
+      // Buttons (GPIO inputs)
+      // ================================================================
+
+      socket.on('get_buttons', () => {
+        if (this.dataController) {
+          socket.emit('buttons_sync', {
+            buttons: this.dataController.getButtonService().getAllButtons(),
+            timestamp: new Date(),
+          });
+        }
+      });
+
+      socket.on('button_create', async (data: any) => {
+        if (this.dataController) {
+          try {
+            await this.dataController.getButtonService().createButton(data);
+          } catch (error: any) {
+            socket.emit('button_error', { error: error.message || 'Failed to create button' });
+          }
+        }
+      });
+
+      socket.on('button_update', async (data: { id: string; [key: string]: any }) => {
+        if (this.dataController) {
+          try {
+            const { id, ...updates } = data;
+            await this.dataController.getButtonService().updateButton(id, updates);
+          } catch (error: any) {
+            socket.emit('button_error', { error: error.message || 'Failed to update button' });
+          }
+        }
+      });
+
+      socket.on('button_delete', async (data: { id: string }) => {
+        if (this.dataController) {
+          try {
+            await this.dataController.getButtonService().deleteButton(data.id);
+          } catch (error: any) {
+            socket.emit('button_error', { error: error.message || 'Failed to delete button' });
+          }
+        }
+      });
+
+      // Agent reports a physical edge event
+      socket.on('input_event', (data: { buttonId?: string; gpioPin: number; value?: number; timestamp?: number }) => {
+        if (!clientId) return;
+        if (!this.dataController) return;
+        this.dataController.getButtonService().handleInputEvent({
+          sourceClientId: clientId,
+          buttonId: data.buttonId,
+          gpioPin: data.gpioPin,
+        });
+      });
+
+      // ================================================================
       // Display Control Handlers (forwarded to/from client agent)
       // ================================================================
 
@@ -848,6 +935,10 @@ export class WebSocketServer {
     if (this.dataController) {
       socket.emit('switches_sync', {
         switches: this.dataController.getSwitchService().getAllSwitches(),
+        timestamp: new Date(),
+      });
+      socket.emit('buttons_sync', {
+        buttons: this.dataController.getButtonService().getAllButtons(),
         timestamp: new Date(),
       });
     }

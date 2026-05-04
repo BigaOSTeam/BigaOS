@@ -76,6 +76,33 @@ function initialize(dbPath: string): void {
     `);
     try { db.exec(`CREATE INDEX IF NOT EXISTS idx_switches_target ON switches(target_client_id)`); } catch { /* already exists */ }
 
+    // Migrations: create buttons table if it doesn't exist (physical GPIO inputs)
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS buttons (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        source_client_id TEXT NOT NULL,
+        device_type TEXT NOT NULL DEFAULT 'rpi4b',
+        gpio_pin INTEGER NOT NULL,
+        pull TEXT NOT NULL DEFAULT 'up',
+        trigger TEXT NOT NULL DEFAULT 'falling',
+        debounce_ms INTEGER NOT NULL DEFAULT 50,
+        enabled INTEGER NOT NULL DEFAULT 1,
+        action_json TEXT NOT NULL,
+        overlay_enabled INTEGER NOT NULL DEFAULT 0,
+        overlay_edge TEXT NOT NULL DEFAULT 'bottom',
+        overlay_percent INTEGER NOT NULL DEFAULT 50,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(source_client_id, gpio_pin)
+      )
+    `);
+    try { db.exec(`CREATE INDEX IF NOT EXISTS idx_buttons_source ON buttons(source_client_id)`); } catch { /* already exists */ }
+    // Migrations for older DBs that already have a buttons table
+    try { db.exec(`ALTER TABLE buttons ADD COLUMN overlay_enabled INTEGER NOT NULL DEFAULT 0`); } catch { /* column exists */ }
+    try { db.exec(`ALTER TABLE buttons ADD COLUMN overlay_edge TEXT NOT NULL DEFAULT 'bottom'`); } catch { /* column exists */ }
+    try { db.exec(`ALTER TABLE buttons ADD COLUMN overlay_percent INTEGER NOT NULL DEFAULT 50`); } catch { /* column exists */ }
+
     // Prepare statements for frequent operations
     insertSensorStmt = db.prepare(`
       INSERT INTO sensor_data (category, sensor_name, value, unit, timestamp)

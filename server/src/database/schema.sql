@@ -154,6 +154,29 @@ CREATE TABLE IF NOT EXISTS switches (
 
 CREATE INDEX IF NOT EXISTS idx_switches_target ON switches(target_client_id);
 
+-- Buttons
+-- Physical GPIO input buttons that dispatch actions (toggle switch, navigate UI, recenter chart, ...)
+CREATE TABLE IF NOT EXISTS buttons (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    source_client_id TEXT NOT NULL,
+    device_type TEXT NOT NULL DEFAULT 'rpi4b',
+    gpio_pin INTEGER NOT NULL,
+    pull TEXT NOT NULL DEFAULT 'up',
+    trigger TEXT NOT NULL DEFAULT 'falling',
+    debounce_ms INTEGER NOT NULL DEFAULT 50,
+    enabled INTEGER NOT NULL DEFAULT 1,
+    action_json TEXT NOT NULL,
+    overlay_enabled INTEGER NOT NULL DEFAULT 0,
+    overlay_edge TEXT NOT NULL DEFAULT 'bottom',
+    overlay_percent INTEGER NOT NULL DEFAULT 50,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(source_client_id, gpio_pin)
+);
+
+CREATE INDEX IF NOT EXISTS idx_buttons_source ON buttons(source_client_id);
+
 -- Insert default settings
 INSERT OR IGNORE INTO settings (key, value, description)
 VALUES ('data_retention_days', '30', 'Number of days to retain sensor data');

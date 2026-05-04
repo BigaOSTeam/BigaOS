@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import GridLayout, { Layout } from 'react-grid-layout';
 import 'react-grid-layout/css/styles.css';
 import { SensorData } from '../../types';
@@ -152,6 +152,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
 
   const [editMode, setEditMode] = useState(false);
   const [showAddMenu, setShowAddMenu] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const [containerSize, setContainerSize] = useState({ width: window.innerWidth, height: window.innerHeight });
   const [showColsPicker, setShowColsPicker] = useState(false);
   const [showRowsPicker, setShowRowsPicker] = useState(false);
@@ -180,11 +181,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
   }, [gridCols, setStoredGridConfig, setStoredItems]);
 
   useEffect(() => {
-    const handleResize = () => {
-      setContainerSize({ width: window.innerWidth, height: window.innerHeight });
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      setContainerSize({ width: rect.width, height: rect.height });
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // Sidebar sizing
@@ -638,9 +644,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
 
   return (
     <div
+      ref={containerRef}
       style={{
         width: '100%',
-        height: '100dvh',
+        height: '100%',
         overflow: 'hidden',
         position: 'relative',
       }}

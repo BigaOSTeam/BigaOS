@@ -524,6 +524,90 @@ class DatabaseWorkerService {
     });
   }
 
+  // ==================== BUTTONS ====================
+
+  async getAllButtons(): Promise<any[]> {
+    return this.send('query', {
+      sql: `SELECT id, name, source_client_id, device_type, gpio_pin, pull, trigger, debounce_ms, enabled, action_json, overlay_enabled, overlay_edge, overlay_percent, created_at, updated_at FROM buttons ORDER BY name`,
+      params: []
+    });
+  }
+
+  async getButtonsForClient(clientId: string): Promise<any[]> {
+    return this.send('query', {
+      sql: `SELECT id, name, source_client_id, device_type, gpio_pin, pull, trigger, debounce_ms, enabled, action_json, overlay_enabled, overlay_edge, overlay_percent, created_at, updated_at FROM buttons WHERE source_client_id = ? ORDER BY gpio_pin`,
+      params: [clientId]
+    });
+  }
+
+  async createButton(
+    id: string,
+    name: string,
+    sourceClientId: string,
+    deviceType: string,
+    gpioPin: number,
+    pull: string,
+    trigger: string,
+    debounceMs: number,
+    enabled: number,
+    actionJson: string,
+    overlayEnabled: number,
+    overlayEdge: string,
+    overlayPercent: number,
+  ): Promise<void> {
+    await this.send('execute', {
+      sql: `INSERT INTO buttons (id, name, source_client_id, device_type, gpio_pin, pull, trigger, debounce_ms, enabled, action_json, overlay_enabled, overlay_edge, overlay_percent, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`,
+      params: [id, name, sourceClientId, deviceType, gpioPin, pull, trigger, debounceMs, enabled, actionJson, overlayEnabled, overlayEdge, overlayPercent],
+    });
+  }
+
+  async updateButton(
+    id: string,
+    fields: {
+      name?: string;
+      sourceClientId?: string;
+      deviceType?: string;
+      gpioPin?: number;
+      pull?: string;
+      trigger?: string;
+      debounceMs?: number;
+      enabled?: number;
+      actionJson?: string;
+      overlayEnabled?: number;
+      overlayEdge?: string;
+      overlayPercent?: number;
+    }
+  ): Promise<void> {
+    const sets: string[] = [];
+    const params: any[] = [];
+    if (fields.name !== undefined) { sets.push('name = ?'); params.push(fields.name); }
+    if (fields.sourceClientId !== undefined) { sets.push('source_client_id = ?'); params.push(fields.sourceClientId); }
+    if (fields.deviceType !== undefined) { sets.push('device_type = ?'); params.push(fields.deviceType); }
+    if (fields.gpioPin !== undefined) { sets.push('gpio_pin = ?'); params.push(fields.gpioPin); }
+    if (fields.pull !== undefined) { sets.push('pull = ?'); params.push(fields.pull); }
+    if (fields.trigger !== undefined) { sets.push('trigger = ?'); params.push(fields.trigger); }
+    if (fields.debounceMs !== undefined) { sets.push('debounce_ms = ?'); params.push(fields.debounceMs); }
+    if (fields.enabled !== undefined) { sets.push('enabled = ?'); params.push(fields.enabled); }
+    if (fields.actionJson !== undefined) { sets.push('action_json = ?'); params.push(fields.actionJson); }
+    if (fields.overlayEnabled !== undefined) { sets.push('overlay_enabled = ?'); params.push(fields.overlayEnabled); }
+    if (fields.overlayEdge !== undefined) { sets.push('overlay_edge = ?'); params.push(fields.overlayEdge); }
+    if (fields.overlayPercent !== undefined) { sets.push('overlay_percent = ?'); params.push(fields.overlayPercent); }
+    if (sets.length === 0) return;
+    sets.push('updated_at = datetime(\'now\')');
+    params.push(id);
+    await this.send('execute', {
+      sql: `UPDATE buttons SET ${sets.join(', ')} WHERE id = ?`,
+      params,
+    });
+  }
+
+  async deleteButton(id: string): Promise<void> {
+    await this.send('execute', {
+      sql: `DELETE FROM buttons WHERE id = ?`,
+      params: [id],
+    });
+  }
+
   // ==================== UTILITIES ====================
 
   /**

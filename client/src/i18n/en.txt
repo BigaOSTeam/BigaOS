@@ -659,6 +659,7 @@ confirm.remove_data=This will remove the downloaded data. You can re-download it
 
 # ==================== Plugins ====================
 settings.switches=Switches
+settings.buttons=Buttons
 settings.plugins=Plugins
 plugins.installed=Installed
 plugins.installed_label=Installed
@@ -900,6 +901,54 @@ switches.client_offline=Target device is offline
 switches.configure=Configure
 switches.select_switch=Select Switch
 switches.active_color=Active Color
+
+# ==================== Buttons (physical GPIO inputs) ====================
+buttons.title=Buttons
+buttons.description=Wire physical buttons to GPIO pins on a client device. Each button runs a single action (toggle a switch, navigate the UI, recenter the chart, ...).
+buttons.add=Add Button
+buttons.edit=Edit Button
+buttons.delete=Delete Button
+buttons.delete_confirm=Delete this button?
+buttons.no_buttons=No buttons configured yet
+buttons.name=Name
+buttons.source_client=Source Device
+buttons.device_type=Device Type
+buttons.gpio_pin=GPIO Pin
+buttons.pull=Pull Resistor
+buttons.pull_desc_up=Pin idle is HIGH (3.3V). Wire your button between GPIO and GND — pressing pulls the pin LOW. Recommended; uses the Pi's internal pull-up so no extra parts needed.
+buttons.pull_desc_down=Pin idle is LOW (GND). Wire your button between GPIO and 3.3V — pressing pulls the pin HIGH. Uses the Pi's internal pull-down, no extra parts needed.
+buttons.pull_desc_none=No internal pull resistor. Pin will float and trigger spuriously unless your hardware has external pull resistors. Only pick this if you know your board provides them.
+buttons.trigger=Trigger Edge
+buttons.trigger_desc_falling=Fires when the pin transitions HIGH → LOW. Pair with Pull Up wiring (button to GND) — fires on press.
+buttons.trigger_desc_rising=Fires when the pin transitions LOW → HIGH. Pair with Pull Down wiring (button to 3.3V) — fires on press.
+buttons.debounce_ms=Debounce (ms)
+buttons.debounce_desc=Mechanical contacts physically vibrate for a few ms when pressed, which the GPIO sees as multiple presses. After the first edge, further edges within this window are ignored. 50ms works for most buttons; cheap or worn ones may need 100–200ms. Set to 0 only if your hardware already debounces.
+buttons.enabled=Enabled
+buttons.disabled=Disabled
+buttons.pin_in_use=This pin is already used by another button on the same device
+buttons.action=Action
+buttons.action_switch=Switch
+buttons.action_target_client=Target Device
+buttons.action_view=View
+buttons.action_tab=Settings Tab
+buttons.action_toggle_switch=Toggle Switch
+buttons.action_chart_recenter=Recenter Chart (Follow GPS)
+buttons.action_chart_zoom_in=Chart: Zoom In
+buttons.action_chart_zoom_out=Chart: Zoom Out
+buttons.action_navigate=Navigate to View
+buttons.action_settings_tab=Open Settings Tab
+buttons.summary_toggle_switch=Toggle {name}
+buttons.summary_chart_recenter=Recenter chart on {client}
+buttons.summary_chart_zoom_in=Zoom in chart on {client}
+buttons.summary_chart_zoom_out=Zoom out chart on {client}
+buttons.summary_navigate=Navigate {client} to {view}
+buttons.summary_settings_tab=Open settings/{tab} on {client}
+buttons.overlay_enabled=Show on-screen label
+buttons.overlay_desc=Display this button's name on the screen of the device it's wired to. Useful when the button itself has no label or LED. For Toggle Switch actions, the label also shows the switch's current state.
+buttons.overlay_edge=Screen Edge
+buttons.overlay_percent=Position on Edge
+buttons.overlay_percent_desc_horizontal=Position of the label along the bar, 0 % = left, 100 % = right. Set this to roughly match where the physical button sits.
+buttons.overlay_percent_desc_vertical=Position of the label along the bar, 0 % = top, 100 % = bottom. Set this to roughly match where the physical button sits.
 
 # ==================== Tanks ====================
 settings.tanks=Tanks

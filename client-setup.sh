@@ -276,6 +276,7 @@ AGENT_INSTALLED=false
 if curl -sSfL -o "$AGENT_DIR/package.json" "$AGENT_RAW_BASE/package.json" \
    && curl -sSfL -o "$AGENT_DIR/index.js" "$AGENT_RAW_BASE/index.js" \
    && curl -sSfL -o "$AGENT_DIR/gpio.js" "$AGENT_RAW_BASE/gpio.js" \
+   && curl -sSfL -o "$AGENT_DIR/inputs.js" "$AGENT_RAW_BASE/inputs.js" \
    && curl -sSfL -o "$AGENT_DIR/display.js" "$AGENT_RAW_BASE/display.js"; then
   AGENT_INSTALLED=true
 fi

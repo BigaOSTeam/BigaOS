@@ -19,6 +19,7 @@
 const { io } = require('socket.io-client');
 const { setPin, initializePins } = require('./gpio');
 const { getDisplayInfo, setResolution, setRotation, setScale, restartChromium, getConfig, saveConfig } = require('./display');
+const { InputManager } = require('./inputs');
 
 // ── Configuration ──────────────────────────────────────────
 const SERVER_URL = process.env.BIGAOS_SERVER_URL;
@@ -69,6 +70,23 @@ socket.on('connect_error', (error) => {
 socket.on('gpio_init', async (data) => {
   console.log(`[Agent] Received gpio_init with ${data.switches.length} switch(es)`);
   await initializePins(data.switches);
+});
+
+// ── GPIO Input (Buttons) ───────────────────────────────────
+const inputManager = new InputManager((event) => {
+  socket.emit('input_event', event);
+});
+
+socket.on('inputs_init', (data) => {
+  const inputs = (data && data.inputs) || [];
+  console.log(`[Agent] Received inputs_init with ${inputs.length} input(s)`);
+  inputManager.applyConfig(inputs);
+});
+
+socket.on('inputs_update', (data) => {
+  const inputs = (data && data.inputs) || [];
+  console.log(`[Agent] Received inputs_update with ${inputs.length} input(s)`);
+  inputManager.applyConfig(inputs);
 });
 
 // ── GPIO Command Execution ─────────────────────────────────
@@ -168,6 +186,7 @@ socket.on('display_set', async (data) => {
 // ── Graceful Shutdown ──────────────────────────────────────
 function shutdown(signal) {
   console.log(`\n[Agent] Received ${signal}, disconnecting...`);
+  try { inputManager.shutdown(); } catch {}
   socket.disconnect();
   process.exit(0);
 }
