@@ -38,11 +38,16 @@ const ARROW_SIZE = 5; // px (half-base of the triangle)
 
 const Pill: React.FC<PillProps> = ({ label, edge, status }) => {
   const { theme } = useTheme();
-  const isSwitchOn = status?.kind === 'switch' && status.on;
+  const isSwitch = status?.kind === 'switch';
+  const isSwitchOn = isSwitch && status!.on;
+  const isSwitchOff = isSwitch && !status!.on;
 
-  // Green when ON, regular text color otherwise. The arrow uses the same
-  // color so a glance reads both "where the button is" and "is it active".
-  const color = isSwitchOn ? theme.colors.success : theme.colors.textPrimary;
+  // ON: bright green + glow. OFF: noticeably dim. Non-switch: regular text.
+  const color = isSwitchOn ? theme.colors.success
+              : isSwitchOff ? theme.colors.textMuted
+              : theme.colors.textPrimary;
+  const opacity = isSwitchOff ? 0.55 : 1;
+  const textShadow = isSwitchOn ? `0 0 6px ${theme.colors.success}66` : undefined;
 
   let arrowStyle: React.CSSProperties;
   let pillFlexDir: React.CSSProperties['flexDirection'];
@@ -91,16 +96,20 @@ const Pill: React.FC<PillProps> = ({ label, edge, status }) => {
       flexDirection: pillFlexDir,
       alignItems: 'center',
       gap: 3,
+      opacity,
+      transition: 'opacity 0.15s ease',
     }}>
       <span style={{
         color,
         fontSize: 10.5,
-        fontWeight: theme.fontWeight.medium,
+        fontWeight: isSwitchOn ? theme.fontWeight.semibold : theme.fontWeight.medium,
         letterSpacing: 0.6,
         textTransform: 'uppercase',
         lineHeight: 1.2,
         whiteSpace: 'nowrap',
         userSelect: 'none',
+        textShadow,
+        transition: 'color 0.15s ease, text-shadow 0.15s ease',
         // writing-mode changes the actual layout box dimensions on left/right
         // edges so the flex arrangement with the arrow stays correct.
         writingMode: edge === 'left' ? 'sideways-lr'

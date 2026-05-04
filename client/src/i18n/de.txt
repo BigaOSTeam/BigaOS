@@ -658,7 +658,7 @@ confirm.delete_file={name} löschen?
 confirm.remove_data=Die heruntergeladenen Daten werden entfernt. Sie können sie später erneut herunterladen.
 
 # ==================== Switches ====================
-settings.switches=Schalter
+settings.switches=Relais
 settings.buttons=Taster
 
 # ==================== Plugins ====================
@@ -851,31 +851,31 @@ setup.use_existing=Bestehenden Client verwenden
 setup.select_client=Client auswählen
 setup.create_new=Neu erstellen
 setup.skip=Überspringen
-switches.title=Schalter
-switches.description=Physische Relais über GPIO-Pins an Raspberry Pi Geräten steuern.
-switches.add=Schalter hinzufügen
-switches.edit=Schalter bearbeiten
-switches.delete=Schalter löschen
-switches.delete_confirm=Diesen Schalter löschen? Das Relais bleibt in seinem aktuellen Zustand.
+switches.title=Relais
+switches.description=Physische Relais über GPIO-Pins an Raspberry-Pi-Geräten steuern.
+switches.add=Relais hinzufügen
+switches.edit=Relais bearbeiten
+switches.delete=Relais löschen
+switches.delete_confirm=Dieses Relais löschen? Das Hardware-Relais bleibt in seinem aktuellen Zustand.
 switches.name=Name
 switches.icon=Symbol
 switches.target_client=Zielgerät
 switches.device_type=Gerätetyp
 switches.gpio_pin=GPIO-Pin
-switches.relay_type=Relais-Typ
+switches.relay_type=Relais-Logik
 switches.relay_normally_off=Normal aus
 switches.relay_normally_on=Normal ein
 switches.relay_type_desc_off=Relais schaltet bei Stromverlust auf AUS zurück
 switches.relay_type_desc_on=Relais schaltet bei Stromverlust auf EIN zurück
 switches.state_on=EIN
 switches.state_off=AUS
-switches.pin_in_use=Dieser Pin wird bereits von einem anderen Schalter auf demselben Gerät verwendet
-switches.no_switches=Noch keine Schalter konfiguriert
+switches.pin_in_use=Dieser Pin wird bereits von einem anderen Relais auf demselben Gerät verwendet
+switches.no_switches=Noch keine Relais konfiguriert
 switches.toggle_failed=Umschalten fehlgeschlagen
 switches.timeout=Schaltvorgang hat das Zeitlimit überschritten
 switches.client_offline=Zielgerät ist offline
 switches.configure=Konfigurieren
-switches.select_switch=Schalter auswählen
+switches.select_switch=Relais auswählen
 switches.active_color=Aktive Farbe
 
 # ==================== Buttons (physische GPIO-Eingänge) ====================
@@ -903,11 +903,11 @@ buttons.enabled=Aktiviert
 buttons.disabled=Deaktiviert
 buttons.pin_in_use=Dieser Pin wird bereits von einem anderen Taster auf dem Gerät verwendet
 buttons.action=Aktion
-buttons.action_switch=Schalter
+buttons.action_switch=Relais
 buttons.action_target_client=Zielgerät
 buttons.action_view=Ansicht
 buttons.action_tab=Einstellungs-Tab
-buttons.action_toggle_switch=Schalter umschalten
+buttons.action_toggle_switch=Relais umschalten
 buttons.action_chart_recenter=Karte zentrieren (GPS folgen)
 buttons.action_chart_zoom_in=Karte: Hineinzoomen
 buttons.action_chart_zoom_out=Karte: Herauszoomen

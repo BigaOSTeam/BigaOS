@@ -63,7 +63,7 @@ const VIEW_OPTIONS: SelectOption<string>[] = [
   { value: 'weather', label: 'Weather' },
   { value: 'roll', label: 'Roll' },
   { value: 'pitch', label: 'Pitch' },
-  { value: 'switches', label: 'Switches' },
+  { value: 'switches', label: 'Relays' },
   { value: 'settings', label: 'Settings' },
 ];
 
@@ -101,7 +101,7 @@ const SETTINGS_TAB_OPTIONS: SelectOption<string>[] = [
   { value: 'units', label: 'Units' },
   { value: 'downloads', label: 'Downloads' },
   { value: 'alerts', label: 'Alerts' },
-  { value: 'switches', label: 'Switches' },
+  { value: 'switches', label: 'Relays' },
   { value: 'buttons', label: 'Buttons' },
   { value: 'tanks', label: 'Tanks' },
   { value: 'plugins', label: 'Plugins' },
