@@ -182,25 +182,44 @@ ENVEOF
   info "Created .env"
 fi
 
-# ── Setup systemd service (first install only) ─────────────
-if [ "$IS_UPDATE" = false ]; then
-  step "Setting up systemd service..."
+# ── Setup systemd service ──────────────────────────────────
+# Always (re)write the unit file so updates pick up new directives like
+# WatchdogSec, StartLimitBurst, etc. The write is idempotent.
+step "Writing systemd service unit..."
 
-  NODE_BIN=$(which node)
-  sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
+NODE_BIN=$(which node)
+sudo tee /etc/systemd/system/${SERVICE_NAME}.service > /dev/null << EOF
 [Unit]
 Description=BigaOS - Marine Navigation System
 After=network-online.target
 Wants=network-online.target
+# Cap restart attempts so a startup-time crash (corrupt DB, missing native
+# dep) can't fast-spin restart forever. After 5 crashes in 60 s, systemd
+# stops trying — admin sees a clearly-failed unit instead of log noise.
+StartLimitBurst=5
+StartLimitIntervalSec=60
 
 [Service]
-Type=simple
+# Type=notify so we can use sd_notify READY=1 / WATCHDOG=1 from the app.
+Type=notify
+NotifyAccess=main
 User=$USER
 WorkingDirectory=$INSTALL_DIR/server
 Environment="NODE_ENV=production"
 ExecStart=$NODE_BIN dist/index.js
 Restart=always
 RestartSec=5
+# Hardware-style watchdog. If the Node process wedges (event loop blocked,
+# deadlocked plugin) and stops sending WATCHDOG=1 pings for 30 s, systemd
+# kills it with SIGABRT and restarts. Belt-and-suspenders for the cases
+# Restart=always alone can't catch.
+WatchdogSec=30
+TimeoutStopSec=15
+# OOM hygiene. Pi 5 has 4–8 GB; soft-limit at 768 MB (kernel will reclaim
+# from us before swapping the system) and hard-cap at 1.5 GB so a leaking
+# plugin can't take down the whole Pi.
+MemoryHigh=768M
+MemoryMax=1536M
 StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=bigaos
@@ -209,18 +228,21 @@ SyslogIdentifier=bigaos
 WantedBy=multi-user.target
 EOF
 
-  # Allow passwordless restart for the update system
-  SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart ${SERVICE_NAME}, /usr/bin/systemctl stop ${SERVICE_NAME}, /usr/bin/systemctl start ${SERVICE_NAME}, /usr/bin/systemd-run, /usr/bin/bash $INSTALL_DIR/plugins/*/setup.sh, /sbin/reboot"
-  SUDOERS_FILE="/etc/sudoers.d/bigaos"
-  if [ ! -f "$SUDOERS_FILE" ]; then
-    echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
-    sudo chmod 440 "$SUDOERS_FILE"
-    info "Sudoers rule created for service management"
-  fi
+# Allow passwordless restart for the update system
+SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart ${SERVICE_NAME}, /usr/bin/systemctl stop ${SERVICE_NAME}, /usr/bin/systemctl start ${SERVICE_NAME}, /usr/bin/systemd-run, /usr/bin/bash $INSTALL_DIR/plugins/*/setup.sh, /sbin/reboot"
+SUDOERS_FILE="/etc/sudoers.d/bigaos"
+if [ ! -f "$SUDOERS_FILE" ]; then
+  echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
+  sudo chmod 440 "$SUDOERS_FILE"
+  info "Sudoers rule created for service management"
+fi
 
-  sudo systemctl daemon-reload
+sudo systemctl daemon-reload
+if [ "$IS_UPDATE" = false ]; then
   sudo systemctl enable "$SERVICE_NAME"
   info "Service created and enabled"
+else
+  info "Service unit refreshed"
 fi
 
 # ── Cache the matching Android APK ─────────────────────────

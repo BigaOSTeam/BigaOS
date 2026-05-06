@@ -147,8 +147,25 @@ export class PluginAPI {
    */
   onEvent(event: string, handler: (...args: any[]) => void): void {
     this.requireCapability('events');
-    this.dataEmitter.on(event, handler);
-    this.eventSubscriptions.push({ emitter: this.dataEmitter, event, handler });
+    // Wrap the user handler so a throw inside a plugin's event listener
+    // doesn't propagate up through EventEmitter.emit() and crash the
+    // sensor pipeline. The wrapped handler is what gets registered AND
+    // what we track for dispose() — so we can still unsubscribe correctly.
+    const pluginId = this.pluginId;
+    const wrapped = (...args: any[]) => {
+      try {
+        const ret: any = (handler as any)(...args);
+        if (ret && typeof ret.catch === 'function') {
+          ret.catch((err: any) => {
+            console.error(`[Plugin:${pluginId}] async "${event}" handler threw:`, err);
+          });
+        }
+      } catch (err) {
+        console.error(`[Plugin:${pluginId}] "${event}" handler threw:`, err);
+      }
+    };
+    this.dataEmitter.on(event, wrapped);
+    this.eventSubscriptions.push({ emitter: this.dataEmitter, event, handler: wrapped });
   }
 
   // ================================================================

@@ -19,6 +19,17 @@ class DatabaseWorkerService {
   private initializing = false;
   private pendingRequests = new Map<string, PendingRequest>();
   private requestCounter = 0;
+  // Restart book-keeping. Mirrors RouteWorkerService — but with no hard
+  // restart cap, since every WS handler depends on the DB. Instead use
+  // exponential backoff and a stable-uptime-resets-counter rule so we
+  // recover from transient blips but don't hot-loop.
+  private restartAttempts = 0;
+  private readonly MAX_RESTART_DELAY_MS = 30_000;
+  private restartTimer: ReturnType<typeof setTimeout> | null = null;
+  private lastDbPath: string = '';
+  private stableUptimeTimer: ReturnType<typeof setTimeout> | null = null;
+  private terminating = false;
+  private static readonly MAX_PENDING = 1000;
 
   /**
    * Initialize the database worker
@@ -26,11 +37,22 @@ class DatabaseWorkerService {
   async initialize(dbPath?: string): Promise<void> {
     if (this.initialized || this.initializing) return;
     this.initializing = true;
+    this.lastDbPath = dbPath || process.env.DATABASE_PATH || './data/bigaos.db';
 
     try {
-      await this.startWorker(dbPath || process.env.DATABASE_PATH || './data/bigaos.db');
+      await this.startWorker(this.lastDbPath);
       this.initialized = true;
       console.log('[DatabaseWorker] Worker initialized successfully');
+      // After 60 s of stable operation, reset the restart counter so a
+      // transient crash months later doesn't inherit yesterday's backoff.
+      if (this.stableUptimeTimer) clearTimeout(this.stableUptimeTimer);
+      this.stableUptimeTimer = setTimeout(() => {
+        if (this.restartAttempts > 0) {
+          console.log('[DatabaseWorker] Stable for 60s, resetting restart counter');
+          this.restartAttempts = 0;
+        }
+      }, 60_000);
+      this.stableUptimeTimer.unref();
     } catch (error) {
       console.error('[DatabaseWorker] Failed to initialize worker:', error);
       throw error;
@@ -82,6 +104,19 @@ class DatabaseWorkerService {
         }
         this.initialized = false;
         this.worker = null;
+        // Reject any in-flight requests so callers don't hang for 30 s.
+        for (const [, pending] of this.pendingRequests) {
+          pending.reject(new Error('Database worker exited'));
+        }
+        this.pendingRequests.clear();
+        if (this.stableUptimeTimer) {
+          clearTimeout(this.stableUptimeTimer);
+          this.stableUptimeTimer = null;
+        }
+        // Auto-restart unless we're shutting down on purpose.
+        if (!this.terminating) {
+          this.scheduleRestart();
+        }
       });
 
       // Initialize the worker with database path
@@ -103,6 +138,12 @@ class DatabaseWorkerService {
     if (!this.initialized || !this.worker) {
       throw new Error('Database worker not initialized');
     }
+    // Cap pending so a wedged worker plus a flood of incoming queries
+    // doesn't grow the map without bound while we wait for the 30 s
+    // timeouts to fire.
+    if (this.pendingRequests.size >= DatabaseWorkerService.MAX_PENDING) {
+      throw new Error(`Database worker overloaded (${this.pendingRequests.size} pending)`);
+    }
 
     return new Promise((resolve, reject) => {
       const id = `${type}-${++this.requestCounter}`;
@@ -118,6 +159,28 @@ class DatabaseWorkerService {
         }
       }, 30000);
     });
+  }
+
+  /**
+   * Schedule a worker restart with exponential backoff.
+   * 1s → 2s → 4s → 8s → 16s → 30s (capped).
+   */
+  private scheduleRestart(): void {
+    if (this.terminating || this.restartTimer) return;
+    const delay = Math.min(1000 * Math.pow(2, this.restartAttempts), this.MAX_RESTART_DELAY_MS);
+    this.restartAttempts++;
+    console.log(`[DatabaseWorker] Restarting in ${delay}ms (attempt ${this.restartAttempts})`);
+    this.restartTimer = setTimeout(() => {
+      this.restartTimer = null;
+      this.initializing = false;
+      this.initialize(this.lastDbPath).catch((err) => {
+        console.error('[DatabaseWorker] Restart failed:', err);
+        // Re-schedule — never give up entirely. Without the DB the WS handlers
+        // can't function, so we have to keep trying.
+        this.scheduleRestart();
+      });
+    }, delay);
+    this.restartTimer.unref();
   }
 
   /**
@@ -642,6 +705,15 @@ class DatabaseWorkerService {
    * Terminate the worker
    */
   async terminate(): Promise<void> {
+    this.terminating = true;
+    if (this.restartTimer) {
+      clearTimeout(this.restartTimer);
+      this.restartTimer = null;
+    }
+    if (this.stableUptimeTimer) {
+      clearTimeout(this.stableUptimeTimer);
+      this.stableUptimeTimer = null;
+    }
     if (this.worker) {
       // Flush and close gracefully
       try {

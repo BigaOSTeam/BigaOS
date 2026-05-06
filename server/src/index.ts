@@ -13,9 +13,25 @@ import { waterDetectionService } from './services/water-detection.service';
 import { routeWorkerService } from './services/route-worker.service';
 import { DataController } from './services/data.controller';
 import { initializeLanguages } from './i18n/lang';
+import { sdNotifyReady, sdNotifyWatchdog, sdNotifyStopping } from './utils/sd-notify';
 
 // Load environment variables
 dotenv.config();
+
+// Last-resort safety net. A throw deep inside a plugin's setInterval, an
+// unhandled rejection in a sensor handler, etc. should NOT silently corrupt
+// in-memory state — log loudly and let systemd restart us cleanly.
+process.on('uncaughtException', (err) => {
+  console.error('[FATAL] uncaughtException:', err);
+  // Give logs a moment to flush, then exit so systemd restarts us.
+  setTimeout(() => process.exit(1), 500);
+});
+process.on('unhandledRejection', (reason) => {
+  // Don't crash on these — too easy for a stray promise to take the boat
+  // offline. Log and keep running; the originating handler should have
+  // caught it.
+  console.error('[unhandledRejection]', reason);
+});
 
 // Initialize synchronous database (for backwards compatibility with routes)
 try {
@@ -142,6 +158,10 @@ async function startServer() {
     console.log(`🔌 WebSocket: ws://localhost:${PORT}`);
     console.log(`💚 Health: http://localhost:${PORT}/health`);
     console.log(`🌐 Network access enabled on all interfaces`);
+    // Tell systemd we're ready (Type=notify) and start the watchdog ping.
+    // No-op when not running under systemd.
+    sdNotifyReady();
+    sdNotifyWatchdog();
   });
 
   return { httpServer, wsServer };
@@ -156,24 +176,43 @@ let systemActionInProgress = false;
 export function markSystemActionInProgress() { systemActionInProgress = true; }
 
 // Graceful shutdown
+let shuttingDown = false;
 async function shutdown(signal: string) {
+  if (shuttingDown) return;
+  shuttingDown = true;
   console.log(`${signal} received, shutting down gracefully...`);
-  const { httpServer, wsServer } = await serverPromise;
-  // Only show shutdown overlay for unexpected SIGTERMs (e.g. GPIO power-off),
-  // not for reboots/updates which already have their own overlays
-  if (!systemActionInProgress) {
-    wsServer.broadcastSystemShuttingDown();
+  sdNotifyStopping();
+
+  // Hard cap: if anything below hangs (a closeAllConnections that doesn't,
+  // a worker that won't terminate), exit anyway so systemd doesn't have to
+  // SIGKILL us with the SQLite WAL still hot.
+  const hardExit = setTimeout(() => {
+    console.error('[Shutdown] Timed out, forcing exit');
+    process.exit(1);
+  }, 10000);
+  hardExit.unref();
+
+  try {
+    const { httpServer, wsServer } = await serverPromise;
+    if (!systemActionInProgress) {
+      try { wsServer.broadcastSystemShuttingDown(); } catch (e) { console.error('[Shutdown] broadcast failed:', e); }
+    }
+    try { updateService.stop(); } catch (e) { console.error('[Shutdown] updateService.stop failed:', e); }
+    try { wsServer.stop(); } catch (e) { console.error('[Shutdown] wsServer.stop failed:', e); }
+    try { await DataController.getInstance().stop(); } catch (e) { console.error('[Shutdown] DataController.stop failed:', e); }
+    try { await routeWorkerService.terminate(); } catch (e) { console.error('[Shutdown] routeWorker.terminate failed:', e); }
+    try { await dbWorker.terminate(); } catch (e) { console.error('[Shutdown] dbWorker.terminate failed:', e); }
+    try { db.close(); } catch (e) { console.error('[Shutdown] db.close failed:', e); }
+    httpServer.close(() => {
+      console.log('Server closed');
+      process.exit(0);
+    });
+    // Force-close any lingering keepalive connections so httpServer.close resolves.
+    try { (httpServer as any).closeAllConnections?.(); } catch {}
+  } catch (err) {
+    console.error('[Shutdown] Unexpected error:', err);
+    process.exit(1);
   }
-  updateService.stop();
-  wsServer.stop();
-  await DataController.getInstance().stop();
-  await routeWorkerService.terminate();
-  await dbWorker.terminate();
-  db.close();
-  httpServer.close(() => {
-    console.log('Server closed');
-    process.exit(0);
-  });
 }
 
 process.on('SIGTERM', () => shutdown('SIGTERM'));

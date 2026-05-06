@@ -31,6 +31,11 @@ export class WebSocketServer {
   private dataController: DataController | null = null;
   private storageCounter: number = 0;
   private readonly STORAGE_INTERVAL: number = 1; // Store to DB every second
+  // Reboot rate-limit. A buggy client looping `system_reboot` events would
+  // otherwise be able to reboot-loop the server. One per minute is plenty
+  // for legitimate use.
+  private lastRebootRequestMs: number = 0;
+  private readonly REBOOT_COOLDOWN_MS: number = 60_000;
 
   constructor(httpServer: HttpServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -204,6 +209,28 @@ export class WebSocketServer {
       const clientType = socket.handshake.auth?.type as string | undefined;
       const isAgent = clientType === 'client-agent' || clientType === 'gpio-agent';
       console.log(`Client connected: ${socket.id}${clientId ? ` (clientId: ${clientId})` : ''}${isAgent ? ' [Client Agent]' : ''}`);
+
+      // Wrap every socket.on() registration in an error boundary. A throw or
+      // rejected promise inside a handler used to bubble up to socket.io and
+      // become an unhandledRejection that could take the whole server down.
+      // We log + emit an error event back to the client and keep running.
+      const rawOn = socket.on.bind(socket);
+      (socket as any).on = (event: string, handler: (...args: any[]) => any) => {
+        return rawOn(event, (...args: any[]) => {
+          try {
+            const ret = handler(...args);
+            if (ret && typeof (ret as Promise<any>).catch === 'function') {
+              (ret as Promise<any>).catch((err) => {
+                console.error(`[WS] async handler "${event}" threw:`, err);
+                try { socket.emit('handler_error', { event, message: String((err as Error)?.message || err) }); } catch {}
+              });
+            }
+          } catch (err) {
+            console.error(`[WS] handler "${event}" threw:`, err);
+            try { socket.emit('handler_error', { event, message: String((err as Error)?.message || err) }); } catch {}
+          }
+        });
+      };
 
       // Track client and join room for targeted messaging
       if (clientId) {
@@ -381,7 +408,17 @@ export class WebSocketServer {
       });
 
       socket.on('system_reboot', () => {
-        console.log('[WebSocket] System reboot requested by client');
+        // Rate-limit: a buggy client looping this event must not be able to
+        // reboot-loop the server. One reboot per minute (process-wide) is
+        // plenty for legitimate use.
+        const now = Date.now();
+        if (now - this.lastRebootRequestMs < this.REBOOT_COOLDOWN_MS) {
+          console.warn(`[WebSocket] system_reboot ignored (cooldown), socket=${socket.id}`);
+          try { socket.emit('handler_error', { event: 'system_reboot', message: 'Reboot rate-limited' }); } catch {}
+          return;
+        }
+        this.lastRebootRequestMs = now;
+        console.log(`[WebSocket] System reboot requested by client ${socket.id}`);
         this.broadcastSystemRebooting();
         const { exec } = require('child_process');
         setTimeout(() => {
@@ -427,7 +464,23 @@ export class WebSocketServer {
         }
       });
 
-      socket.on('terminal_exec', (data: { command: string }) => {
+      socket.on('terminal_exec', async (data: { command: string }) => {
+        // Gated by a settings flag so a misbehaving display can't run
+        // arbitrary shell commands as the bigaos user. Default off; user
+        // enables it from Settings when they want to use the in-app terminal.
+        const enabled = await dbWorker.getSetting('system.terminalEnabled');
+        if (enabled !== 'true') {
+          try {
+            socket.emit('terminal_exec_result', {
+              command: data?.command || '',
+              stdout: '',
+              stderr: 'Terminal disabled. Enable in Settings → System.',
+              exitCode: 1,
+              timestamp: new Date(),
+            });
+          } catch {}
+          return;
+        }
         const { exec } = require('child_process');
         const cmd = data.command?.trim();
         if (!cmd) return;

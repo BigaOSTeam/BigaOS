@@ -46,6 +46,14 @@ function initialize(dbPath: string): void {
 
     // Enable WAL mode for better concurrency
     db.pragma('journal_mode = WAL');
+    // synchronous=NORMAL is safe under WAL (transactions are durable across
+    // crashes; only the very last commit can be lost on power loss) and is
+    // dramatically faster than the default FULL when writing 10+ rows/s.
+    db.pragma('synchronous = NORMAL');
+    // Wait up to 5 s on a locked DB instead of immediately throwing
+    // SQLITE_BUSY. Matters because there's still a separate main-thread DB
+    // connection from `database.ts` that occasionally writes the same file.
+    db.pragma('busy_timeout = 5000');
 
     // Load and execute schema
     const schemaPath = join(__dirname, '..', 'database', 'schema.sql');
@@ -285,6 +293,26 @@ function close(): void {
 
 // Set up periodic flush
 let flushInterval: ReturnType<typeof setInterval> | null = null;
+// Daily sensor-data cleanup. Without this, sensor_data grows by ~10 rows/s
+// forever and eventually fills the disk.
+let cleanupInterval: ReturnType<typeof setInterval> | null = null;
+// Weekly WAL checkpoint. WAL grows on every write and is normally checkpointed
+// automatically, but a continuous reader (any open prepared statement) can
+// pin the WAL — this guarantees we truncate it periodically.
+let walCheckpointInterval: ReturnType<typeof setInterval> | null = null;
+const CLEANUP_DAYS_TO_KEEP = 30;
+const CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const WAL_CHECKPOINT_INTERVAL_MS = 7 * 24 * 60 * 60 * 1000;
+
+function runWalCheckpoint(): void {
+  if (!db) return;
+  try {
+    const result = db.pragma('wal_checkpoint(TRUNCATE)') as any;
+    console.log('[DB Worker] WAL checkpoint:', result);
+  } catch (err) {
+    console.error('[DB Worker] WAL checkpoint failed:', err);
+  }
+}
 
 // Message handler
 if (parentPort) {
@@ -303,6 +331,15 @@ if (parentPort) {
           flushInterval = setInterval(() => {
             flushSensorData();
           }, FLUSH_INTERVAL);
+          // Daily sensor-data cleanup (offset 1 hour after start so we don't
+          // hammer the disk during boot).
+          cleanupInterval = setInterval(() => {
+            cleanupOldData(CLEANUP_DAYS_TO_KEEP);
+          }, CLEANUP_INTERVAL_MS);
+          cleanupInterval.unref();
+          // Weekly WAL truncate.
+          walCheckpointInterval = setInterval(runWalCheckpoint, WAL_CHECKPOINT_INTERVAL_MS);
+          walCheckpointInterval.unref();
           break;
 
         case 'addSensorData':
@@ -363,6 +400,14 @@ if (parentPort) {
           if (flushInterval) {
             clearInterval(flushInterval);
             flushInterval = null;
+          }
+          if (cleanupInterval) {
+            clearInterval(cleanupInterval);
+            cleanupInterval = null;
+          }
+          if (walCheckpointInterval) {
+            clearInterval(walCheckpointInterval);
+            walCheckpointInterval = null;
           }
           close();
           break;
