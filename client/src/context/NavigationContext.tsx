@@ -10,6 +10,9 @@ export interface NavigationParams {
   tank?: {
     tankId?: string;
   };
+  help?: {
+    slug?: string;
+  };
 }
 
 type ActiveView = 'dashboard' | ViewType;

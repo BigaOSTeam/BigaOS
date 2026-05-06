@@ -8,6 +8,10 @@
   "main": "index.js",
   "flag": "official",
   "capabilities": ["sensor-data", "settings"],
+  "help": {
+    "languages": ["en", "de"],
+    "directory": "help/"
+  },
   "versions": [
     { "version": "1.0.0", "date": "2026-02-09", "changelog": "Initial release" }
   ],

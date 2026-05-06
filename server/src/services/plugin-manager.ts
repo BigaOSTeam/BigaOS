@@ -18,6 +18,7 @@ import {
   PluginManifest,
   PluginStatus,
   PluginInfo,
+  PluginHelpData,
   BigaOSPlugin,
   PluginRegistry,
   RegistryEntry,
@@ -37,6 +38,8 @@ interface PluginInstance {
   setupMessage?: string;
   /** Parsed i18n translations keyed by language code */
   i18n?: Record<string, Record<string, string>>;
+  /** Parsed help articles keyed by language code */
+  help?: PluginHelpData;
 }
 
 // Plugin ids become path segments and child_process arguments. Restrict to
@@ -158,6 +161,9 @@ export class PluginManager extends EventEmitter {
         // Load plugin i18n files if declared
         const i18n = this.loadPluginI18n(dir.name, manifest);
 
+        // Load plugin help docs if declared
+        const help = this.loadPluginHelp(dir.name, manifest);
+
         this.plugins.set(manifest.id, {
           manifest,
           status: 'installed',
@@ -167,6 +173,7 @@ export class PluginManager extends EventEmitter {
           enabledByUser: states.get(manifest.id) ?? defaultEnabled,
           setupMessage,
           i18n,
+          help,
         });
 
         console.log(`[PluginManager] Discovered plugin: ${manifest.id} v${manifest.version}`);
@@ -209,6 +216,55 @@ export class PluginManager extends EventEmitter {
         }
       } catch (err) {
         console.warn(`[PluginManager] Failed to read i18n file for ${manifest.id}/${lang}:`, err);
+      }
+    }
+
+    return Object.keys(result).length > 0 ? result : undefined;
+  }
+
+  /**
+   * Load and parse a plugin's help articles.
+   *
+   * Layout: `<plugin>/<help.directory>/<lang>/manifest.json` listing the
+   * articles, plus one `<slug>.md` per article. Mirrors the i18n loader so
+   * plugin authors get a consistent experience.
+   */
+  private loadPluginHelp(dirName: string, manifest: PluginManifest): PluginHelpData | undefined {
+    if (!manifest.help?.directory || !manifest.help?.languages?.length) return undefined;
+
+    const helpDir = path.join(this.pluginsDir, dirName, manifest.help.directory);
+    if (!fs.existsSync(helpDir)) return undefined;
+
+    const result: PluginHelpData = {};
+
+    for (const lang of manifest.help.languages) {
+      const langDir = path.join(helpDir, lang);
+      const manifestFile = path.join(langDir, 'manifest.json');
+      if (!fs.existsSync(manifestFile)) continue;
+
+      try {
+        const raw = JSON.parse(fs.readFileSync(manifestFile, 'utf-8')) as
+          | { articles?: { slug: string; title: string }[] }
+          | undefined;
+        const articles = Array.isArray(raw?.articles) ? raw!.articles : [];
+        if (articles.length === 0) continue;
+
+        const contents: Record<string, string> = {};
+        for (const a of articles) {
+          if (typeof a?.slug !== 'string' || typeof a?.title !== 'string') continue;
+          // Slug constrained to safe path characters — no traversal.
+          if (!/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(a.slug)) continue;
+          const articlePath = path.join(langDir, `${a.slug}.md`);
+          if (!fs.existsSync(articlePath)) continue;
+          contents[a.slug] = fs.readFileSync(articlePath, 'utf-8');
+        }
+
+        const validArticles = articles.filter((a) => contents[a.slug] !== undefined);
+        if (validArticles.length > 0) {
+          result[lang] = { articles: validArticles, contents };
+        }
+      } catch (err) {
+        console.warn(`[PluginManager] Failed to read help for ${manifest.id}/${lang}:`, err);
       }
     }
 
@@ -472,6 +528,9 @@ export class PluginManager extends EventEmitter {
       // Load plugin i18n files if declared
       const i18n = this.loadPluginI18n(manifest.id, manifest);
 
+      // Load plugin help docs if declared
+      const help = this.loadPluginHelp(manifest.id, manifest);
+
       // Add to plugins map — auto-enable on install (user explicitly chose to install)
       this.plugins.set(manifest.id, {
         manifest,
@@ -482,6 +541,7 @@ export class PluginManager extends EventEmitter {
         enabledByUser: true,
         setupMessage,
         i18n,
+        help,
       });
 
       await this.savePluginState(manifest.id, true);
@@ -611,6 +671,7 @@ export class PluginManager extends EventEmitter {
       installedVersion: p.installedVersion,
       setupMessage: p.setupMessage,
       i18n: p.i18n,
+      help: p.help,
     }));
   }
 
@@ -629,6 +690,7 @@ export class PluginManager extends EventEmitter {
       installedVersion: plugin.installedVersion,
       setupMessage: plugin.setupMessage,
       i18n: plugin.i18n,
+      help: plugin.help,
     };
   }
 

@@ -64,6 +64,13 @@ export interface PluginManifestInfo {
   }>;
 }
 
+export interface PluginHelpLanguage {
+  articles: { slug: string; title: string }[];
+  contents: Record<string, string>;
+}
+
+export type PluginHelpData = Record<string, PluginHelpLanguage>;
+
 export interface PluginInfo {
   id: string;
   manifest: PluginManifestInfo;
@@ -74,6 +81,19 @@ export interface PluginInfo {
   setupMessage?: string;
   /** Parsed i18n translations keyed by language code */
   i18n?: Record<string, Record<string, string>>;
+  /** Plugin-supplied help articles keyed by language code */
+  help?: PluginHelpData;
+}
+
+/**
+ * One plugin's worth of help articles, ready for the sidebar.
+ * `pluginId` is the plugin's id (used for slug namespacing); `pluginName`
+ * is the human-readable section header.
+ */
+export interface PluginHelpSection {
+  pluginId: string;
+  pluginName: string;
+  articles: { slug: string; title: string; source: string; fallback: boolean; lang: string }[];
 }
 
 export interface RegistryPlugin {
@@ -134,6 +154,11 @@ interface PluginContextType {
 
   // Merged plugin translations for a given language (all plugins combined)
   getPluginTranslations: (lang: string) => Record<string, string>;
+
+  // Help sections contributed by installed plugins, in their declared order.
+  // Each plugin becomes one sidebar section in HelpView; articles fall back
+  // to English when a plugin doesn't ship the requested language.
+  getPluginHelpSections: (lang: string) => PluginHelpSection[];
 
   // Demo mode: true when the demo driver plugin is enabled
   isDemoActive: boolean;
@@ -431,11 +456,37 @@ export const PluginProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return merged;
   }, [plugins]);
 
+  // One section per plugin that ships any help articles. Per-article
+  // fallback to English when the plugin doesn't have the requested lang.
+  const getPluginHelpSections = useCallback((lang: string): PluginHelpSection[] => {
+    const sections: PluginHelpSection[] = [];
+    for (const plugin of plugins) {
+      if (!plugin.help) continue;
+      const direct = plugin.help[lang];
+      const english = plugin.help['en'];
+      const source = direct ?? english;
+      if (!source || source.articles.length === 0) continue;
+      sections.push({
+        pluginId: plugin.id,
+        pluginName: plugin.manifest.name,
+        articles: source.articles.map((a) => ({
+          slug: a.slug,
+          title: a.title,
+          source: source.contents[a.slug] ?? '',
+          fallback: !direct && !!english,
+          lang: direct ? lang : 'en',
+        })),
+      });
+    }
+    return sections;
+  }, [plugins]);
+
   const isDemoActive = plugins.some(p => p.id === 'bigaos-demo-driver' && p.status === 'enabled');
 
   const value: PluginContextType = {
     plugins,
     getPluginTranslations,
+    getPluginHelpSections,
     isDemoActive,
     registryPlugins,
     registryLoading,

@@ -8,6 +8,10 @@
   "main": "index.js",
   "flag": "official",
   "capabilities": ["settings", "network"],
+  "help": {
+    "languages": ["en", "de"],
+    "directory": "help/"
+  },
   "versions": [
     { "version": "1.2.0", "date": "2026-04-28", "changelog": "Setup instructions now guide users toward MagicDNS / machine-name access (http://bigaos:3000) instead of pasting changing IPs." },
     { "version": "1.1.0", "date": "2026-03-26", "changelog": "Fix permissions (set operator in setup), add connect/disconnect loading & error feedback in UI" },

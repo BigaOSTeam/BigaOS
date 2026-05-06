@@ -135,7 +135,7 @@ dashboard.weather_sea_temp=Wassertemp.
 dashboard.weather_air_temp=Temperatur
 dashboard.roll=Krängung
 dashboard.pitch=Trimm
-dashboard.switch=Schalter
+dashboard.switch=Relais
 dashboard.chart=Karte
 dashboard.weather=Wetter
 
@@ -880,7 +880,7 @@ switches.active_color=Aktive Farbe
 
 # ==================== Buttons (physische GPIO-Eingänge) ====================
 buttons.title=Taster
-buttons.description=Verbinde physische Taster mit GPIO-Pins eines Clients. Jeder Taster löst eine Aktion aus (Schalter umschalten, UI navigieren, Karte neu zentrieren ...).
+buttons.description=Verbinde physische Taster mit GPIO-Pins eines Clients. Jeder Taster löst eine Aktion aus (Relais umschalten, UI navigieren, Karte neu zentrieren ...).
 buttons.add=Taster hinzufügen
 buttons.edit=Taster bearbeiten
 buttons.delete=Taster löschen
@@ -920,7 +920,7 @@ buttons.summary_chart_zoom_out=Karte auf {client} herauszoomen
 buttons.summary_navigate={client} zu {view} navigieren
 buttons.summary_settings_tab=Einstellungen/{tab} auf {client} öffnen
 buttons.overlay_enabled=Beschriftung auf dem Bildschirm anzeigen
-buttons.overlay_desc=Zeigt den Namen dieses Tasters auf dem Bildschirm des Geräts, an dem er angeschlossen ist. Hilfreich, wenn der Taster selbst keine Beschriftung oder LED hat. Bei „Schalter umschalten“ wird zusätzlich der aktuelle Schalterstatus angezeigt.
+buttons.overlay_desc=Zeigt den Namen dieses Tasters auf dem Bildschirm des Geräts, an dem er angeschlossen ist. Hilfreich, wenn der Taster selbst keine Beschriftung oder LED hat. Bei „Relais umschalten“ wird zusätzlich der aktuelle Relais-Status angezeigt.
 buttons.overlay_edge=Bildschirmkante
 buttons.overlay_percent=Position an der Kante
 buttons.overlay_percent_desc_horizontal=Position der Beschriftung entlang der Leiste: 0 % = links, 100 % = rechts. Stelle sie ungefähr dort ein, wo der physische Taster sitzt.
@@ -994,3 +994,33 @@ tanks.fluid_fresh_water=Frischwasser
 tanks.fluid_gray_water=Grauwasser
 tanks.fluid_black_water=Fäkalien
 tanks.fluid_gasoline=Benzin
+
+# ==================== Hilfe ====================
+help.title=Hilfe
+help.search_placeholder=Hilfe durchsuchen...
+help.no_results=Keine passenden Artikel.
+help.fallback_notice=Dieser Artikel ist noch nicht in deine Sprache übersetzt — er wird auf Englisch angezeigt.
+help.empty=Wähle ein Thema aus der Liste.
+help.article_missing=Artikel nicht gefunden.
+
+# ==================== Tutorial ====================
+tutorial.skip=Überspringen
+tutorial.back=Zurück
+tutorial.next=Weiter
+tutorial.done=Verstanden
+tutorial.welcome.title=Willkommen bei BigaOS
+tutorial.welcome.body=Eine kurze 60-Sekunden-Tour, damit du weißt, wo alles steht.\n\nDu kannst sie jederzeit über die Hilfe wiederholen.
+tutorial.welcome.body_remote=Eine kurze 60-Sekunden-Tour, damit du weißt, wo auf diesem Telefon alles ist.\n\nDu kannst sie jederzeit über die Hilfe wiederholen.
+tutorial.dashboard.title=Dein Dashboard
+tutorial.dashboard.body=Tippe eine Kachel an, um die Detailansicht mit Verlauf und Statistik zu öffnen.\n\nDas Stift-Symbol startet den Bearbeitungs-Modus — verschieben, größer ziehen, hinzufügen, entfernen. Jedes Display hat sein eigenes Layout.
+tutorial.dashboard.body_remote=Tippe eine Kachel an für die Detailansicht mit Verlauf und Statistik.\n\nDas Stift-Symbol startet den Bearbeitungs-Modus — verschieben, größer ziehen, hinzufügen, entfernen. Jedes Telefon hat sein eigenes Layout.
+tutorial.chart.title=Karte & Navigation
+tutorial.chart.body=Live-Position mit dem Boot in Echtzeit auf der Karte, dazu Wetter-Overlays.\n\nLange tippen öffnet ein Kontextmenü — Markierung setzen, Hierhin navigieren und mehr.\n\nDie Karte folgt dem Boot automatisch. Verschieben löst sie vom Boot. Der Ziel-Knopf folgt wieder.
+tutorial.chart.body_remote=Live-Position auf der Karte des Bootes.\n\nLange tippen für das Kontextmenü (Markierung setzen, Hierhin navigieren, …). Verschieben löst die Karte vom Boot, der Ziel-Knopf folgt wieder.
+tutorial.plugins.title=Plugins sind alles
+tutorial.plugins.body=BigaOS liest aus sich heraus keine Daten. Ohne aktives Treiber-Plugin bleiben deine Kacheln leer.\n\nUnter Einstellungen → Plugins findest du Treiber für die unterschiedlichsten Wege, Daten in deinen Server zu bekommen — wähle die, die zu deinem Boot passen.
+tutorial.plugins.body_remote=Plugins laufen auf dem Boots-Server, nicht auf dem Telefon — aber sie sind die Quelle jedes Werts, den du hier siehst.\n\nOhne aktives Treiber-Plugin auf dem Boot erreichen keine Werte irgendeinen Client.
+tutorial.monitoring.title=Warnungen, Relais, Tanks
+tutorial.monitoring.body=Richte Warnungen für Wind, Tiefe, Batterien ein — alles, was du im Auge behältst.\n\nBordstromkreise direkt aus Relais-Kacheln steuern. Tanks einmal kalibrieren für genaue Füllstände.\n\nAlles in den Einstellungen.
+tutorial.done.title=Fertig
+tutorial.done.body=Die Hilfe steckt in der Seitenleiste — kurze Artikel zu jedem Feature, in deiner Sprache.\n\nDiese Tour jederzeit über Hilfe → Willkommen wiederholen.

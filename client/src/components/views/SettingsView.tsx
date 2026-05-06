@@ -32,6 +32,7 @@ import { DisplayTab } from '../settings/DisplayTab';
 import { ServerConnectionSection } from '../settings/ServerConnectionSection';
 
 import { useClient } from '../../context/ClientContext';
+import { useClientSetting } from '../../context/ClientSettingsContext';
 import { useNavigation } from '../../context/NavigationContext';
 import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -77,6 +78,10 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const { t } = useLanguage();
   const { clientId } = useClient();
   const [hasAgent, setHasAgent] = useState(false);
+  // In chart-only mode the dashboard sidebar (where the Help button lives) is
+  // never visible, so Help has to be reachable from somewhere else. We slot
+  // a Help entry into the Settings sidebar in that case only.
+  const [chartOnly] = useClientSetting<boolean>('chartOnly', false);
 
   // Check if the current client has a connected agent (Pi installed via setup script)
   useEffect(() => {
@@ -1347,6 +1352,43 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
     </button>
   );
 
+  // Sidebar entry that navigates away to the full Help view rather than
+  // rendering inside Settings. Only used in chart-only mode where the
+  // dashboard sidebar isn't reachable.
+  const helpSidebarEntry = chartOnly ? (
+    <button
+      key="help"
+      className="s-tab-btn"
+      onClick={() => {
+        setMenuOpen(false);
+        navigate('help');
+      }}
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: theme.space.sm,
+        padding: `${theme.space.sm} ${theme.space.md}`,
+        background: 'transparent',
+        border: 'none',
+        borderLeft: '3px solid transparent',
+        color: theme.colors.textMuted,
+        cursor: 'pointer',
+        transition: `all ${theme.transition.fast}`,
+        width: '100%',
+        minHeight: '40px',
+        fontSize: theme.fontSize.md,
+        textAlign: 'left',
+      }}
+    >
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="10" />
+        <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3" />
+        <line x1="12" y1="17" x2="12.01" y2="17" />
+      </svg>
+      <span>{t('help.title')}</span>
+    </button>
+  ) : null;
+
   return (
     <div style={{
       width: '100%',
@@ -1378,6 +1420,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
       >
         <div style={{ flex: 1, paddingTop: theme.space.sm }}>
           {tabs.map(sidebarTab)}
+          {helpSidebarEntry}
         </div>
         {/* Home + version at bottom */}
         <div style={{ borderTop: `1px solid ${theme.colors.border}`, padding: theme.space.sm }}>
@@ -1498,6 +1541,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
             }}
           >
             {tabs.map(sidebarTab)}
+            {helpSidebarEntry}
           </div>
         )}
 

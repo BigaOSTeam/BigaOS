@@ -16,6 +16,7 @@ import { PitchView } from './components/views/PitchView';
 import { SwitchesView } from './components/views/SwitchesView';
 import { InstrumentsView } from './components/views/InstrumentsView';
 import { TankView } from './components/views/TankView';
+import { HelpView } from './components/help/HelpView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
 import { NavigationProvider, useNavigation } from './context/NavigationContext';
@@ -27,6 +28,8 @@ import { ChartControlProvider } from './context/ChartControlContext';
 import { UiActionListener } from './components/UiActionListener';
 import { ButtonOverlay } from './components/ButtonOverlay';
 import { TankProvider } from './context/TankContext';
+import { TutorialProvider } from './context/TutorialContext';
+import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
 import { AlertContainer } from './components/alerts';
 import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
@@ -703,6 +706,19 @@ function AppContent() {
     );
   }
 
+  if (activeView === 'help') {
+    return (
+      <>
+        <HelpView initialSlug={navigationParams.help?.slug} onClose={handleGoBack} />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <ApkUpdateBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
   // Default: Dashboard view
   return (
     <div style={{
@@ -763,11 +779,14 @@ function App() {
             <TankProvider>
             <AlertProvider>
               <ConfirmDialogProvider>
-                <AppContent />
-                <AlertContainer />
-                <VirtualKeyboard />
-                <UiActionListener />
-                <ButtonOverlay />
+                <TutorialProvider>
+                  <AppContent />
+                  <AlertContainer />
+                  <VirtualKeyboard />
+                  <UiActionListener />
+                  <ButtonOverlay />
+                  <TutorialOverlay />
+                </TutorialProvider>
               </ConfirmDialogProvider>
             </AlertProvider>
             </TankProvider>

@@ -1,0 +1,47 @@
+{
+  "languageName": "Deutsch",
+  "pluginsBefore": "system",
+  "sections": [
+    {
+      "id": "essentials",
+      "title": "Grundlagen",
+      "articles": [
+        { "slug": "welcome",         "title": "Willkommen bei BigaOS" },
+        { "slug": "getting-started", "title": "Erste Schritte" },
+        { "slug": "dashboard",       "title": "Dashboard" },
+        { "slug": "instruments",     "title": "Instrumenten-Ansichten" }
+      ]
+    },
+    {
+      "id": "navigation",
+      "title": "Navigation",
+      "articles": [
+        { "slug": "chart",   "title": "Karte" },
+        { "slug": "routing", "title": "Routenplanung & Autopilot" },
+        { "slug": "anchor",  "title": "Ankeralarm" },
+        { "slug": "weather", "title": "Wetter" }
+      ]
+    },
+    {
+      "id": "monitoring",
+      "title": "Überwachung",
+      "articles": [
+        { "slug": "alerts",   "title": "Warnungen & Alarme" },
+        { "slug": "switches", "title": "Relais" },
+        { "slug": "tanks",    "title": "Tanks" },
+        { "slug": "buttons",  "title": "Physische Tasten" }
+      ]
+    },
+    {
+      "id": "system",
+      "title": "System",
+      "articles": [
+        { "slug": "multi-client",    "title": "Displays & Telefone" },
+        { "slug": "plugins",         "title": "Plugins" },
+        { "slug": "server-updates",  "title": "Server & Updates" },
+        { "slug": "console",         "title": "Konsole & Logs" },
+        { "slug": "troubleshooting", "title": "Fehlerbehebung" }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "articles": [
+    { "slug": "overview", "title": "Übersicht" },
+    { "slug": "setup", "title": "Einrichtung & Fehlersuche" },
+    { "slug": "imu", "title": "IMU & Kalibrierung" },
+    { "slug": "tank-inputs", "title": "Tank-Eingänge (ADS1115)" }
+  ]
+}

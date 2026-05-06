@@ -8,6 +8,10 @@
   "main": "index.js",
   "flag": "official",
   "capabilities": ["sensor-data", "settings", "alerts", "network"],
+  "help": {
+    "languages": ["en", "de"],
+    "directory": "help/"
+  },
   "versions": [
     { "version": "1.0.0", "date": "2026-02-12", "changelog": "Initial release with NMEA 2000 support (15 PGNs)" },
     { "version": "1.1.4", "date": "2026-02-13", "changelog": "CAN bus parsing fixes, setup automation, debug improvements" },

@@ -59,7 +59,26 @@ export interface PluginManifest {
     languages: string[];              // e.g. ["en", "de"]
     directory: string;                // Relative path to i18n files, e.g. "i18n/"
   };
+
+  // User-facing help documentation
+  help?: {
+    languages: string[];              // e.g. ["en", "de"]
+    directory: string;                // Relative path containing <lang>/manifest.json + <lang>/*.md, e.g. "help/"
+  };
 }
+
+/**
+ * Help articles published by a plugin in a single language.
+ * `articles` lists what to show in the sidebar; `contents` is the
+ * markdown source keyed by slug. Both come from the plugin's own
+ * help/<lang>/manifest.json + .md files.
+ */
+export interface PluginHelpLanguage {
+  articles: { slug: string; title: string }[];
+  contents: Record<string, string>;
+}
+
+export type PluginHelpData = Record<string, PluginHelpLanguage>;
 
 // ============================================================================
 // Data Stream & Sensor Slot Types
@@ -253,6 +272,8 @@ export interface PluginInfo {
   setupMessage?: string;
   /** Parsed i18n translations keyed by language code, e.g. { en: { key: value }, de: { key: value } } */
   i18n?: Record<string, Record<string, string>>;
+  /** Plugin-supplied help articles keyed by language code */
+  help?: PluginHelpData;
 }
 
 /**

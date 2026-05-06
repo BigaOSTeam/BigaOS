@@ -1018,3 +1018,33 @@ tanks.fluid_fresh_water=Fresh Water
 tanks.fluid_gray_water=Gray Water
 tanks.fluid_black_water=Waste
 tanks.fluid_gasoline=Petrol
+
+# ==================== Help ====================
+help.title=Help
+help.search_placeholder=Search help...
+help.no_results=No matching articles.
+help.fallback_notice=This article hasn't been translated to your language yet — showing the English version.
+help.empty=Pick a topic from the list.
+help.article_missing=Article not found.
+
+# ==================== Tutorial ====================
+tutorial.skip=Skip
+tutorial.back=Back
+tutorial.next=Next
+tutorial.done=Got it
+tutorial.welcome.title=Welcome to BigaOS
+tutorial.welcome.body=A quick 60-second tour so you know where everything is.\n\nYou can replay this any time from Help.
+tutorial.welcome.body_remote=A quick 60-second tour so you know where everything is on this phone.\n\nYou can replay this any time from Help.
+tutorial.dashboard.title=Your Dashboard
+tutorial.dashboard.body=Tap any tile to dive into a detail view with history and stats.\n\nThe pencil icon turns on edit mode — drag, resize, add, or remove tiles. Each display has its own layout.
+tutorial.dashboard.body_remote=Tap any tile for a detail view with history and stats.\n\nThe pencil icon turns on edit mode — drag, resize, add, or remove tiles. Each phone has its own layout.
+tutorial.chart.title=Chart & Navigation
+tutorial.chart.body=Live position with the boat plotted in real time, plus weather overlays.\n\nLong-press anywhere to open a context menu — set a marker, navigate here, and more.\n\nThe map follows the boat by default. Pan to detach; tap the target button to follow again.
+tutorial.chart.body_remote=Live position on the boat's chart.\n\nLong-press for the context menu (set marker, navigate here, …). Pan to detach from the boat, tap the target to follow again.
+tutorial.plugins.title=Plugins are everything
+tutorial.plugins.body=BigaOS reads no data on its own. Without a driver plugin enabled, your tiles will be empty.\n\nBrowse Settings → Plugins for drivers covering all sorts of ways to get data into your server — pick the ones that match your boat.
+tutorial.plugins.body_remote=Plugins live on the boat's server, not on your phone — but it's worth knowing they're the source of every value here.\n\nWithout a driver plugin enabled on the boat, no values reach any client.
+tutorial.monitoring.title=Alerts, Switches, Tanks
+tutorial.monitoring.body=Set up alerts for wind, depth, batteries — anything you want to watch.\n\nControl onboard circuits from switch tiles. Calibrate tanks once for accurate fill levels.\n\nAll in Settings.
+tutorial.done.title=You're set
+tutorial.done.body=Help is in the sidebar — short articles for every feature, in your language.\n\nReplay this tour any time from Help → Welcome.

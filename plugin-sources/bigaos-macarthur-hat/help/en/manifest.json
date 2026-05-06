@@ -1,0 +1,8 @@
+{
+  "articles": [
+    { "slug": "overview", "title": "Overview" },
+    { "slug": "setup", "title": "Setup & Troubleshooting" },
+    { "slug": "imu", "title": "IMU & Calibration" },
+    { "slug": "tank-inputs", "title": "Tank Inputs (ADS1115)" }
+  ]
+}
