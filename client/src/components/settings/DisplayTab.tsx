@@ -16,6 +16,8 @@ interface DisplayInfo {
   error?: string;
 }
 
+type OverlayState = 'enabled' | 'disabled' | 'unknown';
+
 // Common resolutions (shown even if not detected by wlr-randr)
 const COMMON_RESOLUTIONS = [
   '1920x1080', '1280x720', '1024x768', '1024x600',
@@ -38,6 +40,8 @@ export const DisplayTab: React.FC = () => {
   const [selectedScale, setSelectedScale] = useState(1.0);
   const [customResolution, setCustomResolution] = useState('');
   const [showCustomRes, setShowCustomRes] = useState(false);
+  const [overlayState, setOverlayState] = useState<OverlayState>('unknown');
+  const [overlayToggling, setOverlayToggling] = useState(false);
 
   // Fetch display info from agent
   const fetchDisplayInfo = useCallback(() => {
@@ -76,6 +80,50 @@ export const DisplayTab: React.FC = () => {
     const cleanup = fetchDisplayInfo();
     return cleanup;
   }, [fetchDisplayInfo]);
+
+  // Fetch overlay FS state
+  const fetchOverlayState = useCallback(() => {
+    wsService.emit('overlay_get_state', { clientId });
+
+    const handler = (data: { clientId: string; state: OverlayState }) => {
+      if (data.clientId !== clientId) return;
+      setOverlayState(data.state || 'unknown');
+      wsService.off('overlay_state', handler);
+    };
+    wsService.on('overlay_state', handler);
+
+    return () => wsService.off('overlay_state', handler);
+  }, [clientId]);
+
+  useEffect(() => {
+    const cleanup = fetchOverlayState();
+    return cleanup;
+  }, [fetchOverlayState]);
+
+  // Toggle overlay (writable <-> read-only). Pi will reboot.
+  const handleOverlayToggle = useCallback(() => {
+    if (overlayState === 'unknown') return;
+    const targetEnabled = overlayState === 'disabled';
+    const confirmKey = targetEnabled ? 'clients.overlay_confirm_enable' : 'clients.overlay_confirm_disable';
+    if (!window.confirm(t(confirmKey))) return;
+
+    setOverlayToggling(true);
+    setError('');
+    setSuccess('');
+    wsService.emit('overlay_set', { clientId, enabled: targetEnabled });
+
+    const handler = (data: any) => {
+      if (data.clientId !== clientId) return;
+      wsService.off('overlay_set_result', handler);
+      if (!data.success) {
+        setOverlayToggling(false);
+        setError(data.error || t('clients.display_error'));
+      } else {
+        setSuccess(t('clients.overlay_rebooting'));
+      }
+    };
+    wsService.on('overlay_set_result', handler);
+  }, [clientId, overlayState, t]);
 
   // Build resolution options: detected modes + common + current config
   const resolutionOptions = React.useMemo(() => {
@@ -215,6 +263,52 @@ export const DisplayTab: React.FC = () => {
                 </div>
                 <div style={{ fontWeight: 500 }}>{(displayInfo.config?.scale ?? 1.0).toFixed(1)}x</div>
               </div>
+            </div>
+          )}
+
+          {/* Overlay FS (read-only protection) */}
+          {overlayState !== 'unknown' && (
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: theme.space.sm }}>
+                <SLabel>{t('clients.overlay_section')}</SLabel>
+                <span style={{
+                  fontSize: theme.fontSize.xs,
+                  padding: `2px ${theme.space.sm}`,
+                  borderRadius: theme.radius.sm,
+                  background: overlayState === 'enabled' ? theme.colors.success + '22' : theme.colors.warning + '22',
+                  color: overlayState === 'enabled' ? theme.colors.success : theme.colors.warning,
+                  fontWeight: 600,
+                }}>
+                  {overlayState === 'enabled' ? t('clients.overlay_state_on') : t('clients.overlay_state_off')}
+                </span>
+              </div>
+              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted, marginBottom: theme.space.sm }}>
+                {overlayState === 'enabled' ? t('clients.overlay_hint_on') : t('clients.overlay_hint_off')}
+              </div>
+              <SButton
+                variant={overlayState === 'enabled' ? 'primary' : 'secondary'}
+                onClick={handleOverlayToggle}
+                disabled={overlayToggling}
+                style={{ width: '100%' }}
+              >
+                {overlayToggling
+                  ? t('clients.overlay_rebooting')
+                  : overlayState === 'enabled' ? t('clients.overlay_disable') : t('clients.overlay_enable')}
+              </SButton>
+            </div>
+          )}
+
+          {/* Warning when overlay is on — rotation/resolution changes won't persist */}
+          {overlayState === 'enabled' && (
+            <div style={{
+              ...cardStyle,
+              background: theme.colors.warning + '15',
+              border: `1px solid ${theme.colors.warning}44`,
+              fontSize: theme.fontSize.sm,
+              color: theme.colors.warning,
+              marginBottom: theme.space.md,
+            }}>
+              {t('clients.overlay_warning_readonly')}
             </div>
           )}
 

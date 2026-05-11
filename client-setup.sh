@@ -277,7 +277,8 @@ if curl -sSfL -o "$AGENT_DIR/package.json" "$AGENT_RAW_BASE/package.json" \
    && curl -sSfL -o "$AGENT_DIR/index.js" "$AGENT_RAW_BASE/index.js" \
    && curl -sSfL -o "$AGENT_DIR/gpio.js" "$AGENT_RAW_BASE/gpio.js" \
    && curl -sSfL -o "$AGENT_DIR/inputs.js" "$AGENT_RAW_BASE/inputs.js" \
-   && curl -sSfL -o "$AGENT_DIR/display.js" "$AGENT_RAW_BASE/display.js"; then
+   && curl -sSfL -o "$AGENT_DIR/display.js" "$AGENT_RAW_BASE/display.js" \
+   && curl -sSfL -o "$AGENT_DIR/overlay.js" "$AGENT_RAW_BASE/overlay.js"; then
   AGENT_INSTALLED=true
 fi
 
@@ -808,8 +809,32 @@ HELPEREOF
 sudo chmod 755 /usr/local/bin/bigaos-set-rotation.sh
 info "Rotation helper installed at /usr/local/bin/bigaos-set-rotation.sh"
 
-# ── Sudoers for service management + rotation helper ──────
-SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigaos-agent, /usr/bin/systemctl stop bigaos-agent, /usr/bin/systemctl start bigaos-agent, /usr/local/bin/bigaos-set-rotation.sh"
+# ── Install overlay-FS helper ──────────────────────────────
+# Called by client-agent (via sudo) to toggle the read-only filesystem
+# from the BigaOS Display tab. Toggle requires a reboot to take effect.
+step "Installing overlay FS helper..."
+sudo tee /usr/local/bin/bigaos-overlay.sh > /dev/null << 'OVLEOF'
+#!/bin/bash
+# bigaos-overlay.sh <enable|disable|reboot|state>
+#
+# Wraps raspi-config's overlayfs toggle so the BigaOS client-agent can
+# expose it through the Display tab without needing a broad raspi-config
+# sudoers grant.
+case "$1" in
+  enable)  raspi-config nonint enable_overlayfs ;;
+  disable) raspi-config nonint disable_overlayfs ;;
+  reboot)  reboot ;;
+  state)
+    if mount | grep -q overlayroot; then echo "enabled"; else echo "disabled"; fi
+    ;;
+  *) echo "Usage: $0 <enable|disable|reboot|state>" >&2; exit 1 ;;
+esac
+OVLEOF
+sudo chmod 755 /usr/local/bin/bigaos-overlay.sh
+info "Overlay helper installed at /usr/local/bin/bigaos-overlay.sh"
+
+# ── Sudoers for service management + helpers ──────────────
+SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigaos-agent, /usr/bin/systemctl stop bigaos-agent, /usr/bin/systemctl start bigaos-agent, /usr/local/bin/bigaos-set-rotation.sh, /usr/local/bin/bigaos-overlay.sh"
 SUDOERS_FILE="/etc/sudoers.d/bigaos-client"
 echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
 sudo chmod 440 "$SUDOERS_FILE"

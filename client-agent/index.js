@@ -19,6 +19,7 @@
 const { io } = require('socket.io-client');
 const { setPin, initializePins } = require('./gpio');
 const { getDisplayInfo, setResolution, setRotation, setScale, restartChromium, getConfig, saveConfig } = require('./display');
+const { getOverlayState, setOverlay } = require('./overlay');
 const { InputManager } = require('./inputs');
 
 // ── Configuration ──────────────────────────────────────────
@@ -180,6 +181,23 @@ socket.on('display_set', async (data) => {
   } catch (error) {
     socket.emit('display_set_result', { success: false, error: error.message });
     console.error(`[Agent] Display set failed: ${error.message}`);
+  }
+});
+
+// ── Overlay filesystem (read-only protection) ─────────────
+socket.on('overlay_get_state', async () => {
+  const state = await getOverlayState();
+  socket.emit('overlay_state', { state });
+});
+
+socket.on('overlay_set', async (data) => {
+  console.log(`[Agent] Overlay set: ${data.enabled ? 'enable' : 'disable'} (reboot will follow)`);
+  try {
+    await setOverlay(!!data.enabled);
+    socket.emit('overlay_set_result', { success: true, rebooting: true });
+  } catch (error) {
+    socket.emit('overlay_set_result', { success: false, error: error.message });
+    console.error(`[Agent] Overlay set failed: ${error.message}`);
   }
 });
 

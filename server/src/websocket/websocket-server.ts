@@ -891,6 +891,30 @@ export class WebSocketServer {
         }
       });
 
+      // Browser client requests overlay FS state
+      socket.on('overlay_get_state', (data: { clientId: string }) => {
+        this.io.to(`agent:${data.clientId}`).emit('overlay_get_state', {});
+      });
+
+      // Browser client requests overlay FS toggle (will reboot the Pi)
+      socket.on('overlay_set', (data: { clientId: string; enabled: boolean }) => {
+        this.io.to(`agent:${data.clientId}`).emit('overlay_set', { enabled: data.enabled });
+      });
+
+      // Agent reports overlay state
+      socket.on('overlay_state', (data: any) => {
+        if (clientId) {
+          this.io.emit('overlay_state', { clientId, ...data });
+        }
+      });
+
+      // Agent reports overlay toggle result
+      socket.on('overlay_set_result', (data: any) => {
+        if (clientId) {
+          this.io.emit('overlay_set_result', { clientId, ...data });
+        }
+      });
+
       // ================================================================
       // Disconnect
       // ================================================================
