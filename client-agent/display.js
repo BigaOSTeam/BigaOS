@@ -121,9 +121,11 @@ async function setResolution(outputName, mode) {
 
 /**
  * Set display rotation via wlr-randr and update touch mapping.
- * Also calls the system helper (sudo) to write the touch udev calibration
- * matrix and Plymouth panel_orientation cmdline. The udev matrix only
- * takes effect after the next reboot — wlr-randr handles the live rotation.
+ * Touch follows automatically: wlroots rotates touch in lockstep with the
+ * output once labwc's <touch mapToOutput="..."/> points at the right port
+ * (updateTouchMapping keeps it in sync). The helper handles Plymouth boot
+ * rotation only — it no longer writes a libinput calibration matrix
+ * because that double-rotates on top of wlroots' auto-rotation.
  */
 async function setRotation(outputName, transform) {
   await run(`wlr-randr --output ${outputName} --transform ${transform}`);
@@ -134,10 +136,10 @@ async function setRotation(outputName, transform) {
     const out = await run(`sudo -n /usr/local/bin/bigaos-set-rotation.sh ${transform}`);
     console.log(`[Display] Rotation helper: ${out.replace(/\n/g, ' | ')}`);
   } catch (err) {
-    // Helper missing on older installs, or sudoers not set up. Live rotation
-    // still works via wlr-randr above; touch/Plymouth will be out of sync
-    // until the user re-runs client-setup.sh.
-    console.error(`[Display] Rotation helper unavailable: ${err.message}`);
+    // Helper missing on older installs, sudoers not set up, or overlay FS
+    // is enabled (helper refuses to write). Live rotation still works via
+    // wlr-randr above; Plymouth will lag until the helper succeeds.
+    console.error(`[Display] Rotation helper failed: ${err.message}`);
   }
 }
 

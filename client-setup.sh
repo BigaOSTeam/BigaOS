@@ -742,15 +742,15 @@ sudo tee /usr/local/bin/bigaos-set-rotation.sh > /dev/null << 'HELPEREOF'
 #!/bin/bash
 # bigaos-set-rotation.sh <normal|0|90|180|270>
 #
-# Updates the touch libinput calibration matrix (via udev) and Plymouth
-# panel_orientation (via cmdline.txt) for the given rotation. Runs under
-# sudo from the BigaOS client-agent on rotation changes.
+# Updates Plymouth panel_orientation in cmdline.txt for the given rotation
+# and removes any legacy touch calibration udev rule. Runs under sudo from
+# the BigaOS client-agent on rotation changes.
 #
-# Per-panel overrides: /etc/bigaos/touch-matrices.conf can set
-#   ROTATION_90="...", ROTATION_180="...", ROTATION_270="..."
-# to override the libinput-standard matrices. Empty string = identity (no rule).
-# This is needed on panels (e.g. some DSI + Goodix combos) where wlroots'
-# auto-rotation differs from the libinput convention.
+# Touch rotation itself is handled automatically by wlroots when labwc's
+# rc.xml has a correct <touch mapToOutput="..."/> pointing at the actual
+# connected DRM port (e.g. DSI-2). Setting an additional libinput
+# calibration matrix double-rotates and breaks touch. setup.sh writes
+# the correct mapToOutput; display.js keeps it in sync on rotation changes.
 
 set -e
 
@@ -761,32 +761,19 @@ case "$ROT" in
   *) echo "Usage: $0 <normal|90|180|270>" >&2; exit 1 ;;
 esac
 
-# Default libinput calibration matrices (2x3 affine, 6 floats)
-STD_90="0 -1 1 1 0 0"
-STD_180="-1 0 1 0 -1 1"
-STD_270="0 1 0 -1 0 1"
+# Refuse changes when overlay FS is active — they would be lost on reboot
+# and produce confusing "I just changed it but it didn't apply" loops.
+if mount | grep -q "overlayroot"; then
+  echo "ERROR: overlay FS is enabled — changes will not persist past reboot." >&2
+  echo "Disable first: sudo raspi-config nonint disable_overlayfs && sudo reboot" >&2
+  exit 2
+fi
 
-# Per-panel override (optional)
-[ -f /etc/bigaos/touch-matrices.conf ] && . /etc/bigaos/touch-matrices.conf
-
-# Resolve matrix and panel_orientation
 case "$ROT" in
-  90)
-    MATRIX="${ROTATION_90-$STD_90}"
-    PANEL_ORIENT="left_side_up"
-    ;;
-  180)
-    MATRIX="${ROTATION_180-$STD_180}"
-    PANEL_ORIENT="upside_down"
-    ;;
-  270)
-    MATRIX="${ROTATION_270-$STD_270}"
-    PANEL_ORIENT="right_side_up"
-    ;;
-  *)
-    MATRIX=""
-    PANEL_ORIENT=""
-    ;;
+  90)  PANEL_ORIENT="left_side_up" ;;
+  180) PANEL_ORIENT="upside_down" ;;
+  270) PANEL_ORIENT="right_side_up" ;;
+  *)   PANEL_ORIENT="" ;;
 esac
 
 # Find connected DRM output
@@ -799,22 +786,9 @@ for STATUS_FILE in /sys/class/drm/card*-HDMI-A-*/status /sys/class/drm/card*-DSI
 done
 DRM_PORT=${DRM_PORT:-HDMI-A-1}
 
-# Find touch device
-TOUCH=$(libinput list-devices 2>/dev/null | awk '/^Device:/{name=$0} /Capabilities:.*touch/{print name; exit}' | sed 's/^Device: *//')
-
-# Update touch udev rule
-RULE="/etc/udev/rules.d/99-bigaos-touch.rules"
-if [ -n "$MATRIX" ] && [ -n "$TOUCH" ]; then
-  TOUCH_ESC=$(echo "$TOUCH" | sed 's/"/\\"/g')
-  cat > "$RULE" <<EOF
-# BigaOS touch rotation — DISPLAY_ROTATION=$ROT
-ACTION=="add|change", SUBSYSTEM=="input", ATTRS{name}=="$TOUCH_ESC", ENV{LIBINPUT_CALIBRATION_MATRIX}="$MATRIX"
-EOF
-  echo "Touch matrix: $MATRIX"
-else
-  rm -f "$RULE"
-  echo "Touch matrix: identity (no rule)"
-fi
+# Clean up any legacy touch calibration rule from earlier versions. wlroots
+# auto-rotation via mapToOutput supersedes it; keeping a matrix double-rotates.
+rm -f /etc/udev/rules.d/99-bigaos-touch.rules
 udevadm control --reload-rules 2>/dev/null || true
 
 # Update Plymouth boot rotation in cmdline.txt
@@ -828,12 +802,8 @@ if [ -f "$CMDLINE_FILE" ]; then
   echo "Plymouth orientation: ${PANEL_ORIENT:-normal} on $DRM_PORT"
 fi
 
-# Warn if overlay FS would lose these writes
-if mount | grep -q "overlayroot"; then
-  echo "WARN: overlay FS is enabled — changes will not persist past reboot." >&2
-fi
-
-echo "Reboot required for changes to take full effect."
+echo "Touch rotation: handled by wlroots via mapToOutput (no calibration matrix)"
+echo "Reboot required for Plymouth changes to take effect."
 HELPEREOF
 sudo chmod 755 /usr/local/bin/bigaos-set-rotation.sh
 info "Rotation helper installed at /usr/local/bin/bigaos-set-rotation.sh"
