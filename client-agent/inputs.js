@@ -26,13 +26,19 @@ function getChip(deviceType) {
 let _libgpiodVersion = null;
 function getLibgpiodVersion() {
   if (_libgpiodVersion !== null) return _libgpiodVersion;
+  // gpiomon's --help can exit non-zero on some builds, so capture output
+  // from both the success and error paths instead of relying on exit code.
+  let help = '';
   try {
-    const help = execSync('gpiomon --help 2>&1', { encoding: 'utf8' });
-    _libgpiodVersion = help.includes('--edges') ? 2 : 1;
-    console.log(`[Inputs] Detected libgpiod ${_libgpiodVersion}.x`);
-  } catch {
-    _libgpiodVersion = 1; // safe default for older systems
+    help = execSync('gpiomon --help 2>&1', { encoding: 'utf8' });
+  } catch (err) {
+    help = (err.stdout || '') + (err.stderr || '');
   }
+  // v1 advertises --falling-edge; v2 replaces it with --edges=
+  if (help.includes('--edges')) _libgpiodVersion = 2;
+  else if (help.includes('--falling-edge')) _libgpiodVersion = 1;
+  else _libgpiodVersion = 1; // unknown — safe default
+  console.log(`[Inputs] Detected libgpiod ${_libgpiodVersion}.x`);
   return _libgpiodVersion;
 }
 
