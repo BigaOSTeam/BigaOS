@@ -370,30 +370,44 @@ sudo sed -i '/^hdmi_group/d; /^hdmi_mode/d; /^hdmi_cvt/d; /^hdmi_drive/d; /^hdmi
 # Also clean [HDMI:N] conditional sections we may have added previously
 sudo sed -i '/^\[HDMI:[0-9]\]/d' "$BOOT_CONFIG"
 
-# Auto-detect which HDMI port has a display connected
-# Pi 4: HDMI-A-1 → [HDMI:0], HDMI-A-2 → [HDMI:1]
+# Auto-detect which DRM output has a display connected.
+# Checks HDMI first (most common), then DSI (Waveshare etc.), then DPI.
+# HDMI_INDEX is only used for the [HDMI:N] config block (custom resolution).
 HDMI_INDEX=""
-HDMI_PORT=""
+DRM_PORT=""
 for STATUS_FILE in /sys/class/drm/card*-HDMI-A-*/status; do
   if [ -f "$STATUS_FILE" ] && [ "$(cat "$STATUS_FILE")" = "connected" ]; then
     PORT_NAME=$(basename "$(dirname "$STATUS_FILE")")
     PORT_NUM=$(echo "$PORT_NAME" | grep -oP 'HDMI-A-\K\d+')
     HDMI_INDEX=$((PORT_NUM - 1))
-    HDMI_PORT="HDMI-A-${PORT_NUM}"
+    DRM_PORT="HDMI-A-${PORT_NUM}"
     break
   fi
 done
-HDMI_PORT=${HDMI_PORT:-HDMI-A-1}
-HDMI_INDEX=${HDMI_INDEX:-0}
+# No HDMI? Try DSI / DPI (DSI panels, ribbon-cable displays)
+if [ -z "$DRM_PORT" ]; then
+  for STATUS_FILE in /sys/class/drm/card*-DSI-*/status /sys/class/drm/card*-DPI-*/status; do
+    if [ -f "$STATUS_FILE" ] && [ "$(cat "$STATUS_FILE")" = "connected" ]; then
+      DRM_PORT=$(basename "$(dirname "$STATUS_FILE")" | sed 's/^card[0-9]*-//')
+      break
+    fi
+  done
+fi
+DRM_PORT=${DRM_PORT:-HDMI-A-1}
+HDMI_PORT="$DRM_PORT"  # kept for backwards-compat with rest of script
 
-if [ -n "$HDMI_PORT" ]; then
-  info "Detected display on ${HDMI_PORT} (HDMI:${HDMI_INDEX})"
+if [ -n "$DRM_PORT" ]; then
+  if [ -n "$HDMI_INDEX" ]; then
+    info "Detected display on ${DRM_PORT} (HDMI:${HDMI_INDEX})"
+  else
+    info "Detected display on ${DRM_PORT}"
+  fi
 else
-  warn "Could not detect HDMI port, using default (HDMI-A-1)"
+  warn "Could not detect connected output, using default (HDMI-A-1)"
 fi
 
 # ── Set display resolution ───────────────────────────────
-if [ -n "$SCREEN_RESOLUTION" ]; then
+if [ -n "$SCREEN_RESOLUTION" ] && [ -n "$HDMI_INDEX" ]; then
   # Custom resolution — use fkms + hdmi_cvt so non-standard modes
   # like 1024x600 or 800x480 work (KMS doesn't support them natively)
   step "Setting display resolution to ${SCREEN_RESOLUTION}..."
@@ -425,7 +439,12 @@ HDMIEOF
 
   info "Resolution set to ${SCREEN_RESOLUTION} via fkms + hdmi_cvt"
 else
-  # Auto-detect — use KMS driver (modern, handles EDID natively)
+  # Either no custom resolution, OR custom resolution requested on non-HDMI output.
+  # Either way: use KMS driver and let panel/EDID handle resolution.
+  if [ -n "$SCREEN_RESOLUTION" ]; then
+    warn "Custom resolution skipped: ${DRM_PORT} is not an HDMI output."
+    warn "DSI/DPI panels use their native resolution. Adjust 'Scale' instead."
+  fi
   if grep -q '^dtoverlay=vc4-fkms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
     sudo sed -i 's/^dtoverlay=vc4-fkms-v3d/dtoverlay=vc4-kms-v3d/' "$BOOT_CONFIG"
   elif ! grep -q '^dtoverlay=vc4-kms-v3d' "$BOOT_CONFIG" 2>/dev/null; then
@@ -446,24 +465,10 @@ done
 echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
 info "Silent boot configured (quiet + splash)"
 
-# ── Boot display rotation (Plymouth) ─────────────────────
-# Set panel_orientation on the DRM connector so Plymouth renders rotated
-CMDLINE=$(cat "$CMDLINE_FILE" | tr -d '\n')
-CMDLINE=$(echo "$CMDLINE" | sed "s/ video=${HDMI_PORT}:[^ ]*//g")
-
-if [ "$SCREEN_ROTATION" != "0" ]; then
-  case "$SCREEN_ROTATION" in
-    90)  PANEL_ORIENT="left_side_up" ;;
-    180) PANEL_ORIENT="upside_down" ;;
-    270) PANEL_ORIENT="right_side_up" ;;
-  esac
-
-  CMDLINE="$CMDLINE video=${HDMI_PORT}:panel_orientation=${PANEL_ORIENT}"
-  echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
-  info "Boot rotation set (panel_orientation=${PANEL_ORIENT} on ${HDMI_PORT})"
-else
-  echo "$CMDLINE" | sudo tee "$CMDLINE_FILE" > /dev/null
-fi
+# Plymouth boot rotation (panel_orientation in cmdline.txt) is handled by
+# /usr/local/bin/bigaos-set-rotation.sh, installed later in this script.
+# Keeping it in one helper means the UI rotation flow and the setup-time
+# flow stay in sync.
 
 # ── Configure kiosk mode ──────────────────────────────────
 step "Configuring kiosk mode..."
@@ -666,12 +671,19 @@ if [ -n "$TOUCH_DEVICE" ]; then
   # Escape device name for XML (handle special chars)
   TOUCH_DEVICE_XML=$(echo "$TOUCH_DEVICE" | sed 's/&/\&amp;/g; s/</\&lt;/g; s/>/\&gt;/g; s/"/\&quot;/g')
 
-  # Use HDMI port detected earlier
-  TOUCH_OUTPUT="$HDMI_PORT"
+  # Map touch to the connected DRM output (auto-detected: HDMI-A-*, DSI-*, DPI-*)
+  TOUCH_OUTPUT="$DRM_PORT"
+
+  # Touch calibration matrix + Plymouth boot rotation are handled by
+  # /usr/local/bin/bigaos-set-rotation.sh below (called once helper is
+  # installed). Keeping that logic in one place means the UI's rotation
+  # changes go through the same code path.
 
   if [ "$COMPOSITOR" = "labwc" ]; then
-    # Write labwc rc.xml with touch mapping + HideCursor keybind
-    # labwc 0.9.5+ handles touch rotation via mapToOutput (no calibration matrix needed)
+    # Write labwc rc.xml with touch mapping + HideCursor keybind.
+    # mapToOutput pins touch to the correct display (only matters when
+    # multiple outputs are connected); rotation is handled by the udev
+    # calibration matrix above, not by mapToOutput on labwc 0.8.4.
     cat > "$HOME/.config/labwc/rc.xml" << RCEOF
 <?xml version="1.0"?>
 <openbox_config xmlns="http://openbox.org/3.4/rc">
@@ -721,11 +733,122 @@ fi
 info "Kiosk mode configured (greetd → labwc → Chromium fullscreen)"
 echo "    URL: ${KIOSK_URL}"
 
-# ── Sudoers for service management ────────────────────────
-SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigaos-agent, /usr/bin/systemctl stop bigaos-agent, /usr/bin/systemctl start bigaos-agent"
+# ── Install rotation helper script ────────────────────────
+# Called by client-agent's display.js (via sudo) whenever rotation changes,
+# so the touch udev rule and Plymouth boot cmdline stay in sync with the
+# wlr-randr transform. Also used at setup time below.
+step "Installing rotation helper..."
+sudo tee /usr/local/bin/bigaos-set-rotation.sh > /dev/null << 'HELPEREOF'
+#!/bin/bash
+# bigaos-set-rotation.sh <normal|0|90|180|270>
+#
+# Updates the touch libinput calibration matrix (via udev) and Plymouth
+# panel_orientation (via cmdline.txt) for the given rotation. Runs under
+# sudo from the BigaOS client-agent on rotation changes.
+#
+# Per-panel overrides: /etc/bigaos/touch-matrices.conf can set
+#   ROTATION_90="...", ROTATION_180="...", ROTATION_270="..."
+# to override the libinput-standard matrices. Empty string = identity (no rule).
+# This is needed on panels (e.g. some DSI + Goodix combos) where wlroots'
+# auto-rotation differs from the libinput convention.
+
+set -e
+
+ROT="${1:-normal}"
+case "$ROT" in
+  0) ROT="normal" ;;
+  normal|90|180|270) : ;;
+  *) echo "Usage: $0 <normal|90|180|270>" >&2; exit 1 ;;
+esac
+
+# Default libinput calibration matrices (2x3 affine, 6 floats)
+STD_90="0 -1 1 1 0 0"
+STD_180="-1 0 1 0 -1 1"
+STD_270="0 1 0 -1 0 1"
+
+# Per-panel override (optional)
+[ -f /etc/bigaos/touch-matrices.conf ] && . /etc/bigaos/touch-matrices.conf
+
+# Resolve matrix and panel_orientation
+case "$ROT" in
+  90)
+    MATRIX="${ROTATION_90-$STD_90}"
+    PANEL_ORIENT="left_side_up"
+    ;;
+  180)
+    MATRIX="${ROTATION_180-$STD_180}"
+    PANEL_ORIENT="upside_down"
+    ;;
+  270)
+    MATRIX="${ROTATION_270-$STD_270}"
+    PANEL_ORIENT="right_side_up"
+    ;;
+  *)
+    MATRIX=""
+    PANEL_ORIENT=""
+    ;;
+esac
+
+# Find connected DRM output
+DRM_PORT=""
+for STATUS_FILE in /sys/class/drm/card*-HDMI-A-*/status /sys/class/drm/card*-DSI-*/status /sys/class/drm/card*-DPI-*/status; do
+  if [ -f "$STATUS_FILE" ] && [ "$(cat "$STATUS_FILE")" = "connected" ]; then
+    DRM_PORT=$(basename "$(dirname "$STATUS_FILE")" | sed 's/^card[0-9]*-//')
+    break
+  fi
+done
+DRM_PORT=${DRM_PORT:-HDMI-A-1}
+
+# Find touch device
+TOUCH=$(libinput list-devices 2>/dev/null | awk '/^Device:/{name=$0} /Capabilities:.*touch/{print name; exit}' | sed 's/^Device: *//')
+
+# Update touch udev rule
+RULE="/etc/udev/rules.d/99-bigaos-touch.rules"
+if [ -n "$MATRIX" ] && [ -n "$TOUCH" ]; then
+  TOUCH_ESC=$(echo "$TOUCH" | sed 's/"/\\"/g')
+  cat > "$RULE" <<EOF
+# BigaOS touch rotation — DISPLAY_ROTATION=$ROT
+ACTION=="add|change", SUBSYSTEM=="input", ATTRS{name}=="$TOUCH_ESC", ENV{LIBINPUT_CALIBRATION_MATRIX}="$MATRIX"
+EOF
+  echo "Touch matrix: $MATRIX"
+else
+  rm -f "$RULE"
+  echo "Touch matrix: identity (no rule)"
+fi
+udevadm control --reload-rules 2>/dev/null || true
+
+# Update Plymouth boot rotation in cmdline.txt
+CMDLINE_FILE="/boot/firmware/cmdline.txt"
+[ -f "$CMDLINE_FILE" ] || CMDLINE_FILE="/boot/cmdline.txt"
+if [ -f "$CMDLINE_FILE" ]; then
+  CMDLINE=$(tr -d '\n' < "$CMDLINE_FILE")
+  CMDLINE=$(echo "$CMDLINE" | sed -E 's/ ?video=[^ ]*:panel_orientation=[^ ]*//g')
+  [ -n "$PANEL_ORIENT" ] && CMDLINE="$CMDLINE video=${DRM_PORT}:panel_orientation=${PANEL_ORIENT}"
+  echo "$CMDLINE" > "$CMDLINE_FILE"
+  echo "Plymouth orientation: ${PANEL_ORIENT:-normal} on $DRM_PORT"
+fi
+
+# Warn if overlay FS would lose these writes
+if mount | grep -q "overlayroot"; then
+  echo "WARN: overlay FS is enabled — changes will not persist past reboot." >&2
+fi
+
+echo "Reboot required for changes to take full effect."
+HELPEREOF
+sudo chmod 755 /usr/local/bin/bigaos-set-rotation.sh
+info "Rotation helper installed at /usr/local/bin/bigaos-set-rotation.sh"
+
+# ── Sudoers for service management + rotation helper ──────
+SUDOERS_LINE="$USER ALL=(ALL) NOPASSWD: /usr/bin/systemctl restart bigaos-agent, /usr/bin/systemctl stop bigaos-agent, /usr/bin/systemctl start bigaos-agent, /usr/local/bin/bigaos-set-rotation.sh"
 SUDOERS_FILE="/etc/sudoers.d/bigaos-client"
 echo "$SUDOERS_LINE" | sudo tee "$SUDOERS_FILE" > /dev/null
 sudo chmod 440 "$SUDOERS_FILE"
+
+# ── Apply initial rotation via helper ─────────────────────
+# Writes touch udev rule + Plymouth panel_orientation cmdline for $SCREEN_ROTATION.
+# Single source of truth — same path the agent uses for UI-driven rotation changes.
+step "Applying rotation (${SCREEN_ROTATION}°) via helper..."
+sudo /usr/local/bin/bigaos-set-rotation.sh "$SCREEN_ROTATION" || warn "Rotation helper failed (non-fatal)"
 
 # ── Enable overlay filesystem ─────────────────────────────
 echo ""
