@@ -45,20 +45,26 @@ function getLibgpiodVersion() {
 /** Build gpiomon args for a given config */
 function buildArgs(input) {
   const args = [];
+  const chip = getChip(input.deviceType);
+  const line = String(input.gpioPin);
 
   // Bias: pull up/down (supported on both v1 ≥1.5 and v2)
   if (input.pull === 'up') args.push('--bias=pull-up');
   else if (input.pull === 'down') args.push('--bias=pull-down');
 
-  // Edge selection — single-edge only (both-edge would double-fire on a press)
   if (getLibgpiodVersion() === 2) {
+    // v2: `gpiomon -c CHIP --edges=... LINE` — chip is a flag, only the line
+    // offset is positional. Positional args in v2 are treated as line names.
+    args.push('-c', chip);
     args.push(input.trigger === 'rising' ? '--edges=rising' : '--edges=falling');
+    args.push(line);
   } else {
+    // v1: `gpiomon [--falling-edge] CHIP LINE` — chip is positional.
     args.push(input.trigger === 'rising' ? '--rising-edge' : '--falling-edge');
+    args.push(chip);
+    args.push(line);
   }
 
-  args.push(getChip(input.deviceType));
-  args.push(String(input.gpioPin));
   return args;
 }
 
