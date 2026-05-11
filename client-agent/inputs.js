@@ -10,24 +10,46 @@
  * contacts and the server applies its own debounce as a safety net.
  */
 
-const { spawn } = require('child_process');
+const { spawn, execSync } = require('child_process');
 
 /** Map device type → gpiod chip name (matches gpio.js) */
 function getChip(deviceType) {
   return deviceType === 'rpi5' ? 'gpiochip4' : 'gpiochip0';
 }
 
+/**
+ * Detect libgpiod version once at startup.
+ * v1 (Bookworm): gpiomon --falling-edge <chip> <line>
+ * v2 (Trixie):   gpiomon --edges=falling <chip> <line>
+ * The two CLIs are incompatible, so we sniff --help and pick the right one.
+ */
+let _libgpiodVersion = null;
+function getLibgpiodVersion() {
+  if (_libgpiodVersion !== null) return _libgpiodVersion;
+  try {
+    const help = execSync('gpiomon --help 2>&1', { encoding: 'utf8' });
+    _libgpiodVersion = help.includes('--edges') ? 2 : 1;
+    console.log(`[Inputs] Detected libgpiod ${_libgpiodVersion}.x`);
+  } catch {
+    _libgpiodVersion = 1; // safe default for older systems
+  }
+  return _libgpiodVersion;
+}
+
 /** Build gpiomon args for a given config */
 function buildArgs(input) {
   const args = [];
-  // Bias: pull up/down (libgpiod ≥ 1.5). Falls back gracefully if unsupported.
+
+  // Bias: pull up/down (supported on both v1 ≥1.5 and v2)
   if (input.pull === 'up') args.push('--bias=pull-up');
   else if (input.pull === 'down') args.push('--bias=pull-down');
 
-  // Edge selection (we only support single-edge triggers; both edges would
-  // double-fire on a momentary push button)
-  if (input.trigger === 'rising') args.push('--rising-edge');
-  else args.push('--falling-edge');
+  // Edge selection — single-edge only (both-edge would double-fire on a press)
+  if (getLibgpiodVersion() === 2) {
+    args.push(input.trigger === 'rising' ? '--edges=rising' : '--edges=falling');
+  } else {
+    args.push(input.trigger === 'rising' ? '--rising-edge' : '--falling-edge');
+  }
 
   args.push(getChip(input.deviceType));
   args.push(String(input.gpioPin));
@@ -114,10 +136,12 @@ class InputManager {
         const line = stdoutBuf.slice(0, nl).trim();
         stdoutBuf = stdoutBuf.slice(nl + 1);
         if (!line) continue;
-        // Example output: "event:  FALLING EDGE offset: 17 timestamp: [123.456789]"
-        let value = 0;
-        if (/RISING EDGE/i.test(line)) value = 1;
-        else if (/FALLING EDGE/i.test(line)) value = 0;
+        // v1: "event:  FALLING EDGE offset: 17 timestamp: [123.456789]"
+        // v2: "<timestamp>    falling      17    unused"  (varies)
+        // Match the word "rising" or "falling" anywhere to cover both.
+        let value;
+        if (/\brising\b/i.test(line)) value = 1;
+        else if (/\bfalling\b/i.test(line)) value = 0;
         else continue;
 
         const now = Date.now();
