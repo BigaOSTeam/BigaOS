@@ -239,6 +239,9 @@ export const ChartView = React.memo<ChartViewProps>(({
 
   // Refs
   const mapRef = useRef<L.Map>(null);
+  // Populated by MapController; call before a programmatic map.zoomIn/Out to
+  // preserve follow-GPS (same semantics as tapping the on-screen +/- buttons).
+  const flagButtonZoomRef = useRef<(() => void) | null>(null);
 
   // Water debug grid hook
   const { gridPoints, loading: debugLoading, generateGrid, clearGrid, currentResolution } = useWaterDebugGrid(mapRef);
@@ -912,8 +915,8 @@ export const ChartView = React.memo<ChartViewProps>(({
   useEffect(() => {
     chartControl.register({
       recenter: () => setAutoCenter(true),
-      zoomIn: () => { mapRef.current?.zoomIn(); },
-      zoomOut: () => { mapRef.current?.zoomOut(); },
+      zoomIn: () => { flagButtonZoomRef.current?.(); mapRef.current?.zoomIn(); },
+      zoomOut: () => { flagButtonZoomRef.current?.(); mapRef.current?.zoomOut(); },
     });
     return () => { chartControl.register(null); };
   }, [chartControl]);
@@ -1313,6 +1316,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           position={position}
           autoCenter={autoCenter}
           onUserInteract={handleMapDrag}
+          flagButtonZoomRef={flagButtonZoomRef}
         />
         <ZoomTracker onZoomChange={setMapZoom} />
         <LongPressHandler onLongPress={handleLongPress} />

@@ -11,6 +11,11 @@ interface MapControllerProps {
   /** Called when the user pans or pinch-zooms — disables follow-GPS.
    *  Clicking the +/- zoom buttons does NOT trigger this. */
   onUserInteract: () => void;
+  /** Ref populated with a function to mark the next zoomstart as
+   *  programmatic (button-equivalent) so it does not disable follow-GPS.
+   *  Call this before invoking map.zoomIn/Out from outside MapController
+   *  (e.g. physical-button handlers via ChartControlContext). */
+  flagButtonZoomRef?: React.MutableRefObject<(() => void) | null>;
 }
 
 /**
@@ -20,6 +25,7 @@ export const MapController: React.FC<MapControllerProps> = ({
   position,
   autoCenter,
   onUserInteract,
+  flagButtonZoomRef,
 }) => {
   const map = useMap();
 
@@ -34,23 +40,29 @@ export const MapController: React.FC<MapControllerProps> = ({
   }, [position.latitude, position.longitude, map, autoCenter]);
 
   // Pan or pinch-zoom disables follow-GPS so the user can explore freely.
-  // Tapping the +/- zoom buttons should keep follow-GPS active, so we set
-  // a short-lived flag on those clicks and skip the disable for the next
-  // zoomstart it triggers.
+  // Tapping the +/- zoom buttons (or physical-button equivalents) should
+  // keep follow-GPS active, so we set a short-lived flag on those triggers
+  // and skip the disable for the next zoomstart they cause.
   useEffect(() => {
     const zoomContainer = map.getContainer().querySelector('.leaflet-control-zoom');
     let zoomFromButton = false;
     let buttonZoomTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const handleControlClick = (e: Event) => {
-      const target = e.target as HTMLElement;
-      if (target.tagName === 'A') {
-        zoomFromButton = true;
-        // Safety net in case the click is at min/max zoom and no zoomstart fires
-        if (buttonZoomTimer) clearTimeout(buttonZoomTimer);
-        buttonZoomTimer = setTimeout(() => { zoomFromButton = false; }, 500);
-        // Blur after click to drop the focus ring
-        setTimeout(() => target.blur(), 100);
+    const flagButtonZoom = () => {
+      zoomFromButton = true;
+      // Safety net in case the trigger is at min/max zoom and no zoomstart fires
+      if (buttonZoomTimer) clearTimeout(buttonZoomTimer);
+      buttonZoomTimer = setTimeout(() => { zoomFromButton = false; }, 500);
+    };
+
+    const handleControlInteract = (e: Event) => {
+      // closest('a') tolerates clicks/taps on a child element of the
+      // zoom-in/out anchor (defensive in case Leaflet wraps the content).
+      const anchor = (e.target as HTMLElement | null)?.closest?.('a');
+      if (anchor && zoomContainer?.contains(anchor)) {
+        flagButtonZoom();
+        // Blur after interaction to drop the focus ring
+        setTimeout(() => (anchor as HTMLElement).blur(), 100);
       }
     };
 
@@ -62,17 +74,34 @@ export const MapController: React.FC<MapControllerProps> = ({
       onUserInteract();
     };
 
-    if (zoomContainer) zoomContainer.addEventListener('click', handleControlClick);
+    // Capture phase + pointerdown: must run before Leaflet's anchor handler,
+    // which synchronously calls map.zoomIn/Out → zoomstart. Bubble-phase
+    // 'click' is too late on touch devices because Leaflet's tap simulator
+    // triggers the zoom on touchend, before the synthesized click arrives.
+    // Pointerdown fires before all of that; click is kept as a safety net
+    // for mouse and any edge cases where pointer events are unavailable.
+    if (zoomContainer) {
+      zoomContainer.addEventListener('pointerdown', handleControlInteract, true);
+      zoomContainer.addEventListener('click', handleControlInteract, true);
+    }
     map.on('dragstart', onUserInteract);
     map.on('zoomstart', handleZoomStart);
 
+    // Expose the flag-setter so external callers (physical buttons via
+    // ChartControlContext) can mark their map.zoomIn/Out as button-equivalent.
+    if (flagButtonZoomRef) flagButtonZoomRef.current = flagButtonZoom;
+
     return () => {
-      if (zoomContainer) zoomContainer.removeEventListener('click', handleControlClick);
+      if (zoomContainer) {
+        zoomContainer.removeEventListener('pointerdown', handleControlInteract, true);
+        zoomContainer.removeEventListener('click', handleControlInteract, true);
+      }
       map.off('dragstart', onUserInteract);
       map.off('zoomstart', handleZoomStart);
       if (buttonZoomTimer) clearTimeout(buttonZoomTimer);
+      if (flagButtonZoomRef) flagButtonZoomRef.current = null;
     };
-  }, [map, onUserInteract]);
+  }, [map, onUserInteract, flagButtonZoomRef]);
 
   return null;
 };
