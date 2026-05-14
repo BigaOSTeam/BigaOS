@@ -578,10 +578,30 @@ body {
   }
 }
 
+/* Suppress focus outlines for non-keyboard focus (touch/mouse taps).
+   :focus-visible only matches when the browser thinks the focus is
+   keyboard-driven (Tab navigation), so Tab-users still get a visible
+   ring while touch taps no longer leave the last-tapped element
+   looking "stuck active". Some kiosk touchscreens fire pointerdown
+   but not a clean pointerup, which makes the default outline persist
+   indefinitely until another element gets focus. */
+:focus:not(:focus-visible) {
+  outline: none;
+}
+button:focus:not(:focus-visible),
+a:focus:not(:focus-visible),
+[role="button"]:focus:not(:focus-visible) {
+  outline: none;
+  box-shadow: none;
+}
+
 /* Generic touch-friendly button */
 .touch-btn {
   cursor: pointer;
   transition: background 0.2s;
+  /* Kill Android/Chromium's blue tap highlight overlay — we provide our
+     own press feedback via :active and the .active class. */
+  -webkit-tap-highlight-color: transparent;
 }
 
 .touch-btn.active {
