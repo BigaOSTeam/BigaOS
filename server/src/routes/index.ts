@@ -10,7 +10,9 @@ import { weatherController } from '../controllers/weather.controller';
 import { unifiedDataController } from '../controllers/unified-data.controller';
 import { systemController } from '../controllers/system.controller';
 import { apkController } from '../controllers/apk.controller';
+import { configController } from '../controllers/config.controller';
 import clientsRouter from './clients';
+import express from 'express';
 
 const router = Router();
 
@@ -135,5 +137,16 @@ router.post('/system/update/install', heavyOpsLimiter, systemController.installU
 // Android APK routes — info + download for the in-app update flow.
 router.get('/apk/info', fileOpsLimiter, apkController.getInfo);
 router.get('/apk/download', fileOpsLimiter, apkController.download);
+
+// Config backup — manual export/import of user configuration.
+// Import accepts a larger body than the global 100kb default because bundles
+// include all plugin configs, marker lists, etc.
+router.get('/config/export', heavyOpsLimiter, configController.export.bind(configController));
+router.post(
+  '/config/import',
+  heavyOpsLimiter,
+  express.json({ limit: '10mb' }),
+  configController.import.bind(configController)
+);
 
 export default router;

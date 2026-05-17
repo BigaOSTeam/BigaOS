@@ -396,4 +396,29 @@ export const systemAPI = {
     api.post<{ status: string; version: string }>('/system/update/install'),
 };
 
+// Config backup
+export interface ConfigImportSummary {
+  status: 'ok';
+  settingsCount: number;
+  switchesCount: number;
+  buttonsCount: number;
+  /** Plugins that were already on disk or that we successfully fetched from the registry. */
+  pluginsReinstalled?: string[];
+  /** Plugins listed in the bundle but missing from the registry — user must install manually. */
+  pluginsMissing?: string[];
+}
+
+export const configAPI = {
+  /** URL the browser hits to trigger a file download for the config bundle. */
+  exportUrl: () => `${API_BASE_URL}/config/export`,
+
+  /** Import a parsed bundle. The server wipes + rewrites settings/switches/buttons. */
+  import: (bundle: unknown) =>
+    api.post<ConfigImportSummary>('/config/import', bundle, {
+      // Imports can include plugin configs and may trigger plugin
+      // reinstalls from the registry — give it lots of headroom.
+      timeout: 180000,
+    }),
+};
+
 export default api;

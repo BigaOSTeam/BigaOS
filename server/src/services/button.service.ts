@@ -150,6 +150,24 @@ export class ButtonService extends EventEmitter {
     return true;
   }
 
+  /**
+   * Reload the entire button map from the database. Used after a config
+   * import bulk-rewrites the buttons table.
+   */
+  async reloadFromDb(): Promise<void> {
+    const previousClientIds = new Set<string>();
+    for (const b of this.buttons.values()) previousClientIds.add(b.sourceClientId);
+
+    const rows: ButtonRow[] = await dbWorker.getAllButtons();
+    this.buttons.clear();
+    this.lastFireMs.clear();
+    for (const row of rows) {
+      this.buttons.set(row.id, rowToButton(row));
+      previousClientIds.add(row.source_client_id);
+    }
+    this.emit('buttons_changed', { affectedClientIds: Array.from(previousClientIds) });
+  }
+
   // ==================== EVENT DISPATCH ====================
 
   /**

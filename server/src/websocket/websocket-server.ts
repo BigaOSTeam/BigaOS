@@ -1334,6 +1334,31 @@ export class WebSocketServer {
     });
   }
 
+  /**
+   * Broadcast a full settings_sync to every connected client. Used after a
+   * config import wholesale-rewrites the settings table; one event re-seeds
+   * every client's SettingsContext and BoatSettings.
+   */
+  public async broadcastSettingsSyncAll(): Promise<void> {
+    try {
+      const allSettings = await dbWorker.getAllSettings();
+      const settingsObj: Record<string, any> = {};
+      for (const setting of allSettings) {
+        try {
+          settingsObj[setting.key] = JSON.parse(setting.value);
+        } catch {
+          settingsObj[setting.key] = setting.value;
+        }
+      }
+      this.io.emit('settings_sync', {
+        settings: settingsObj,
+        timestamp: new Date(),
+      });
+    } catch (error) {
+      console.error('[WebSocketServer] broadcastSettingsSyncAll failed:', error);
+    }
+  }
+
   public getOnlineClientIds(clientIds: string[]): string[] {
     const online: string[] = [];
     for (const id of clientIds) {

@@ -587,6 +587,13 @@ class DatabaseWorkerService {
     });
   }
 
+  async deleteAllSwitches(): Promise<void> {
+    await this.send('execute', {
+      sql: `DELETE FROM switches`,
+      params: []
+    });
+  }
+
   // ==================== BUTTONS ====================
 
   async getAllButtons(): Promise<any[]> {
@@ -668,6 +675,27 @@ class DatabaseWorkerService {
     await this.send('execute', {
       sql: `DELETE FROM buttons WHERE id = ?`,
       params: [id],
+    });
+  }
+
+  async deleteAllButtons(): Promise<void> {
+    await this.send('execute', {
+      sql: `DELETE FROM buttons`,
+      params: [],
+    });
+  }
+
+  // ==================== CONFIG IMPORT/EXPORT ====================
+
+  /**
+   * Wipe every key in the global settings table. Used by config import
+   * before applying the imported settings; ensures the imported bundle is
+   * the entire source of truth, not a diff applied on top of stale state.
+   */
+  async deleteAllSettings(): Promise<void> {
+    await this.send('execute', {
+      sql: `DELETE FROM settings`,
+      params: [],
     });
   }
 

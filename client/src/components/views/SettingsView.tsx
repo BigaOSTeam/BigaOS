@@ -18,7 +18,7 @@ import {
   temperatureConversions,
 } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
-import { dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats, systemAPI, UpdateInfo } from '../../services/api';
+import { configAPI, dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats, systemAPI, UpdateInfo } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { AlertsTab } from '../settings/AlertsTab';
 import { SwitchesTab } from '../settings/SwitchesTab';
@@ -30,6 +30,7 @@ import { ChartTab } from '../settings/ChartTab';
 import { ClientsTab } from '../settings/ClientsTab';
 import { DisplayTab } from '../settings/DisplayTab';
 import { ServerConnectionSection } from '../settings/ServerConnectionSection';
+import { isNativeApp } from '../../utils/serverConfig';
 
 import { useClient } from '../../context/ClientContext';
 import { useClientSetting } from '../../context/ClientSettingsContext';
@@ -1078,6 +1079,128 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   );
 
   // ================================================================
+  // Config backup (Advanced tab)
+  // ================================================================
+
+  const configFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [configBackupBusy, setConfigBackupBusy] = useState<null | 'export' | 'import'>(null);
+  const [configBackupNotice, setConfigBackupNotice] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+  const configNoticeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Auto-clear the export/import notice. Success messages fade out so a stale
+  // "Download started" doesn't sit there until the next page reload; errors
+  // get a longer window so the user has time to read them.
+  const showConfigNotice = useCallback((notice: { kind: 'ok' | 'err'; text: string } | null) => {
+    if (configNoticeTimerRef.current) {
+      clearTimeout(configNoticeTimerRef.current);
+      configNoticeTimerRef.current = null;
+    }
+    setConfigBackupNotice(notice);
+    if (notice) {
+      const ms = notice.kind === 'ok' ? 5000 : 10000;
+      configNoticeTimerRef.current = setTimeout(() => {
+        setConfigBackupNotice(null);
+        configNoticeTimerRef.current = null;
+      }, ms);
+    }
+  }, []);
+  useEffect(() => () => {
+    if (configNoticeTimerRef.current) clearTimeout(configNoticeTimerRef.current);
+  }, []);
+
+  const handleConfigExport = async () => {
+    if (configBackupBusy) return;
+    setConfigBackupBusy('export');
+    showConfigNotice(null);
+    try {
+      const url = configAPI.exportUrl();
+      if (isNativeApp()) {
+        // Capacitor's Android WebView has no DownloadListener wired up, so
+        // `<a download>` is a no-op inside the app. The WebView's origin is
+        // `http://localhost` (androidScheme: 'http'), so the server's URL
+        // is a different origin and Capacitor's BridgeWebViewClient routes
+        // window.open to the system browser via an Intent. Chrome sees the
+        // server's Content-Disposition: attachment and downloads the JSON.
+        window.open(url, '_blank');
+        showConfigNotice({ kind: 'ok', text: t('config_backup.export_native_done') });
+      } else {
+        // Trigger a browser download by clicking a hidden link to the
+        // export URL. Using <a download> rather than fetch+Blob keeps
+        // memory pressure low for large bundles.
+        const a = document.createElement('a');
+        a.href = url;
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        showConfigNotice({ kind: 'ok', text: t('config_backup.export_started') });
+      }
+    } catch (error: any) {
+      console.error('[ConfigBackup] export failed:', error);
+      showConfigNotice({ kind: 'err', text: error.message || t('config_backup.export_failed') });
+    } finally {
+      setConfigBackupBusy(null);
+    }
+  };
+
+  const handleConfigImportPick = () => {
+    if (configBackupBusy) return;
+    configFileInputRef.current?.click();
+  };
+
+  const handleConfigImportFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // Clear the input value so picking the same file twice still fires onChange.
+    event.target.value = '';
+    if (!file) return;
+
+    let bundle: any;
+    try {
+      const text = await file.text();
+      bundle = JSON.parse(text);
+    } catch (error) {
+      showConfigNotice({ kind: 'err', text: t('config_backup.invalid_file') });
+      return;
+    }
+
+    const confirmed = await confirm({
+      title: t('config_backup.import_confirm_title'),
+      message: t('config_backup.import_confirm_message'),
+      confirmLabel: t('config_backup.import_confirm_button'),
+      cancelLabel: t('common.cancel'),
+    });
+    if (!confirmed) return;
+
+    setConfigBackupBusy('import');
+    showConfigNotice(null);
+    try {
+      const { data } = await configAPI.import(bundle);
+      const lines = [t('config_backup.import_done', {
+        settings: String(data.settingsCount),
+        switches: String(data.switchesCount),
+        buttons: String(data.buttonsCount),
+      })];
+      if (data.pluginsReinstalled && data.pluginsReinstalled.length > 0) {
+        lines.push(t('config_backup.import_plugins_reinstalled', {
+          list: data.pluginsReinstalled.join(', '),
+        }));
+      }
+      if (data.pluginsMissing && data.pluginsMissing.length > 0) {
+        lines.push(t('config_backup.import_plugins_missing', {
+          list: data.pluginsMissing.join(', '),
+        }));
+      }
+      showConfigNotice({ kind: 'ok', text: lines.join(' ') });
+    } catch (error: any) {
+      console.error('[ConfigBackup] import failed:', error);
+      const msg = error?.response?.data?.error || error.message || t('config_backup.import_failed');
+      showConfigNotice({ kind: 'err', text: msg });
+    } finally {
+      setConfigBackupBusy(null);
+    }
+  };
+
+  // ================================================================
   // Advanced Tab
   // ================================================================
 
@@ -1277,6 +1400,60 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         <br /><br />
         {t('advanced.weather_info')}
       </SInfoBox>
+
+      {/* Config backup — export/import the user's configuration as a JSON
+          bundle. The disaster-recovery path when the NVMe dies. */}
+      <SSection style={{ marginTop: theme.space.xl }}>{t('config_backup.title')}</SSection>
+
+      <div style={{ marginBottom: theme.space.md, color: theme.colors.textMuted, fontSize: theme.fontSize.sm }}>
+        {t('config_backup.description')}
+      </div>
+
+      <div style={{ display: 'flex', gap: theme.space.sm, marginBottom: theme.space.md, flexWrap: 'wrap' }}>
+        <SButton
+          variant="outline"
+          onClick={handleConfigExport}
+          disabled={configBackupBusy !== null}
+        >
+          {configBackupBusy === 'export'
+            ? t('config_backup.exporting')
+            : t('config_backup.export_button')}
+        </SButton>
+        <SButton
+          variant="outline"
+          onClick={handleConfigImportPick}
+          disabled={configBackupBusy !== null}
+        >
+          {configBackupBusy === 'import'
+            ? t('config_backup.importing')
+            : t('config_backup.import_button')}
+        </SButton>
+        <input
+          ref={configFileInputRef}
+          type="file"
+          accept="application/json,.json"
+          style={{ display: 'none' }}
+          onChange={handleConfigImportFile}
+        />
+      </div>
+
+      {configBackupNotice && (
+        <div
+          style={{
+            padding: `${theme.space.sm} ${theme.space.md}`,
+            borderRadius: theme.radius.md,
+            background: configBackupNotice.kind === 'ok' ? theme.colors.bgCard : theme.colors.bgCard,
+            border: `1px solid ${configBackupNotice.kind === 'ok' ? theme.colors.success : theme.colors.warning}`,
+            color: configBackupNotice.kind === 'ok' ? theme.colors.success : theme.colors.warning,
+            fontSize: theme.fontSize.sm,
+            marginBottom: theme.space.md,
+          }}
+        >
+          {configBackupNotice.text}
+        </div>
+      )}
+
+      <SInfoBox>{t('config_backup.info')}</SInfoBox>
     </div>
   );
 

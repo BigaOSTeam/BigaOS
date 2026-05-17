@@ -390,6 +390,26 @@ advanced.map_tiles_info=Kartenkacheln: Verwenden Sie das Standard-XYZ-Kachelform
 advanced.geocoding_info=Geocoding: Wird für die Ortssuche verwendet. Standard ist Photon (kostenlos, CORS-fähig).
 advanced.weather_info=Wetter: Verwendet Open-Meteo (kostenlos, kein API-Schlüssel). Wind- und Marinedaten werden automatisch basierend auf der Bootsposition abgerufen.
 
+# ==================== Konfigurations-Backup ====================
+config_backup.title=Konfigurations-Backup
+config_backup.description=Eine einzige Datei mit allen Einstellungen, Alarmen, Relais, Tastern, Markierungen und Plugin-Konfigurationen herunterladen. Falls die NVMe einmal ausfällt, lädst du sie nach der Neuinstallation wieder hoch und das System ist wieder so, wie du es verlassen hast.
+config_backup.export_button=Konfiguration exportieren
+config_backup.exporting=Exportiere...
+config_backup.import_button=Konfiguration importieren
+config_backup.importing=Importiere...
+config_backup.export_started=Download gestartet.
+config_backup.export_native_done=Bundle im Browser geöffnet — speichere die Datei dort ab.
+config_backup.export_failed=Export fehlgeschlagen.
+config_backup.invalid_file=Diese Datei ist kein gültiges Konfigurations-Backup.
+config_backup.import_confirm_title=Aktuelle Konfiguration ersetzen?
+config_backup.import_confirm_message=Damit werden Einstellungen, Alarme, Relais, Taster, Markierungen und Plugin-Konfiguration durch den Inhalt der Datei überschrieben. Sensordaten und Logs bleiben unangetastet.
+config_backup.import_confirm_button=Ersetzen
+config_backup.import_done={settings} Einstellungen, {switches} Relais und {buttons} Taster wiederhergestellt.
+config_backup.import_plugins_reinstalled=Plugins neu installiert: {list}.
+config_backup.import_plugins_missing=Plugins nicht in der Registry gefunden — bitte manuell installieren: {list}.
+config_backup.import_failed=Import fehlgeschlagen.
+config_backup.info=Das Backup enthält nur, was du konfiguriert hast — keine Sensorhistorie, keine Logdateien, keine Fahrtdaten. Im Backup aufgeführte Plugins musst du separat neu installieren. Ihre gespeicherte Konfiguration wird automatisch wiederhergestellt, sobald sie wieder da sind.
+
 # ==================== Terminal ====================
 terminal.title=Server-Logs
 terminal.refresh=Aktualisieren

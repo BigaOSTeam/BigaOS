@@ -390,6 +390,26 @@ advanced.map_tiles_info=Map Tiles: Use standard XYZ tile format with placeholder
 advanced.geocoding_info=Geocoding: Used for location search. Default uses Photon (free, CORS-enabled).
 advanced.weather_info=Weather: Uses Open-Meteo (free, no API key). Wind and marine data fetched automatically based on boat position.
 
+# ==================== Config Backup ====================
+config_backup.title=Config Backup
+config_backup.description=Download a single file with every setting, alert, switch, button, marker and plugin config. If the NVMe ever dies, upload it back after reinstall and the system is where you left it.
+config_backup.export_button=Export Config
+config_backup.exporting=Exporting...
+config_backup.import_button=Import Config
+config_backup.importing=Importing...
+config_backup.export_started=Download started.
+config_backup.export_native_done=Opened the bundle in your browser — save the file from there.
+config_backup.export_failed=Export failed.
+config_backup.invalid_file=That file isn't a valid config bundle.
+config_backup.import_confirm_title=Replace current configuration?
+config_backup.import_confirm_message=This overwrites your settings, alerts, switches, buttons, markers and plugin configuration with the contents of the file. Sensor history and logs are untouched.
+config_backup.import_confirm_button=Replace
+config_backup.import_done=Restored {settings} settings, {switches} switches, {buttons} buttons.
+config_backup.import_plugins_reinstalled=Plugins reinstalled: {list}.
+config_backup.import_plugins_missing=Plugins not found in the registry — install manually: {list}.
+config_backup.import_failed=Import failed.
+config_backup.info=The bundle only contains what you configured — no sensor history, no log files, no underway data. Plugins listed in the bundle must be reinstalled separately; their saved config is restored automatically once they're back.
+
 # ==================== Terminal ====================
 terminal.title=Server Logs
 terminal.refresh=Refresh

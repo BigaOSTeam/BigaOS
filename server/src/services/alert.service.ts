@@ -137,6 +137,17 @@ export class AlertService extends EventEmitter {
   }
 
   /**
+   * Reload settings + units from the database. Used after a config import
+   * rewrites the settings table behind the service's back, so the in-memory
+   * state matches what's on disk again.
+   */
+  async reloadFromDb(): Promise<void> {
+    await this.loadSettings();
+    await this.loadUserUnits();
+    this.emit('settings_updated', this.getSettingsForDisplay());
+  }
+
+  /**
    * Refresh alert messages for active triggered alerts (e.g. after language change).
    * Re-generates alertName and message using current i18n language.
    */

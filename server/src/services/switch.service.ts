@@ -127,6 +127,19 @@ export class SwitchService extends EventEmitter {
     return true;
   }
 
+  /**
+   * Reload the entire switch map from the database. Used after a config
+   * import bulk-rewrites the switches table.
+   */
+  async reloadFromDb(): Promise<void> {
+    const rows: SwitchRow[] = await dbWorker.getAllSwitches();
+    this.switches.clear();
+    for (const row of rows) {
+      this.switches.set(row.id, rowToSwitch(row));
+    }
+    this.emit('switches_changed');
+  }
+
   // ==================== TOGGLE FLOW ====================
 
   /**

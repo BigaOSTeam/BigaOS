@@ -91,6 +91,23 @@ export class PluginManager extends EventEmitter {
     // Discover installed plugins
     this.discoverPlugins(pluginStates);
 
+    // Persist an explicit state row for every discovered plugin. Without
+    // this, plugins that ship pre-installed on disk and were never
+    // explicitly toggled never appear in `pluginStates`, which means a
+    // config-backup export would lose track of them. Idempotent on
+    // subsequent boots.
+    let statesChanged = false;
+    for (const id of this.plugins.keys()) {
+      if (!pluginStates.has(id)) {
+        pluginStates.set(id, this.plugins.get(id)!.enabledByUser);
+        statesChanged = true;
+      }
+    }
+    if (statesChanged) {
+      const obj = Object.fromEntries(pluginStates);
+      await dbWorker.setSetting('pluginStates', JSON.stringify(obj));
+    }
+
     // Detect orphaned plugin states: DB says enabled but plugin files are missing
     for (const [id, enabled] of pluginStates) {
       if (enabled && !this.plugins.has(id)) {
