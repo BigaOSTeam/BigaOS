@@ -78,10 +78,13 @@ class TilesController {
   private tileRefsPath: string;
   private activeDownloads: Map<string, ActiveTileDownload> = new Map();
 
-  // Failed tile cache - stores tile URLs that failed with timestamp
-  // Prevents re-requesting tiles that timed out or failed
+  // Failed tile cache - stores tile URLs that failed with timestamp.
+  // Short TTL only — its job is to keep a brief upstream hiccup from
+  // hammering the remote server, not to permanently blank tiles.
+  // Timeouts are NOT cached (too transient); only hard upstream errors are.
+  // A client retry that includes ?_cb=... bypasses this cache.
   private failedTileCache: Map<string, number> = new Map();
-  private readonly FAILED_TILE_CACHE_DURATION_MS = 5 * 60 * 1000; // 5 minutes
+  private readonly FAILED_TILE_CACHE_DURATION_MS = 30 * 1000; // 30 seconds
 
   // Download settings
   // OpenSeaMap guidelines suggest 2-4 concurrent connections for bulk downloads
@@ -1026,11 +1029,15 @@ class TilesController {
     try {
       const url = getTileUrl(source as TileLayer, parseInt(z), parseInt(x), parseInt(yValue));
 
-      // Check if this tile recently failed - skip request to avoid flooding the tile server
-      // but don't show a placeholder (just let it return an empty response or retry later)
-      if (this.isFailedTile(url)) {
+      // Skip failure-cache check if the client is explicitly retrying with a cache-buster.
+      // The client's BufferedTileLayer adds `_cb=...` on tileerror retries so a brief
+      // upstream hiccup doesn't strand the tile as a white square for the cache TTL.
+      const isClientRetry = typeof req.query._cb !== 'undefined';
+
+      if (!isClientRetry && this.isFailedTile(url)) {
         // Return 204 No Content - this will cause the tile to show as empty/transparent
-        // but won't show the "Not Downloaded" placeholder while online
+        // but won't show the "Not Downloaded" placeholder while online.
+        // The client's retry logic will re-attempt with `_cb=` to bypass this cache.
         res.setHeader('X-Tile-Source', 'cached-failure');
         res.setHeader('X-Offline-Mode', 'false');
         res.setHeader('Cache-Control', 'no-cache');
@@ -1041,13 +1048,14 @@ class TilesController {
       res.setHeader('X-Offline-Mode', 'false');
       await this.proxyTile(url, res);
     } catch (error) {
-      // Mark this tile as failed to avoid re-requesting
       const url = getTileUrl(source as TileLayer, parseInt(z), parseInt(x), parseInt(yValue));
-      this.markTileFailed(url);
-
-      // Only log non-timeout errors (timeouts are expected when servers are slow)
       const isTimeout = error instanceof Error && error.message === 'Timeout';
+
+      // Only cache hard failures, not timeouts. Timeouts are usually transient
+      // (slow upstream, brief network blip) and caching them just turns one slow
+      // request into a white tile for the entire cache TTL.
       if (!isTimeout) {
+        this.markTileFailed(url);
         console.error('Error proxying tile:', error);
       }
 
