@@ -24,6 +24,7 @@ import { WeatherDataService, weatherDataService } from './weather-data.service';
 import { AlertService, alertService } from './alert.service';
 import { SwitchService, switchService } from './switch.service';
 import { ButtonService, buttonService } from './button.service';
+import { LogbookService, logbookService } from './logbook.service';
 import { SensorMappingService } from './sensor-mapping.service';
 import { PluginManager } from './plugin-manager';
 import { TankService } from './tank.service';
@@ -55,6 +56,7 @@ export class DataController extends EventEmitter {
   private alertServiceInstance: AlertService;
   private switchServiceInstance: SwitchService;
   private buttonServiceInstance: ButtonService;
+  private logbookServiceInstance: LogbookService;
   private sensorMappingService: SensorMappingService | null = null;
   private pluginManager: PluginManager | null = null;
   private tankService: TankService | null = null;
@@ -75,6 +77,7 @@ export class DataController extends EventEmitter {
     this.alertServiceInstance = alertService;
     this.switchServiceInstance = switchService;
     this.buttonServiceInstance = buttonService;
+    this.logbookServiceInstance = logbookService;
   }
 
   /**
@@ -104,6 +107,15 @@ export class DataController extends EventEmitter {
 
     // Initialize button service
     await this.buttonServiceInstance.initialize();
+
+    // Initialize logbook service (resumes any open segment from before reboot)
+    await this.logbookServiceInstance.initialize();
+
+    // Forward segment-closed events so the WebSocket layer can broadcast them
+    // to the client list view without subscribing to the logbook directly.
+    this.logbookServiceInstance.on('segment_closed', (data) => {
+      this.emit('logbook_segment_closed', data);
+    });
 
     // Initialize plugin system
     await this.initializePluginSystem();
@@ -256,6 +268,10 @@ export class DataController extends EventEmitter {
 
     // Evaluate alerts against sensor data
     this.alertServiceInstance.evaluateSensorData(data);
+
+    // Feed the logbook recorder. It runs its own SOG-hysteresis state machine
+    // on standard units, so we hand it the unconverted packet.
+    this.logbookServiceInstance.onSensorData(data);
 
     // Emit event with data in DISPLAY units for WebSocket
     const displayData = this.convertSensorDataToDisplay(data);
@@ -472,6 +488,10 @@ export class DataController extends EventEmitter {
 
   getButtonService(): ButtonService {
     return this.buttonServiceInstance;
+  }
+
+  getLogbookService(): LogbookService {
+    return this.logbookServiceInstance;
   }
 
   getPluginManager(): PluginManager | null {

@@ -1080,3 +1080,25 @@ tutorial.monitoring.title=Alerts, Switches, Tanks
 tutorial.monitoring.body=Set up alerts for wind, depth, batteries — anything you want to watch.\n\nControl onboard circuits from switch tiles. Calibrate tanks once for accurate fill levels.\n\nAll in Settings.
 tutorial.done.title=You're set
 tutorial.done.body=Help is in the sidebar — short articles for every feature, in your language.\n\nReplay this tour any time from Help → Welcome.
+
+# ==================== Logbook ====================
+logbook.title=Logbook
+logbook.today=Today
+logbook.yesterday=Yesterday
+logbook.no_entries_yet=No logbook entries yet
+logbook.no_entries_hint=Take the boat out and entries appear here automatically. Recording starts as soon as the GPS sees you moving.
+logbook.max=max
+logbook.avg=avg
+logbook.distance=Distance
+logbook.time_underway=Time underway
+logbook.avg_speed=Avg speed
+logbook.max_speed=Max speed
+logbook.trips=Trips
+logbook.in_progress=now
+logbook.no_track=No GPS track recorded for this day.
+logbook.title_placeholder=A short name for this day — e.g. "Trip to Helgoland"
+logbook.note=Remarks
+logbook.note_placeholder=Wind, harbor, who came along — anything worth remembering.
+logbook.prev_day=Previous
+logbook.next_day=Next
+logbook.calendar=Calendar

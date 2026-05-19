@@ -129,6 +129,15 @@ export class WebSocketServer {
       });
     });
 
+    // Logbook events — fires whenever a segment auto-closes (boat stopped, or
+    // midnight rollover) so the client's day list can refresh totals live.
+    this.dataController.on('logbook_segment_closed', (data: { id: number; dayDate: string }) => {
+      this.io.emit('logbook_segment_closed', {
+        ...data,
+        timestamp: new Date(),
+      });
+    });
+
     // Switch service events
     const switchSvc = this.dataController.getSwitchService();
     switchSvc.on('switches_changed', () => {

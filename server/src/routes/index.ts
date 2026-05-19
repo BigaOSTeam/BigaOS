@@ -11,6 +11,7 @@ import { unifiedDataController } from '../controllers/unified-data.controller';
 import { systemController } from '../controllers/system.controller';
 import { apkController } from '../controllers/apk.controller';
 import { configController } from '../controllers/config.controller';
+import { LogbookController } from '../controllers/logbook.controller';
 import clientsRouter from './clients';
 import express from 'express';
 
@@ -137,6 +138,13 @@ router.post('/system/update/install', heavyOpsLimiter, systemController.installU
 // Android APK routes — info + download for the in-app update flow.
 router.get('/apk/info', fileOpsLimiter, apkController.getInfo);
 router.get('/apk/download', fileOpsLimiter, apkController.download);
+
+// Logbook — passive GPS recording with per-day notes and replay. Read + edit
+// only; the logbook is immutable history, no delete endpoint.
+router.get('/logbook/days', LogbookController.listDays);
+router.get('/logbook/days/:date', LogbookController.getDay);
+router.get('/logbook/days/:date/track', LogbookController.getDayTrack);
+router.patch('/logbook/days/:date', LogbookController.updateDay);
 
 // Config backup — manual export/import of user configuration.
 // Import accepts a larger body than the global 100kb default because bundles

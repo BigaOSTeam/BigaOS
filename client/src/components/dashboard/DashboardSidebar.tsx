@@ -137,6 +137,33 @@ export const DashboardSidebar: React.FC<DashboardSidebarProps> = ({
         {!hideLabels && <span style={{ opacity: 0.7 }}>{t('switches.title')}</span>}
       </button>
 
+      {/* Logbook button */}
+      <button
+        onClick={() => onNavigate('logbook')}
+        className="chart-sidebar-btn with-label"
+        style={{
+          ...(isHorizontal
+            ? { borderLeft: separator, width: `${sidebarWidth}px`, height: '100%' }
+            : { borderTop: separator }),
+        }}
+        title={t('logbook.title')}
+      >
+        <svg
+          width="24"
+          height="24"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+          <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+        </svg>
+        {!hideLabels && <span style={{ opacity: 0.7 }}>{t('logbook.title')}</span>}
+      </button>
+
       {/* Edit button */}
       <button
         onClick={onEditMode}

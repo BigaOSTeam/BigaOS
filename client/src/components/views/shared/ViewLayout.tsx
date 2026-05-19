@@ -6,6 +6,12 @@ interface ViewLayoutProps {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /**
+   * Which icon to show on the close button.
+   * - 'home' (default): house icon — used by top-level views that exit to the dashboard.
+   * - 'back': left-arrow — used by sub-views that return to a parent screen.
+   */
+  backVariant?: 'home' | 'back';
 }
 
 /**
@@ -15,6 +21,7 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
   title,
   onClose,
   children,
+  backVariant = 'home',
 }) => {
   const { theme } = useTheme();
   return (
@@ -54,19 +61,35 @@ export const ViewLayout: React.FC<ViewLayoutProps> = ({
             borderRadius: theme.radius.md,
           }}
         >
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-            <polyline points="9 22 9 12 15 12 15 22" />
-          </svg>
+          {backVariant === 'back' ? (
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <line x1="19" y1="12" x2="5" y2="12" />
+              <polyline points="12 19 5 12 12 5" />
+            </svg>
+          ) : (
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+              <polyline points="9 22 9 12 15 12 15 22" />
+            </svg>
+          )}
         </button>
         <h1 style={{ fontSize: '1.25rem', fontWeight: 'bold', margin: 0 }}>
           {title}

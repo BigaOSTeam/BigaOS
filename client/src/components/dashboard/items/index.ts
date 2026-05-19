@@ -16,3 +16,4 @@ export { RollItem } from './RollItem';
 export { PitchItem } from './PitchItem';
 export { SwitchItem } from './SwitchItem';
 export { TankItem } from './TankItem';
+export { LogbookItem } from './LogbookItem';

@@ -408,6 +408,67 @@ export interface ConfigImportSummary {
   pluginsMissing?: string[];
 }
 
+// Logbook API — passive GPS recording with per-day notes and replay.
+// All values from the server are in STANDARD units (m/s for speeds, meters for
+// distance, radians for course, epoch-ms for timestamps). The client converts
+// to user-preferred units at render time.
+export interface LogbookDaySummary {
+  date: string;                // 'YYYY-MM-DD'
+  title: string | null;
+  note: string | null;
+  first_segment_at: number | null;
+  last_segment_at: number | null;
+  distance_m: number;
+  underway_ms: number;
+  max_sog: number;             // m/s
+  segment_count: number;
+}
+
+export interface LogbookSegment {
+  id: number;
+  started_at: number;
+  ended_at: number | null;
+  distance_m: number;
+  avg_sog: number;             // m/s
+  max_sog: number;             // m/s
+  start_lat: number | null;
+  start_lon: number | null;
+  end_lat: number | null;
+  end_lon: number | null;
+  point_count: number;
+}
+
+export interface LogbookDay {
+  date: string;
+  title: string | null;
+  note: string | null;
+  first_segment_at: number | null;
+  last_segment_at: number | null;
+}
+
+export interface LogbookTrackpoint {
+  ts: number;
+  lat: number;
+  lon: number;
+  sog: number | null;
+  cog: number | null;
+  segment_id: number | null;
+}
+
+export const logbookAPI = {
+  listDays: (params?: { from?: string; to?: string; limit?: number }) =>
+    api.get<{ days: LogbookDaySummary[] }>('/logbook/days', { params }),
+
+  getDay: (date: string) =>
+    api.get<{ day: LogbookDay; segments: LogbookSegment[] }>(`/logbook/days/${date}`),
+
+  getTrack: (date: string) =>
+    api.get<{ date: string; points: LogbookTrackpoint[] }>(`/logbook/days/${date}/track`),
+
+  updateDay: (date: string, body: { title?: string | null; note?: string | null }) =>
+    api.patch<{ success: true }>(`/logbook/days/${date}`, body),
+};
+
 export const configAPI = {
   /** URL the browser hits to trigger a file download for the config bundle. */
   exportUrl: () => `${API_BASE_URL}/config/export`,

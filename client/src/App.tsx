@@ -16,6 +16,7 @@ import { PitchView } from './components/views/PitchView';
 import { SwitchesView } from './components/views/SwitchesView';
 import { InstrumentsView } from './components/views/InstrumentsView';
 import { TankView } from './components/views/TankView';
+import { LogbookView } from './components/views/LogbookView';
 import { HelpView } from './components/help/HelpView';
 import { SettingsProvider, useSettings } from './context/SettingsContext';
 import { ConfirmDialogProvider } from './context/ConfirmDialogContext';
@@ -710,6 +711,19 @@ function AppContent() {
     return (
       <>
         <HelpView initialSlug={navigationParams.help?.slug} onClose={handleGoBack} />
+        <DemoModeBanner />
+        <ConnectivityBanner />
+        <ServerUnreachableBanner />
+        <ApkUpdateBanner />
+        <SystemUpdatingOverlay {...overlayProps} />
+      </>
+    );
+  }
+
+  if (activeView === 'logbook') {
+    return (
+      <>
+        <LogbookView onClose={handleGoBack} />
         <DemoModeBanner />
         <ConnectivityBanner />
         <ServerUnreachableBanner />

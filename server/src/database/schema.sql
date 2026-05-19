@@ -177,6 +177,50 @@ CREATE TABLE IF NOT EXISTS buttons (
 
 CREATE INDEX IF NOT EXISTS idx_buttons_source ON buttons(source_client_id);
 
+-- Logbook
+-- Passive GPS recording with auto-segmented "underway" stretches and per-day notes.
+-- All values are stored in STANDARD units (m/s for speeds, radians for course,
+-- meters for distance, decimal degrees for lat/lon, epoch-ms for timestamps).
+
+CREATE TABLE IF NOT EXISTS logbook_day (
+    date              TEXT PRIMARY KEY,   -- 'YYYY-MM-DD' (boat's local date)
+    title             TEXT,
+    note              TEXT,
+    ended_at          INTEGER,            -- epoch ms; null = day is still open (legacy; no longer set)
+    first_segment_at  INTEGER,
+    last_segment_at   INTEGER
+);
+
+CREATE TABLE IF NOT EXISTS logbook_segment (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    day_date     TEXT    NOT NULL,        -- FK -> logbook_day.date
+    started_at   INTEGER NOT NULL,        -- epoch ms
+    ended_at     INTEGER,                 -- epoch ms; null = still underway
+    distance_m   REAL    DEFAULT 0,
+    avg_sog      REAL    DEFAULT 0,       -- m/s
+    max_sog      REAL    DEFAULT 0,       -- m/s
+    start_lat    REAL,
+    start_lon    REAL,
+    end_lat      REAL,
+    end_lon      REAL,
+    point_count  INTEGER DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_logbook_segment_day ON logbook_segment(day_date);
+CREATE INDEX IF NOT EXISTS idx_logbook_segment_started ON logbook_segment(started_at);
+
+CREATE TABLE IF NOT EXISTS logbook_trackpoint (
+    ts          INTEGER NOT NULL,         -- epoch ms (primary recording axis)
+    lat         REAL    NOT NULL,
+    lon         REAL    NOT NULL,
+    sog         REAL,                     -- m/s
+    cog         REAL,                     -- radians
+    segment_id  INTEGER,                  -- FK -> logbook_segment.id; null = recorded while idle
+    PRIMARY KEY (ts)
+);
+
+CREATE INDEX IF NOT EXISTS idx_logbook_trackpoint_segment ON logbook_trackpoint(segment_id);
+
 -- Insert default settings
 INSERT OR IGNORE INTO settings (key, value, description)
 VALUES ('data_retention_days', '30', 'Number of days to retain sensor data');

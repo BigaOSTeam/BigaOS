@@ -29,6 +29,7 @@ import {
   PitchItem,
   SwitchItem,
   TankItem,
+  LogbookItem,
 } from './items';
 import { DashboardSidebar } from './DashboardSidebar';
 import { SwitchConfigDialog } from './SwitchConfigDialog';
@@ -60,6 +61,7 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'battery-draw': { label: 'Battery Draw', targetView: 'battery', defaultSize: { w: 1, h: 1 } },
   'switch': { label: 'Switch', targetView: 'settings', defaultSize: { w: 1, h: 1 } },
   'tank': { label: 'Tank', targetView: 'tank', defaultSize: { w: 1, h: 2 } },
+  'logbook': { label: 'Logbook', targetView: 'logbook', defaultSize: { w: 1, h: 1 } },
   'roll': { label: 'Roll', targetView: 'roll', defaultSize: { w: 1, h: 1 } },
   'pitch': { label: 'Pitch', targetView: 'pitch', defaultSize: { w: 1, h: 1 } },
   'weather-forecast': { label: 'Weather', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
@@ -126,6 +128,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'pitch': 'dashboard.pitch',
       'switch': 'dashboard.switch',
       'tank': 'dashboard.tank',
+      'logbook': 'logbook.title',
     };
     return t(labelKeys[type]);
   };
@@ -444,6 +447,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         return <SwitchItem switchId={item.switchConfig?.switchId} activeColor={item.switchConfig?.activeColor} />;
       case 'tank':
         return <TankItem tankId={item.tankConfig?.tankId} />;
+      case 'logbook':
+        return <LogbookItem />;
       default:
         return null;
     }
@@ -612,6 +617,16 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
               <rect x="5" y="14" width="18" height="18" fill="#4fc3f7" opacity="0.7" />
             </svg>
             <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '-2px' }}>60%</div>
+          </div>
+        );
+      case 'logbook':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#4fc3f7" strokeWidth="1.5" style={iconStyle}>
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+            </svg>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>3.2 nm</div>
           </div>
         );
       default:

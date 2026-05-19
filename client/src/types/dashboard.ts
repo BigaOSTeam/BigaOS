@@ -3,7 +3,7 @@ import { SwitchDashboardConfig } from './switches';
 
 export type DashboardSidebarPosition = 'left' | 'right' | 'top' | 'bottom';
 
-export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch' | 'switches' | 'instruments' | 'tank' | 'help';
+export type ViewType = 'chart' | 'wind' | 'engine' | 'electrical' | 'anchor' | 'depth' | 'settings' | 'speed' | 'heading' | 'position' | 'battery' | 'weather' | 'roll' | 'pitch' | 'switches' | 'instruments' | 'tank' | 'help' | 'logbook';
 
 export interface TankDashboardConfig {
   /** Which configured tank this widget shows. Empty = first available. */
@@ -37,7 +37,8 @@ export type DashboardItemType =
   | 'roll'
   | 'pitch'
   | 'switch'
-  | 'tank';
+  | 'tank'
+  | 'logbook';
 
 export interface DashboardLayout {
   items: DashboardItemConfig[];

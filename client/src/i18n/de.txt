@@ -1056,3 +1056,25 @@ tutorial.monitoring.title=Warnungen, Relais, Tanks
 tutorial.monitoring.body=Richte Warnungen für Wind, Tiefe, Batterien ein — alles, was du im Auge behältst.\n\nBordstromkreise direkt aus Relais-Kacheln steuern. Tanks einmal kalibrieren für genaue Füllstände.\n\nAlles in den Einstellungen.
 tutorial.done.title=Fertig
 tutorial.done.body=Die Hilfe steckt in der Seitenleiste — kurze Artikel zu jedem Feature, in deiner Sprache.\n\nDiese Tour jederzeit über Hilfe → Willkommen wiederholen.
+
+# ==================== Logbuch ====================
+logbook.title=Logbuch
+logbook.today=Heute
+logbook.yesterday=Gestern
+logbook.no_entries_yet=Noch keine Einträge
+logbook.no_entries_hint=Sobald das Boot unterwegs ist, landen die Einträge hier von allein. Aufgezeichnet wird, sobald das GPS Fahrt erkennt.
+logbook.max=max
+logbook.avg=ø
+logbook.distance=Strecke
+logbook.time_underway=Fahrzeit
+logbook.avg_speed=ø Geschwindigkeit
+logbook.max_speed=Max. Geschwindigkeit
+logbook.trips=Etappen
+logbook.in_progress=läuft
+logbook.no_track=Für diesen Tag wurde keine GPS-Spur aufgezeichnet.
+logbook.title_placeholder=Kurzer Name für den Tag — z. B. „Ausflug nach Helgoland"
+logbook.note=Bemerkungen
+logbook.note_placeholder=Wind, Hafen, wer an Bord war — alles, was es wert ist festgehalten zu werden.
+logbook.prev_day=Zurück
+logbook.next_day=Weiter
+logbook.calendar=Kalender

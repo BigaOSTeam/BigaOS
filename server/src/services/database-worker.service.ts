@@ -699,6 +699,188 @@ class DatabaseWorkerService {
     });
   }
 
+  // ==================== LOGBOOK ====================
+  //
+  // All values stored in STANDARD units: m/s for speeds, radians for course,
+  // meters for distance, decimal degrees for lat/lon, epoch-ms for timestamps.
+
+  /**
+   * Append a trackpoint. Same-ms duplicates are silently ignored (ts is the
+   * primary key); this can only happen if two sensor packets arrive in the
+   * same millisecond, in which case we keep the first.
+   */
+  async logbookInsertTrackpoint(
+    ts: number,
+    lat: number,
+    lon: number,
+    sog: number | null,
+    cog: number | null,
+    segmentId: number | null
+  ): Promise<void> {
+    await this.send('execute', {
+      sql: `INSERT OR IGNORE INTO logbook_trackpoint (ts, lat, lon, sog, cog, segment_id) VALUES (?, ?, ?, ?, ?, ?)`,
+      params: [ts, lat, lon, sog, cog, segmentId],
+    });
+  }
+
+  /**
+   * Open a new segment. Returns the new segment id so the recording service
+   * can tag subsequent trackpoints to it.
+   */
+  async logbookOpenSegment(
+    dayDate: string,
+    startedAt: number,
+    startLat: number,
+    startLon: number
+  ): Promise<number> {
+    const result = await this.send('execute', {
+      sql: `INSERT INTO logbook_segment (day_date, started_at, start_lat, start_lon) VALUES (?, ?, ?, ?)`,
+      params: [dayDate, startedAt, startLat, startLon],
+    });
+    return result.lastInsertRowid;
+  }
+
+  /**
+   * Close a segment with its computed summary.
+   */
+  async logbookCloseSegment(
+    id: number,
+    endedAt: number,
+    distanceM: number,
+    avgSog: number,
+    maxSog: number,
+    endLat: number,
+    endLon: number,
+    pointCount: number
+  ): Promise<void> {
+    await this.send('execute', {
+      sql: `UPDATE logbook_segment SET ended_at = ?, distance_m = ?, avg_sog = ?, max_sog = ?, end_lat = ?, end_lon = ?, point_count = ? WHERE id = ?`,
+      params: [endedAt, distanceM, avgSog, maxSog, endLat, endLon, pointCount, id],
+    });
+  }
+
+  /**
+   * Find a segment that is still open (ended_at IS NULL) — used on startup
+   * to resume or finalize whatever was in progress when the server stopped.
+   */
+  async logbookGetOpenSegment(): Promise<any | null> {
+    const result = await this.send('queryOne', {
+      sql: `SELECT id, day_date, started_at, start_lat, start_lon FROM logbook_segment WHERE ended_at IS NULL ORDER BY started_at DESC LIMIT 1`,
+      params: [],
+    });
+    return result || null;
+  }
+
+  /**
+   * Get the trackpoints belonging to a segment, in chronological order.
+   * Used to reconstruct an open segment's summary on reboot.
+   */
+  async logbookGetSegmentTrackpoints(segmentId: number): Promise<any[]> {
+    return this.send('query', {
+      sql: `SELECT ts, lat, lon, sog, cog FROM logbook_trackpoint WHERE segment_id = ? ORDER BY ts ASC`,
+      params: [segmentId],
+    });
+  }
+
+  /**
+   * Create the day row if it doesn't exist yet, and bump first/last segment
+   * timestamps so list queries don't need to GROUP-aggregate to find the
+   * day's bounds.
+   */
+  async logbookTouchDay(dayDate: string, segmentAt: number): Promise<void> {
+    await this.send('execute', {
+      sql: `INSERT INTO logbook_day (date, first_segment_at, last_segment_at) VALUES (?, ?, ?)
+            ON CONFLICT(date) DO UPDATE SET
+              first_segment_at = MIN(first_segment_at, excluded.first_segment_at),
+              last_segment_at  = MAX(last_segment_at,  excluded.last_segment_at)`,
+      params: [dayDate, segmentAt, segmentAt],
+    });
+  }
+
+  /**
+   * List days with rolled-up summary stats. Only closed segments contribute
+   * to totals so an open segment doesn't inflate the figures mid-trip.
+   */
+  async logbookListDays(from?: string, to?: string, limit: number = 365): Promise<any[]> {
+    const where: string[] = [];
+    const params: any[] = [];
+    if (from) { where.push('d.date >= ?'); params.push(from); }
+    if (to)   { where.push('d.date <= ?'); params.push(to);   }
+    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
+    params.push(limit);
+    return this.send('query', {
+      sql: `SELECT
+              d.date,
+              d.title,
+              d.note,
+              d.first_segment_at,
+              d.last_segment_at,
+              COALESCE(SUM(CASE WHEN s.ended_at IS NOT NULL THEN s.distance_m END), 0) AS distance_m,
+              COALESCE(SUM(CASE WHEN s.ended_at IS NOT NULL THEN s.ended_at - s.started_at END), 0) AS underway_ms,
+              COALESCE(MAX(CASE WHEN s.ended_at IS NOT NULL THEN s.max_sog END), 0) AS max_sog,
+              COUNT(s.id) AS segment_count
+            FROM logbook_day d
+            LEFT JOIN logbook_segment s ON s.day_date = d.date
+            ${whereSql}
+            GROUP BY d.date
+            ORDER BY d.date DESC
+            LIMIT ?`,
+      params,
+    });
+  }
+
+  /**
+   * Get a single day row plus all its segments.
+   */
+  async logbookGetDay(date: string): Promise<{ day: any | null; segments: any[] }> {
+    const day = await this.send('queryOne', {
+      sql: `SELECT date, title, note, first_segment_at, last_segment_at FROM logbook_day WHERE date = ?`,
+      params: [date],
+    });
+    if (!day) return { day: null, segments: [] };
+    const segments = await this.send('query', {
+      sql: `SELECT id, started_at, ended_at, distance_m, avg_sog, max_sog, start_lat, start_lon, end_lat, end_lon, point_count FROM logbook_segment WHERE day_date = ? ORDER BY started_at ASC`,
+      params: [date],
+    });
+    return { day, segments };
+  }
+
+  /**
+   * Get all trackpoints for a day (used for replay).
+   */
+  async logbookGetDayTrack(date: string): Promise<any[]> {
+    return this.send('query', {
+      sql: `SELECT t.ts, t.lat, t.lon, t.sog, t.cog, t.segment_id
+            FROM logbook_trackpoint t
+            JOIN logbook_segment s ON s.id = t.segment_id
+            WHERE s.day_date = ?
+            ORDER BY t.ts ASC`,
+      params: [date],
+    });
+  }
+
+  /**
+   * Update a day's title and/or note. Pass null to clear a field; omit to
+   * leave it unchanged. Creates the row if missing so the user can annotate
+   * a day that has no segments yet.
+   */
+  async logbookUpdateDay(date: string, fields: { title?: string | null; note?: string | null }): Promise<void> {
+    const sets: string[] = [];
+    const params: any[] = [];
+    if (fields.title !== undefined) { sets.push('title = ?'); params.push(fields.title); }
+    if (fields.note !== undefined)  { sets.push('note = ?');  params.push(fields.note); }
+    if (sets.length === 0) return;
+    await this.send('execute', {
+      sql: `INSERT OR IGNORE INTO logbook_day (date) VALUES (?)`,
+      params: [date],
+    });
+    params.push(date);
+    await this.send('execute', {
+      sql: `UPDATE logbook_day SET ${sets.join(', ')} WHERE date = ?`,
+      params,
+    });
+  }
+
   // ==================== UTILITIES ====================
 
   /**

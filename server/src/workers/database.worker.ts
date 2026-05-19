@@ -65,6 +65,9 @@ function initialize(dbPath: string): void {
     // Migrations for existing databases
     try { db.exec(`ALTER TABLE clients ADD COLUMN client_type TEXT DEFAULT 'display'`); } catch { /* column already exists */ }
 
+    // Migration: add title column to logbook_day for DBs created before this feature.
+    try { db.exec(`ALTER TABLE logbook_day ADD COLUMN title TEXT`); } catch { /* column already exists */ }
+
     // Migrations: create switches table if it doesn't exist (for databases created before this feature)
     db.exec(`
       CREATE TABLE IF NOT EXISTS switches (
