@@ -4,6 +4,7 @@ import { CustomMarker, markerIcons } from './map-icons';
 import { useSettings, windConversions, depthConversions, temperatureConversions, SidebarPosition } from '../../../context/SettingsContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { useTileSources, useChartLayers } from '../../../context/TileSourcesContext';
 import { radToDeg, degToRad, TWO_PI } from '../../../utils/angle';
 
 // Helper to compute panel positioning based on sidebar position
@@ -143,6 +144,178 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
         >
           {soundAlarmEnabled ? t('common.on') : t('common.off')}
         </button>
+      </div>
+
+      {/* Click outside to close (only on single click, not double-click zoom) */}
+      <div
+        onClick={(e) => {
+          if (e.detail === 1) onClose();
+        }}
+        style={{
+          ...getOverlayStyle(sidebarWidth, sidebarPosition),
+          zIndex: 999,
+        }}
+      />
+    </>
+  );
+};
+
+interface LayersPanelProps {
+  sidebarWidth: number;
+  sidebarPosition?: SidebarPosition;
+  onClose: () => void;
+}
+
+/**
+ * Layer picker: a mutually-exclusive base-map selector on top (street vs
+ * satellite vs ...) and toggleable overlays below (sea chart, depth, ...).
+ * Reads/writes the chart layer selection directly via the tile-source
+ * contexts, so it needs no data props.
+ */
+export const LayersPanel: React.FC<LayersPanelProps> = ({
+  sidebarWidth,
+  sidebarPosition = 'left',
+  onClose,
+}) => {
+  const { t } = useLanguage();
+  const { theme } = useTheme();
+  const { bases, overlays } = useTileSources();
+  const { baseMapId, setBaseMapId, overlayEnabled, toggleOverlay } = useChartLayers();
+  const panelWidth = 220;
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          ...getPanelPositionStyle(sidebarWidth, sidebarPosition),
+          width: `min(${panelWidth}px, calc(100vw - ${sidebarWidth + 16}px))`,
+          maxHeight: 'calc(100% - 32px)',
+          overflowY: 'auto',
+          background: theme.colors.bgTertiary,
+          border: `1px solid ${theme.colors.borderHover}`,
+          borderRadius: '6px',
+          padding: '1rem',
+          zIndex: 1001,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}
+      >
+        {/* Base map — segmented, mutually exclusive */}
+        <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.6rem' }}>
+          {t('chart.base_map')}
+        </div>
+        <div
+          style={{
+            display: 'flex',
+            gap: '4px',
+            background: theme.colors.bgCardActive,
+            borderRadius: '6px',
+            padding: '3px',
+          }}
+        >
+          {bases.map((b) => {
+            const active = baseMapId === b.id;
+            return (
+              <button
+                key={b.id}
+                onClick={() => setBaseMapId(b.id)}
+                aria-pressed={active ? 'true' : 'false'}
+                style={{
+                  flex: 1,
+                  padding: '0.6rem 0.4rem',
+                  background: active ? 'rgba(25, 118, 210, 0.6)' : 'transparent',
+                  border: 'none',
+                  borderRadius: '4px',
+                  color: theme.colors.textPrimary,
+                  cursor: 'pointer',
+                  fontSize: '0.95rem',
+                  fontWeight: active ? 600 : 400,
+                  transition: 'background 0.15s ease',
+                }}
+              >
+                {t(b.labelKey)}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Overlays — independent toggles layered on top of the base */}
+        {overlays.length > 0 && (
+          <>
+            <div
+              style={{
+                fontSize: '0.85rem',
+                opacity: 0.6,
+                marginTop: '1rem',
+                marginBottom: '0.6rem',
+              }}
+            >
+              {t('chart.overlays')}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {overlays.map((ov) => {
+                const enabled = !!overlayEnabled[ov.id];
+                return (
+                  <button
+                    key={ov.id}
+                    onClick={() => toggleOverlay(ov.id)}
+                    aria-pressed={enabled ? 'true' : 'false'}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '8px',
+                      padding: '0.7rem 0.75rem',
+                      background: enabled ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
+                      border: 'none',
+                      borderRadius: '6px',
+                      color: theme.colors.textPrimary,
+                      cursor: 'pointer',
+                      fontSize: '1rem',
+                      textAlign: 'left',
+                      width: '100%',
+                    }}
+                  >
+                    <span style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span>{t(ov.labelKey)}</span>
+                      {ov.notForNavigation && (
+                        <span style={{ fontSize: '0.6rem', color: theme.colors.warning, opacity: 0.9 }}>
+                          {t('chart.not_for_navigation')}
+                        </span>
+                      )}
+                    </span>
+                    {/* Toggle switch */}
+                    <span
+                      style={{
+                        flexShrink: 0,
+                        width: '34px',
+                        height: '20px',
+                        borderRadius: '10px',
+                        background: enabled ? '#4fc3f7' : theme.colors.bgTertiary,
+                        position: 'relative',
+                        transition: 'background 0.2s ease',
+                      }}
+                    >
+                      <span
+                        style={{
+                          position: 'absolute',
+                          top: '2px',
+                          left: enabled ? '16px' : '2px',
+                          width: '16px',
+                          height: '16px',
+                          borderRadius: '50%',
+                          background: '#fff',
+                          transition: 'left 0.2s ease',
+                          boxShadow: '0 1px 2px rgba(0,0,0,0.3)',
+                        }}
+                      />
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        )}
       </div>
 
       {/* Click outside to close (only on single click, not double-click zoom) */}

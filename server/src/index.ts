@@ -1,5 +1,6 @@
 import express from 'express';
 import cors from 'cors';
+import compression from 'compression';
 import rateLimit from 'express-rate-limit';
 import path from 'path';
 import { createServer } from 'http';
@@ -70,6 +71,10 @@ async function startServer() {
 
   // Middleware
   app.use(cors());
+  // gzip responses — big wins on JSON payloads like depth-contour GeoJSON
+  // (can be >1 MB uncompressed, ~10× smaller on the wire). Tiles are already
+  // compressed image formats, so compression skips them by content-type.
+  app.use(compression());
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
 

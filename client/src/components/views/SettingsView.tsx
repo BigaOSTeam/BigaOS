@@ -18,7 +18,7 @@ import {
   temperatureConversions,
 } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
-import { configAPI, dataAPI, DataFileInfo, DownloadProgress, offlineMapsAPI, StorageStats, systemAPI, UpdateInfo } from '../../services/api';
+import { configAPI, dataAPI, DataFileInfo, DownloadProgress, mapStatusAPI, StorageStats, systemAPI, UpdateInfo } from '../../services/api';
 import { useConfirmDialog } from '../../context/ConfirmDialogContext';
 import { AlertsTab } from '../settings/AlertsTab';
 import { SwitchesTab } from '../settings/SwitchesTab';
@@ -100,7 +100,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
 
   const fetchStorageStats = useCallback(async () => {
     try {
-      const response = await offlineMapsAPI.getStorageStats();
+      const response = await mapStatusAPI.getStorageStats();
       setStorageStats(response.data);
     } catch (error) {
       console.error('Failed to fetch storage stats:', error);

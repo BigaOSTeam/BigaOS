@@ -22,7 +22,7 @@ interface ChartSidebarProps {
   depthAlarm: number | null;
   depthSettingsOpen: boolean;
   searchOpen: boolean;
-  useSatellite: boolean;
+  layersPanelOpen: boolean;
   autoCenter: boolean;
   bearingToTarget?: number | null;
   autopilotOpen: boolean;
@@ -35,7 +35,7 @@ interface ChartSidebarProps {
   onOpenSettings?: () => void;
   onDepthClick: () => void;
   onSearchClick: () => void;
-  onSatelliteToggle: () => void;
+  onLayersClick: () => void;
   onRecenter: () => void;
   onCompassClick: () => void;
   onDebugToggle?: () => void;
@@ -54,7 +54,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   depthAlarm,
   depthSettingsOpen,
   searchOpen,
-  useSatellite,
+  layersPanelOpen,
   autoCenter,
   bearingToTarget,
   autopilotOpen,
@@ -67,7 +67,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   onOpenSettings,
   onDepthClick,
   onSearchClick,
-  onSatelliteToggle,
+  onLayersClick,
   onRecenter,
   onCompassClick,
   onDebugToggle: _onDebugToggle,
@@ -364,51 +364,32 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             <span style={{ opacity: 0.7 }}>{t('chart.search')}</span>
           </button>
 
-          {/* Satellite/Street toggle button */}
+          {/* Layers button — opens a panel to pick the base map and toggle
+              overlays (sea chart, depth, ...). */}
           <button
-            onClick={onSatelliteToggle}
-            className="chart-sidebar-btn with-label"
+            onClick={onLayersClick}
+            className={`chart-sidebar-btn with-label ${layersPanelOpen ? 'active' : ''}`}
             style={{
               borderTop: separator,
             }}
-            title={useSatellite ? t('chart.switch_to_street') : t('chart.switch_to_satellite')}
+            title={t('chart.layers')}
           >
-            {useSatellite ? (
-              // Map icon - shown when in satellite mode (click to switch to street/map)
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z" />
-                <line x1="9" y1="3" x2="9" y2="18" />
-                <line x1="15" y1="6" x2="15" y2="21" />
-              </svg>
-            ) : (
-              // Globe icon - shown when in street mode (click to switch to satellite)
-              <svg
-                width="24"
-                height="24"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <circle cx="12" cy="12" r="10" />
-                <path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20" />
-                <path d="M2 12h20" />
-              </svg>
-            )}
-            <span style={{ opacity: 0.7 }}>
-              {useSatellite ? t('chart.map') : t('chart.satellite')}
-            </span>
+            {/* Stacked-layers icon */}
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={layersPanelOpen ? '#4fc3f7' : 'currentColor'}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <polygon points="12 2 2 7 12 12 22 7 12 2" />
+              <polyline points="2 17 12 22 22 17" />
+              <polyline points="2 12 12 17 22 12" />
+            </svg>
+            <span style={{ opacity: 0.7 }}>{t('chart.layers')}</span>
           </button>
 
           {/* Recenter button */}

@@ -3,6 +3,8 @@
  * Uses standard Web Mercator (EPSG:3857) tile scheme
  */
 
+import { getTileSource, MapTileUrlOverrides } from './tile-sources';
+
 export interface Bounds {
   north: number;
   south: number;
@@ -150,41 +152,41 @@ export function* generateTileCoords(
   }
 }
 
-// Default tile URLs (fallback if not configured)
-const DEFAULT_TILE_URLS = {
-  streetMap: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
-  satelliteMap: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-  nauticalOverlay: 'https://tiles.openseamap.org/seamark/{z}/{x}/{y}.png',
-};
-
 /**
- * Get tile URL for a specific source, using custom URL template if provided
+ * Resolve the remote URL for a tile in the given source.
+ *
+ * Looks up the source in the central registry (`tile-sources.ts`), applies any
+ * per-install URL override from the `mapTileUrls` settings object, and
+ * substitutes the standard slippy-map placeholders. Throws if the source is
+ * unknown or has no remote URL (e.g. an MBTiles-backed source — those are
+ * served from disk and never reach this code path).
  */
 export function getTileUrl(
-  source: 'street' | 'satellite' | 'nautical',
+  sourceId: string,
   z: number,
   x: number,
   y: number,
-  customUrls?: { streetMap?: string; satelliteMap?: string; nauticalOverlay?: string }
+  overrides?: MapTileUrlOverrides
 ): string {
-  let urlTemplate: string;
-
-  switch (source) {
-    case 'street':
-      urlTemplate = customUrls?.streetMap || DEFAULT_TILE_URLS.streetMap;
-      break;
-    case 'satellite':
-      urlTemplate = customUrls?.satelliteMap || DEFAULT_TILE_URLS.satelliteMap;
-      break;
-    case 'nautical':
-      urlTemplate = customUrls?.nauticalOverlay || DEFAULT_TILE_URLS.nauticalOverlay;
-      break;
-    default:
-      throw new Error(`Unknown tile source: ${source}`);
+  const source = getTileSource(sourceId);
+  if (!source) {
+    throw new Error(`Unknown tile source: ${sourceId}`);
   }
 
-  // Replace placeholders in the URL template
-  // Handle {s} subdomain for OSM-style URLs
+  let urlTemplate: string | undefined;
+  if (source.customUrlSettingKey && overrides) {
+    urlTemplate = overrides[source.customUrlSettingKey];
+  }
+  if (!urlTemplate) {
+    urlTemplate = source.url;
+  }
+  if (!urlTemplate) {
+    throw new Error(`Tile source has no remote URL: ${sourceId}`);
+  }
+
+  // Handle {s} subdomain for OSM-style URLs. The `[a, b, c]` set matches the
+  // public OSM tile servers; other providers using {s} typically support the
+  // same letter pool, and providers that don't use it just leave {s} unused.
   const subdomain = ['a', 'b', 'c'][Math.abs(x + y) % 3];
 
   return urlTemplate
@@ -195,16 +197,16 @@ export function getTileUrl(
 }
 
 /**
- * Get the local file path for a tile
+ * Get the local file path for a tile.
  */
 export function getTileLocalPath(
   baseDir: string,
-  source: 'street' | 'satellite' | 'nautical',
+  sourceId: string,
   z: number,
   x: number,
   y: number
 ): string {
-  return `${baseDir}/${source}/${z}/${x}/${y}.png`;
+  return `${baseDir}/${sourceId}/${z}/${x}/${y}.png`;
 }
 
 /**

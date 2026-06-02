@@ -320,6 +320,23 @@ body {
   display: none !important;
 }
 
+/* Custom aggregated tile attribution (bottom-right of the chart). Links
+   inherit the muted text color and only underline on hover so they stay
+   unobtrusive but remain clickable for license compliance. */
+.chart-attribution a {
+  color: inherit;
+  text-decoration: none;
+}
+.chart-attribution a:hover {
+  text-decoration: underline;
+}
+
+/* Depth contour labels — small depth numbers placed along isobaths, coloured
+   to match the line and rotated to follow it (rotation/colour set inline).
+   Non-interactive; centered on their anchor point. */
+/* Depth contour labels are fully inline-styled in DepthContourLayer (matching
+   the app's other map markers), so no class rules are needed here. */
+
 /* Force Leaflet map container to use GPU compositing */
 .leaflet-container {
   transform: translateZ(0);

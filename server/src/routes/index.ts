@@ -5,6 +5,7 @@ import { DatabaseController } from '../controllers/database.controller';
 import { navigationController } from '../controllers/navigation.controller';
 import { navigationDataController } from '../controllers/navigation-data.controller';
 import { tilesController } from '../controllers/tiles.controller';
+import { depthController } from '../controllers/depth.controller';
 import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
 import { unifiedDataController } from '../controllers/unified-data.controller';
@@ -34,11 +35,14 @@ const fileOpsLimiter = rateLimit({
   legacyHeaders: false,
   message: { error: 'Too many requests, please try again shortly' },
 });
-// Tile serving fires a few dozen requests per pan, so the limit is set
-// generously — only meant to bound abusive bursts, not normal use.
+// Tile serving fires *hundreds* of requests during vigorous panning — two tile
+// layers (e.g. satellite + nautical), each with a load buffer, plus the
+// client's on-error retries. 1200/min was far too low and produced a 429 storm
+// (a 429 triggers a cache-buster retry, which 429s again...). Set very high so
+// it never bites normal use; it's only a backstop against a runaway loop.
 const tileServeLimiter = rateLimit({
   windowMs: 60 * 1000,
-  limit: 1200,
+  limit: 12000,
   standardHeaders: true,
   legacyHeaders: false,
   message: 'Too many tile requests',
@@ -108,17 +112,16 @@ router.post('/data/cancel/:fileId', heavyOpsLimiter, navigationDataController.ca
 router.put('/data/:fileId/url', heavyOpsLimiter, navigationDataController.updateUrl.bind(navigationDataController));
 router.delete('/data/:fileId', heavyOpsLimiter, navigationDataController.deleteFile.bind(navigationDataController));
 
-// Offline tiles routes
+// Tile routes — live proxy + source registry. (Offline/bulk tile download was
+// removed; tiles are fetched on demand only.)
+router.get('/tiles/sources', fileOpsLimiter, tilesController.getTileSources.bind(tilesController));
 router.get('/tiles/status', fileOpsLimiter, tilesController.getStatus.bind(tilesController));
-router.get('/tiles/regions', fileOpsLimiter, tilesController.getRegions.bind(tilesController));
-router.post('/tiles/regions', heavyOpsLimiter, tilesController.createRegion.bind(tilesController));
-router.delete('/tiles/regions/:regionId', heavyOpsLimiter, tilesController.deleteRegion.bind(tilesController));
-router.post('/tiles/cancel/:regionId', heavyOpsLimiter, tilesController.cancelDownload.bind(tilesController));
-router.post('/tiles/retry/:regionId', heavyOpsLimiter, tilesController.retryDownload.bind(tilesController));
-router.post('/tiles/estimate', heavyOpsLimiter, tilesController.getEstimate.bind(tilesController));
 router.get('/tiles/storage', fileOpsLimiter, tilesController.getStorageStats.bind(tilesController));
 // Tile serving (must be last due to wildcard params).
 router.get('/tiles/:source/:z/:x/:y', tileServeLimiter, tilesController.serveTile.bind(tilesController));
+
+// Depth contours — vector isobaths from the EMODnet DTM (online only).
+router.get('/depth/contours', fileOpsLimiter, depthController.getContours.bind(depthController));
 
 // Weather routes
 router.get('/weather/current', weatherController.getCurrent.bind(weatherController));

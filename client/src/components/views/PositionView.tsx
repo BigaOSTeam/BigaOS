@@ -5,16 +5,9 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
 import { useTheme } from '../../context/ThemeContext';
-import { useClientSetting } from '../../context/ClientSettingsContext';
+import { useTileSources, useChartLayers } from '../../context/TileSourcesContext';
 import { useLanguage } from '../../i18n/LanguageContext';
-import { API_BASE_URL } from '../../utils/urls';
 import { ViewLayout } from './shared';
-
-const TILE_URLS = {
-  street: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
-  satellite: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,
-  nautical: `${API_BASE_URL}/tiles/nautical/{z}/{x}/{y}`,
-};
 
 interface PositionViewProps {
   position: GeoPosition;
@@ -100,8 +93,9 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
   const { t } = useLanguage();
   const [isWide, setIsWide] = useState(window.innerWidth > window.innerHeight);
 
-  // Mirror the chart's satellite preference (per-client server setting).
-  const [useSatellite] = useClientSetting<boolean>('chartUseSatellite', false);
+  // Mirror the chart's base map + overlay selection.
+  const { tileUrl } = useTileSources();
+  const { activeSources } = useChartLayers();
 
   useEffect(() => {
     const onResize = () => setIsWide(window.innerWidth > window.innerHeight);
@@ -174,12 +168,16 @@ export const PositionView: React.FC<PositionViewProps> = ({ position, onClose })
             attributionControl={false}
             preferCanvas={true}
           >
-            {useSatellite ? (
-              <BufferedTileLayer url={TILE_URLS.satellite} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
-            ) : (
-              <BufferedTileLayer url={TILE_URLS.street} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
-            )}
-            <BufferedTileLayer url={TILE_URLS.nautical} zIndex={10} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
+            {activeSources.filter((s) => s.kind !== 'contours').map((src, idx) => (
+              <BufferedTileLayer
+                key={src.id}
+                url={tileUrl(src.id)}
+                zIndex={src.role === 'overlay' ? 10 + idx : undefined}
+                updateWhenZooming={false}
+                keepBuffer={4}
+                loadBuffer={0.5}
+              />
+            ))}
             <MapFollower lat={position.latitude} lon={position.longitude} />
             <PulsingMarker lat={position.latitude} lon={position.longitude} color={'#d32f2f'} />
           </MapContainer>

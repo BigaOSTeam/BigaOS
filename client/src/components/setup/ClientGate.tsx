@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { ClientProvider } from '../../context/ClientContext';
 import { ClientSettingsProvider } from '../../context/ClientSettingsContext';
 import { BoatSettingsProvider } from '../../context/BoatSettingsContext';
+import { TileSourcesProvider } from '../../context/TileSourcesContext';
 import { SetupWizard } from './SetupWizard';
 import App from '../../App';
 import { applyThemeToDOM, StandaloneThemeProvider } from '../../context/ThemeContext';
@@ -230,7 +231,9 @@ export const ClientGate: React.FC = () => {
     <ClientProvider clientId={clientId} initialClientName={clientName} initialClientType={clientType}>
       <ClientSettingsProvider>
         <BoatSettingsProvider>
-          <App />
+          <TileSourcesProvider>
+            <App />
+          </TileSourcesProvider>
         </BoatSettingsProvider>
       </ClientSettingsProvider>
     </ClientProvider>

@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useCallback } from 'react';
-import { useMap, useMapEvents } from 'react-leaflet';
+import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { weatherAPI, navigationAPI } from '../../../services/api';
 import { WeatherGridPoint } from '../../../types';
@@ -8,9 +8,6 @@ import { TWO_PI } from '../../../utils/angle';
 import { useSettings } from '../../../context/SettingsContext';
 import { useClientSetting } from '../../../context/ClientSettingsContext';
 
-// Debounce delay for the weather data fetch — kept long because the response
-// is large and the upstream API is rate-limited.
-const FETCH_DEBOUNCE_MS = 3000;
 // Water grid is small and server-cached, and the fetch itself early-returns
 // when the snapped bounds key is unchanged — so we coalesce only the briefest
 // burst of events and otherwise refetch as fast as the user can move.
@@ -850,7 +847,6 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   const waterGridSpacingRef = useRef<number>(0);
   const lastFetchKey = useRef<string>('');
   const lastWaterGridKey = useRef<string>('');
-  const fetchDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const waterGridDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [isLoading, setIsLoading] = React.useState(false);
   const { convertWind, convertDepth, convertTemperature } = useSettings();
@@ -1187,16 +1183,8 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     }
   }, [isLoading]);
 
-  // Debounced fetch functions to prevent rapid API calls when panning
-  const debouncedFetchWeather = useCallback(() => {
-    if (fetchDebounceRef.current) {
-      clearTimeout(fetchDebounceRef.current);
-    }
-    fetchDebounceRef.current = setTimeout(() => {
-      fetchWeatherData();
-    }, FETCH_DEBOUNCE_MS);
-  }, [fetchWeatherData]);
-
+  // Water-grid fetch is coalesced over a brief burst (the weather fetch is
+  // called directly on view changes — it self-dedupes on a snapped grid key).
   const debouncedFetchWaterGrid = useCallback(() => {
     if (waterGridDebounceRef.current) {
       clearTimeout(waterGridDebounceRef.current);
@@ -1209,23 +1197,19 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   // Cleanup debounce timers on unmount
   useEffect(() => {
     return () => {
-      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
       if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
     };
   }, []);
 
   // When the overlay un-hides after a programmatic animation (flyTo,
-  // fitBounds, centre-on-GPS), reposition the canvas and refetch. The
-  // moveend that ended the animation fired with hidden=true (stale closure
-  // in useMapEvents from the previous render), so its own reset/fetch
-  // branch was skipped. Bypass the debounce since the user just finished a
-  // discrete gesture — we want the overlay back immediately.
+  // fitBounds), reposition the canvas and refetch. The moveend that ends the
+  // animation fires while hidden is still true, so the move handler's own
+  // reset branch is (correctly) skipped — this effect catches the
+  // true→false transition and restores the overlay immediately.
   useEffect(() => {
     if (wasHiddenRef.current && !hidden && enabled && layerRef.current) {
       layerRef.current.reset();
-      // Cancel any debounced fetches that are still pending — we're about
-      // to fire fresh ones synchronously.
-      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
+      // Cancel any pending water-grid fetch — we're about to fire fresh ones.
       if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
       fetchWeatherData();
       const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
@@ -1236,48 +1220,76 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     wasHiddenRef.current = hidden;
   }, [hidden, enabled, displayMode, fetchWeatherData, fetchWaterGrid]);
 
-  // Map events
-  useMapEvents({
-    move: () => {
-      if (enabled && !hidden && layerRef.current) {
-        layerRef.current.reset();
-      }
-    },
-    moveend: () => {
-      if (enabled) {
-        // Restore after hidden animation completes
-        if (!hidden && layerRef.current) {
-          layerRef.current.reset();
-        }
-        debouncedFetchWeather();
-        const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
-        if (marineDisplayModes.includes(displayMode)) {
-          debouncedFetchWaterGrid();
-        }
-      }
-    },
-    zoomstart: () => {
-      if (enabled && layerRef.current) {
-        layerRef.current.setVisible(false);
-      }
-      if (fetchDebounceRef.current) clearTimeout(fetchDebounceRef.current);
-      if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
-    },
-    zoomend: () => {
-      if (enabled && !hidden && layerRef.current) {
-        layerRef.current.setVisible(true);
-        layerRef.current.reset();
-        // Refetch directly — the moveend that follows a zoom otherwise has to
-        // wait through the debounce, leaving the overlay empty in any newly
-        // exposed area after a zoom-out (or with stale data after a zoom-in).
-        fetchWeatherData();
-        const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
-        if (marineDisplayModes.includes(displayMode)) {
-          fetchWaterGrid();
-        }
-      }
-    },
+  // Map events — subscribed directly on the Leaflet map (once per map) instead
+  // of via react-leaflet's useMapEvents. useMapEvents re-subscribes on every
+  // render (a fresh handler object each time), and React flushes ALL effect
+  // cleanups before ALL effect creates — so the handlers are momentarily
+  // detached on the exact render where a sibling effect (MapController) fires
+  // setView to follow GPS. That dropped every follow-GPS move/moveend, leaving
+  // the canvas stranded at its old position until a manual pan re-triggered a
+  // (by-then re-attached) handler. A stable subscription that reads current
+  // state from a ref has no such gap. See project_weather_overlay_recenter.
+  const eventStateRef = useRef({
+    enabled,
+    hidden,
+    displayMode,
+    fetchWeatherData,
+    fetchWaterGrid,
+    debouncedFetchWaterGrid,
   });
+  eventStateRef.current = {
+    enabled,
+    hidden,
+    displayMode,
+    fetchWeatherData,
+    fetchWaterGrid,
+    debouncedFetchWaterGrid,
+  };
+
+  useEffect(() => {
+    const isMarine = (mode: WeatherDisplayMode) =>
+      mode === 'waves' || mode === 'swell' || mode === 'current' || mode === 'water-temp';
+
+    const onMove = () => {
+      const { enabled, hidden } = eventStateRef.current;
+      if (enabled && !hidden && layerRef.current) layerRef.current.reset();
+    };
+    const onMoveEnd = () => {
+      const s = eventStateRef.current;
+      if (!s.enabled) return;
+      if (!s.hidden && layerRef.current) layerRef.current.reset();
+      // Direct, not debounced: while following GPS the map re-centres on every
+      // position tick, which would perpetually restart a trailing debounce so
+      // it never fired. fetchWeatherData early-returns when the snapped grid
+      // key is unchanged, so this only hits the network on a real cell change.
+      s.fetchWeatherData();
+      if (isMarine(s.displayMode)) s.debouncedFetchWaterGrid();
+    };
+    const onZoomStart = () => {
+      if (eventStateRef.current.enabled && layerRef.current) layerRef.current.setVisible(false);
+      if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
+    };
+    const onZoomEnd = () => {
+      const s = eventStateRef.current;
+      if (!s.enabled || s.hidden || !layerRef.current) return;
+      layerRef.current.setVisible(true);
+      layerRef.current.reset();
+      // Refetch directly so newly exposed area (zoom-out) fills immediately.
+      s.fetchWeatherData();
+      if (isMarine(s.displayMode)) s.fetchWaterGrid();
+    };
+
+    map.on('move', onMove);
+    map.on('moveend', onMoveEnd);
+    map.on('zoomstart', onZoomStart);
+    map.on('zoomend', onZoomEnd);
+    return () => {
+      map.off('move', onMove);
+      map.off('moveend', onMoveEnd);
+      map.off('zoomstart', onZoomStart);
+      map.off('zoomend', onZoomEnd);
+    };
+  }, [map]);
 
   // Refetch when forecast hour changes
   useEffect(() => {

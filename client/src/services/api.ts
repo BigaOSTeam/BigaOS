@@ -165,49 +165,26 @@ export const dataAPI = {
     api.delete<{ success: boolean; message: string }>(`/data/${fileId}`)
 };
 
-// Offline Maps API
-export type TileLayer = 'street' | 'satellite' | 'nautical';
+// Tile source registry
+export type TileSourceRole = 'base' | 'overlay';
+export type TileSourceKind = 'remote' | 'contours' | 'mbtiles';
 
-export interface Bounds {
-  north: number;
-  south: number;
-  east: number;
-  west: number;
-}
-
-export interface OfflineRegion {
+/**
+ * Public view of a server tile source (from GET /tiles/sources). The chart UI
+ * renders its base/overlay controls, attribution, and disclaimers from this.
+ */
+export interface PublicTileSource {
   id: string;
-  name: string;
-  bounds: Bounds;
-  minZoom: number;
-  maxZoom: number;
-  layers: TileLayer[];
-  createdAt: string;
-  status: 'pending' | 'downloading' | 'complete' | 'error';
-  totalTiles: number;
-  downloadedTiles: number;
-  storageBytes: number;
-  error?: string;
-  downloadProgress?: TileDownloadProgress;
-}
-
-export interface TileDownloadProgress {
-  regionId: string;
-  status: 'downloading' | 'complete' | 'error' | 'cancelled';
-  currentLayer: TileLayer;
-  currentZoom: number;
-  tilesDownloaded: number;
-  totalTiles: number;
-  bytesDownloaded: number;
-  errors: number;
-  startTime: number;
-}
-
-export interface TileEstimate {
-  tilesPerLayer: number;
-  totalTiles: number;
-  estimatedSize: string;
-  estimatedBytes: number;
+  labelKey: string;
+  role: TileSourceRole;
+  kind: TileSourceKind;
+  attribution: string;
+  minZoom?: number;
+  maxZoom?: number;
+  defaultEnabled?: boolean;
+  notForNavigation?: boolean;
+  offlineDownloadable?: boolean;
+  estimatedBytesPerTile?: number;
 }
 
 export interface DeviceStorage {
@@ -312,7 +289,44 @@ export const weatherAPI = {
     api.put<{ success: boolean; settings: WeatherSettings }>('/weather/settings', settings),
 };
 
-export const offlineMapsAPI = {
+export const tileSourcesAPI = {
+  /**
+   * Get the tile-source registry (bases + overlays the server knows about).
+   */
+  list: () =>
+    api.get<{ sources: PublicTileSource[] }>('/tiles/sources'),
+};
+
+// Depth contours (EMODnet DTM isobaths, GeoJSON LineStrings tagged with depth).
+export interface DepthContourFeature {
+  type: 'Feature';
+  properties: { depth: number };
+  geometry: { type: 'LineString'; coordinates: [number, number][] };
+}
+export interface DepthContours {
+  type: 'FeatureCollection';
+  features: DepthContourFeature[];
+}
+
+export const depthAPI = {
+  /**
+   * Fetch depth contours for a bbox. The first view of a fresh area can be slow
+   * (EMODnet cold fetch, cached server-side afterwards), so the timeout is long
+   * and callers pass an AbortSignal to cancel on map move.
+   */
+  getContours: (
+    bbox: { west: number; south: number; east: number; north: number },
+    signal?: AbortSignal
+  ) =>
+    api.get<DepthContours>('/depth/contours', {
+      params: bbox,
+      signal,
+      timeout: 180000,
+    }),
+};
+
+// Map status: connectivity + device storage (no offline tile downloads).
+export const mapStatusAPI = {
   /**
    * Get server connectivity status
    */
@@ -320,58 +334,7 @@ export const offlineMapsAPI = {
     api.get<{ online: boolean; lastCheck: number }>('/tiles/status'),
 
   /**
-   * Get all saved offline regions
-   */
-  getRegions: () =>
-    api.get<{ regions: OfflineRegion[] }>('/tiles/regions'),
-
-  /**
-   * Create a new region and start downloading
-   */
-  createRegion: (data: {
-    name: string;
-    bounds: Bounds;
-    minZoom?: number;
-    maxZoom?: number;
-    layers?: TileLayer[];
-  }) =>
-    api.post<{
-      message: string;
-      region: OfflineRegion;
-      estimate: TileEstimate;
-    }>('/tiles/regions', data),
-
-  /**
-   * Delete a region and its tiles
-   */
-  deleteRegion: (regionId: string) =>
-    api.delete<{ success: boolean; message: string }>(`/tiles/regions/${regionId}`),
-
-  /**
-   * Cancel an active download
-   */
-  cancelDownload: (regionId: string) =>
-    api.post<{ success: boolean; message: string }>(`/tiles/cancel/${regionId}`),
-
-  /**
-   * Retry a failed download
-   */
-  retryDownload: (regionId: string) =>
-    api.post<{ success: boolean; message: string }>(`/tiles/retry/${regionId}`),
-
-  /**
-   * Get estimate for a region without creating it
-   */
-  getEstimate: (data: {
-    bounds: Bounds;
-    minZoom?: number;
-    maxZoom?: number;
-    layers?: TileLayer[];
-  }) =>
-    api.post<TileEstimate>('/tiles/estimate', data),
-
-  /**
-   * Get storage statistics
+   * Get device storage statistics (free space, etc.)
    */
   getStorageStats: () =>
     api.get<StorageStats>('/tiles/storage'),

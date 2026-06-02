@@ -6,9 +6,8 @@ import { BufferedTileLayer } from '../navigation/chart/BufferedTileLayer';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useSettings, speedConversions, distanceConversions } from '../../context/SettingsContext';
-import { useClientSetting } from '../../context/ClientSettingsContext';
+import { useTileSources, useChartLayers } from '../../context/TileSourcesContext';
 import { wsService } from '../../services/websocket';
-import { API_BASE_URL } from '../../utils/urls';
 import {
   logbookAPI,
   LogbookDaySummary,
@@ -17,12 +16,6 @@ import {
 } from '../../services/api';
 import { ViewLayout } from './shared';
 import { LogbookCalendarPicker } from './LogbookCalendarPicker';
-
-const TILE_URLS = {
-  street: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
-  satellite: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,
-  nautical: `${API_BASE_URL}/tiles/nautical/{z}/{x}/{y}`,
-};
 
 const MPS_TO_KT = 1 / 0.514444;
 const M_TO_NM = 1 / 1852;
@@ -76,7 +69,8 @@ export const LogbookView: React.FC<LogbookViewProps> = ({ onClose }) => {
   const { theme } = useTheme();
   const { t, language } = useLanguage();
   const { speedUnit, distanceUnit, convertSpeed, convertDistance, timeFormat, dateFormat } = useSettings();
-  const [useSatellite] = useClientSetting<boolean>('chartUseSatellite', false);
+  const { tileUrl } = useTileSources();
+  const { activeSources } = useChartLayers();
 
   // Layout breakpoint — listen to resizes so a docked window switches sides cleanly.
   const [isWide, setIsWide] = useState(window.innerWidth >= WIDE_BREAKPOINT);
@@ -486,13 +480,16 @@ export const LogbookView: React.FC<LogbookViewProps> = ({ onClose }) => {
             attributionControl={false}
             zoomControl={false}
           >
-            <BufferedTileLayer
-              url={useSatellite ? TILE_URLS.satellite : TILE_URLS.street}
-              attribution=""
-              keepBuffer={4}
-              loadBuffer={0.5}
-            />
-            <BufferedTileLayer url={TILE_URLS.nautical} attribution="" zIndex={10} keepBuffer={4} loadBuffer={0.5} />
+            {activeSources.filter((s) => s.kind !== 'contours').map((src, idx) => (
+              <BufferedTileLayer
+                key={src.id}
+                url={tileUrl(src.id)}
+                attribution=""
+                zIndex={src.role === 'overlay' ? 10 + idx : undefined}
+                keepBuffer={4}
+                loadBuffer={0.5}
+              />
+            ))}
             <MapFitter bounds={bounds} resetKey={currentDate} />
             {polylines.map(line => (
               <Polyline

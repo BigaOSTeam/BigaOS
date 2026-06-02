@@ -14,18 +14,15 @@ import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
 import { useChartControl } from '../../context/ChartControlContext';
 import { useClientSetting } from '../../context/ClientSettingsContext';
+import { useTileSources, useChartLayers, buildAttribution } from '../../context/TileSourcesContext';
 import { useBoatSetting } from '../../context/BoatSettingsContext';
 import { SearchResult } from '../../services/geocoding';
 import { navigationAPI, geocodingAPI } from '../../services/api';
 import { wsService } from '../../services/websocket';
 
-// Hardcoded server proxy URLs for tiles - client always fetches through server
-import { API_BASE_URL } from '../../utils/urls';
-const TILE_URLS = {
-  street: `${API_BASE_URL}/tiles/street/{z}/{x}/{y}`,
-  satellite: `${API_BASE_URL}/tiles/satellite/{z}/{x}/{y}`,
-  nautical: `${API_BASE_URL}/tiles/nautical/{z}/{x}/{y}`,
-};
+// Tile URLs are built from the server-driven tile-source registry; see
+// `useTileSources().tileUrl(id)`. All tiles are fetched through the server
+// proxy so offline caching and connectivity handling apply uniformly.
 
 // Import extracted components
 import {
@@ -53,6 +50,9 @@ import {
   ChartSidebar,
   DepthSettingsPanel,
   SearchPanel,
+  LayersPanel,
+  DepthContourLayer,
+  DEPTH_MIN_ZOOM,
   AutopilotPanel,
   WaterDebugOverlay,
   DebugInfoPanel,
@@ -139,8 +139,13 @@ export const ChartView = React.memo<ChartViewProps>(({
   const [autoCenter, setAutoCenter] = useState(true);
   const [depthSettingsOpen, setDepthSettingsOpen] = useState(false);
   const [weatherPanelOpen, setWeatherPanelOpen] = useState(false);
-  const [useSatellite, setUseSatellite] = useClientSetting<boolean>('chartUseSatellite', false);
+  const { tileUrl, overlays: overlayList } = useTileSources();
+  const { baseMapId, overlayEnabled, activeSources } = useChartLayers();
+  // Cosmetic only: imagery bases get a dark backdrop behind loading tiles,
+  // map bases get a light "water" blue.
+  const useSatellite = baseMapId === 'satellite';
   const [searchOpen, setSearchOpen] = useState(false);
+  const [layersPanelOpen, setLayersPanelOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -1063,12 +1068,35 @@ export const ChartView = React.memo<ChartViewProps>(({
         zoomAnimation={false}
         markerZoomAnimation={false}
       >
-        {useSatellite ? (
-          <BufferedTileLayer attribution="" url={TILE_URLS.satellite} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
-          ) : (
-          <BufferedTileLayer attribution="" url={TILE_URLS.street} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
-        )}
-        <BufferedTileLayer attribution="" url={TILE_URLS.nautical} zIndex={10} updateWhenZooming={false} keepBuffer={4} loadBuffer={0.5} />
+        {/* Base map (keyed by id so swapping base recreates the layer cleanly) */}
+        <BufferedTileLayer
+          key={`base-${baseMapId}`}
+          attribution=""
+          url={tileUrl(baseMapId)}
+          updateWhenZooming={false}
+          keepBuffer={4}
+          loadBuffer={0.5}
+        />
+        {/* Enabled overlays, stacked above the base in registry order.
+            Contour overlays (depth) are vector layers fetched as GeoJSON; all
+            others are remote tile layers. */}
+        {overlayList.map((ov, idx) => {
+          if (!overlayEnabled[ov.id]) return null;
+          if (ov.kind === 'contours') {
+            return <DepthContourLayer key={`overlay-${ov.id}`} loadingLabel={t('chart.loading_depth')} />;
+          }
+          return (
+            <BufferedTileLayer
+              key={`overlay-${ov.id}`}
+              attribution=""
+              url={tileUrl(ov.id)}
+              zIndex={10 + idx}
+              updateWhenZooming={false}
+              keepBuffer={4}
+              loadBuffer={0.5}
+            />
+          );
+        })}
 
         {/* Auto-refresh tiles when coming back online */}
         <ConnectivityRefresher />
@@ -1339,6 +1367,29 @@ export const ChartView = React.memo<ChartViewProps>(({
         )}
       </MapContainer>
 
+      {/* Depth overlay enabled but zoomed too far out to show contours */}
+      {mapZoom < DEPTH_MIN_ZOOM &&
+        overlayList.some((o) => o.kind === 'contours' && overlayEnabled[o.id]) && (
+          <div
+            style={{
+              position: 'absolute',
+              top: '12px',
+              left: '50%',
+              transform: 'translateX(-50%)',
+              zIndex: 1100,
+              padding: '6px 12px',
+              borderRadius: '16px',
+              background: theme.colors.bgOverlayHeavy,
+              color: theme.colors.textPrimary,
+              fontSize: theme.fontSize.xs,
+              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+              pointerEvents: 'none',
+            }}
+          >
+            {t('chart.depth_zoom_hint')}
+          </div>
+        )}
+
       {/* Scale bar - Google Maps style */}
       {!hideSidebar && (() => {
         // Calculate meters per pixel at current zoom and latitude
@@ -1415,19 +1466,37 @@ export const ChartView = React.memo<ChartViewProps>(({
             >
               {scaleLabel}
             </div>
-            {/* Attribution */}
+            {/* "Not for navigation" disclaimer when an imagery/bathymetry
+                source is active. */}
+            {activeSources.some((s) => s.notForNavigation) && (
+              <div
+                style={{
+                  fontSize: '0.5rem',
+                  color: theme.colors.warning,
+                  textShadow: '0 1px 2px rgba(0,0,0,0.8)',
+                  marginTop: '2px',
+                  textAlign: 'right',
+                }}
+              >
+                {t('chart.not_for_navigation')}
+              </div>
+            )}
+            {/* Attribution — aggregated from the active sources' registry
+                entries. Strings are server-controlled (not user input), so
+                rendering their embedded links via innerHTML is safe. */}
             <div
               style={{
                 fontSize: '0.5rem',
                 color: theme.colors.textSecondary,
                 textShadow: '0 1px 2px rgba(0,0,0,0.8)',
-                whiteSpace: 'nowrap',
                 marginTop: '2px',
                 textAlign: 'right',
+                maxWidth: '220px',
+                lineHeight: 1.3,
               }}
-            >
-              {useSatellite ? '© Esri' : '© OpenStreetMap'} | © OpenSeaMap
-            </div>
+              className="chart-attribution"
+              dangerouslySetInnerHTML={{ __html: buildAttribution(activeSources) }}
+            />
           </div>
         );
       })()}
@@ -1660,7 +1729,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           depthAlarm={depthAlarm}
           depthSettingsOpen={depthSettingsOpen}
           searchOpen={searchOpen}
-          useSatellite={useSatellite}
+          layersPanelOpen={layersPanelOpen}
           autoCenter={autoCenter}
           bearingToTarget={
             navigationTarget && routeWaypoints.length >= 2
@@ -1685,20 +1754,29 @@ export const ChartView = React.memo<ChartViewProps>(({
             setSearchOpen(false);
             setAutopilotOpen(false);
             setWeatherPanelOpen(false);
+            setLayersPanelOpen(false);
           }}
           onSearchClick={() => {
             setSearchOpen(!searchOpen);
             setDepthSettingsOpen(false);
             setAutopilotOpen(false);
             setWeatherPanelOpen(false);
+            setLayersPanelOpen(false);
           }}
-          onSatelliteToggle={() => setUseSatellite(!useSatellite)}
+          onLayersClick={() => {
+            setLayersPanelOpen(!layersPanelOpen);
+            setDepthSettingsOpen(false);
+            setSearchOpen(false);
+            setAutopilotOpen(false);
+            setWeatherPanelOpen(false);
+          }}
           onRecenter={handleRecenter}
           onCompassClick={() => {
             setAutopilotOpen(!autopilotOpen);
             setDepthSettingsOpen(false);
             setSearchOpen(false);
             setWeatherPanelOpen(false);
+            setLayersPanelOpen(false);
           }}
           onDebugToggle={() => setDebugMode(debugMode === 'off' ? 'grid' : 'off')}
           onWeatherClick={() => {
@@ -1706,6 +1784,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             setDepthSettingsOpen(false);
             setSearchOpen(false);
             setAutopilotOpen(false);
+            setLayersPanelOpen(false);
           }}
         />
       )}
@@ -2079,6 +2158,15 @@ export const ChartView = React.memo<ChartViewProps>(({
             </button>
           </div>
         </>
+      )}
+
+      {/* Layers Panel */}
+      {layersPanelOpen && (
+        <LayersPanel
+          sidebarWidth={sidebarWidth}
+          sidebarPosition={sidebarPosition}
+          onClose={() => setLayersPanelOpen(false)}
+        />
       )}
 
       {/* Depth Settings Panel */}
