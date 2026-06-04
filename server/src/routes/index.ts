@@ -120,8 +120,10 @@ router.get('/tiles/storage', fileOpsLimiter, tilesController.getStorageStats.bin
 // Tile serving (must be last due to wildcard params).
 router.get('/tiles/:source/:z/:x/:y', tileServeLimiter, tilesController.serveTile.bind(tilesController));
 
-// Depth contours — vector isobaths from the EMODnet DTM (online only).
+// Depth contours — vector isobaths, offline-first (downloaded tiles) with an
+// EMODnet WCS online fallback. /coverage is a fast local-vs-online pre-check.
 router.get('/depth/contours', fileOpsLimiter, depthController.getContours.bind(depthController));
+router.get('/depth/coverage', fileOpsLimiter, depthController.getCoverage.bind(depthController));
 
 // Weather routes
 router.get('/weather/current', weatherController.getCurrent.bind(weatherController));

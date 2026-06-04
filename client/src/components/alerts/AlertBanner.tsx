@@ -6,12 +6,16 @@ interface AlertBannerProps {
   alert: TriggeredAlert;
   severity: AlertSeverity;
   onDismiss: () => void;
+  /** Optional tap action for the banner body. When set, the body runs this
+   *  (cursor: pointer) and the ✕ dismisses; otherwise the whole banner dismisses. */
+  onClick?: () => void;
 }
 
 export const AlertBanner: React.FC<AlertBannerProps> = ({
   alert,
   severity,
   onDismiss,
+  onClick,
 }) => {
   const { theme } = useTheme();
   const isCritical = severity === 'critical';
@@ -30,7 +34,9 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
 
   return (
     <div
-      onClick={onDismiss}
+      // Body click: run the action if there is one, else dismiss. The ✕ always
+      // dismisses (stops propagation below).
+      onClick={onClick || onDismiss}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -68,8 +74,9 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
         {alert.message}
       </div>
 
-      {/* Dismiss hint */}
+      {/* Dismiss (✕) — always just dismisses, even when the body has an action. */}
       <div
+        onClick={(e) => { e.stopPropagation(); onDismiss(); }}
         style={{
           color: theme.colors.textSecondary,
           fontSize: '0.8rem',

@@ -27,6 +27,10 @@ export interface Notification {
   alertId?: string;
   // Custom dismiss callback for local notifications
   onDismiss?: () => void;
+  // Optional tap action for local notifications (e.g. "tap to download"). When
+  // set, tapping the banner body runs this (and dismisses); the ✕ still just
+  // dismisses. Distinct from onDismiss, which also fires on programmatic clear.
+  onClick?: () => void;
   // Snooze duration in minutes (0 = no snooze, just dismiss)
   snoozeDurationMinutes?: number;
   // Tone to play

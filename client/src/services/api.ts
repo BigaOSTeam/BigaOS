@@ -114,7 +114,7 @@ export interface DataFileInfo {
   id: string;
   name: string;
   description: string;
-  category: 'navigation' | 'other';
+  category: 'navigation' | 'depth' | 'other';
   defaultUrl: string;
   url: string;
   localPath: string;
@@ -297,7 +297,7 @@ export const tileSourcesAPI = {
     api.get<{ sources: PublicTileSource[] }>('/tiles/sources'),
 };
 
-// Depth contours (EMODnet DTM isobaths, GeoJSON LineStrings tagged with depth).
+// Depth contours (EMODnet/GEBCO isobaths, GeoJSON LineStrings tagged with depth).
 export interface DepthContourFeature {
   type: 'Feature';
   properties: { depth: number };
@@ -306,13 +306,18 @@ export interface DepthContourFeature {
 export interface DepthContours {
   type: 'FeatureCollection';
   features: DepthContourFeature[];
+  // Where the contours came from: 'local' = downloaded tiles (fast/offline),
+  // 'online' = live EMODnet WCS fallback (slower; suggest downloading),
+  // 'none' = no data for this area. Absent on older responses.
+  source?: 'local' | 'online' | 'none';
 }
 
 export const depthAPI = {
   /**
-   * Fetch depth contours for a bbox. The first view of a fresh area can be slow
-   * (EMODnet cold fetch, cached server-side afterwards), so the timeout is long
-   * and callers pass an AbortSignal to cancel on map move.
+   * Fetch depth contours for a bbox. Offline-first: downloaded tiles are fast,
+   * but the online WCS fallback for an un-downloaded region can be slow (cold
+   * regions up to ~2 min), so the timeout is generous. Callers pass an
+   * AbortSignal to cancel on map move.
    */
   getContours: (
     bbox: { west: number; south: number; east: number; north: number },
@@ -323,6 +328,17 @@ export const depthAPI = {
       signal,
       timeout: 180000,
     }),
+
+  /**
+   * Fast pre-check: are downloaded tiles available for this bbox? Lets the chart
+   * show a "fetching online (slow)" note up front for un-downloaded areas,
+   * instead of only after the slow contour fetch returns.
+   */
+  getCoverage: (
+    bbox: { west: number; south: number; east: number; north: number },
+    signal?: AbortSignal
+  ) =>
+    api.get<{ local: boolean }>('/depth/coverage', { params: bbox, signal, timeout: 8000 }),
 };
 
 // Map status: connectivity + device storage (no offline tile downloads).

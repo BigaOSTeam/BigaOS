@@ -11,6 +11,7 @@ import { WebSocketServer, setWsServerInstance } from './websocket/websocket-serv
 import db from './database/database';
 import { dbWorker } from './services/database-worker.service';
 import { waterDetectionService } from './services/water-detection.service';
+import { depthTileService } from './services/depth-tile.service';
 import { routeWorkerService } from './services/route-worker.service';
 import { DataController } from './services/data.controller';
 import { initializeLanguages } from './i18n/lang';
@@ -56,6 +57,11 @@ async function startServer() {
   // Initialize water detection service (async, non-blocking)
   waterDetectionService.initialize().catch(error => {
     console.error('Failed to initialize water detection service:', error);
+  });
+
+  // Index downloaded depth tiles (async, non-blocking) for the depth-contour overlay
+  depthTileService.initialize().catch(error => {
+    console.error('Failed to initialize depth tile service:', error);
   });
 
   // Initialize route worker (async, non-blocking) - runs pathfinding in separate thread

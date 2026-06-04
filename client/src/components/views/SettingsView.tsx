@@ -332,6 +332,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   };
 
   const navigationFiles = dataFiles.filter(f => f.category === 'navigation');
+  const depthFiles = dataFiles.filter(f => f.category === 'depth');
 
   const settings = useSettings();
 
@@ -901,7 +902,23 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
       {loadingFiles ? (
         <div style={{ color: theme.colors.textMuted, padding: theme.space.lg }}>{t('downloads.loading_data')}</div>
       ) : (
-        navigationFiles.map((file) => (
+        ([
+          { key: 'navigation', title: t('downloads.group_navigation'), files: navigationFiles },
+          { key: 'depth', title: t('downloads.group_depth'), files: depthFiles },
+        ] as const).filter((group) => group.files.length > 0).map((group) => (
+          <div key={group.key} style={{ marginBottom: theme.space.lg }}>
+            <SSection>{group.title}</SSection>
+            {group.key === 'depth' && (
+              <div style={{
+                color: theme.colors.textMuted,
+                fontSize: theme.fontSize.xs,
+                lineHeight: 1.4,
+                margin: `-${theme.space.xs} 0 ${theme.space.sm}`,
+              }}>
+                {t('downloads.group_depth_note')}
+              </div>
+            )}
+            {group.files.map((file) => (
           <div
             key={file.id}
             style={{ marginBottom: theme.space.sm, paddingBottom: theme.space.sm, borderBottom: `1px solid ${theme.colors.border}` }}
@@ -1043,6 +1060,8 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
               </div>
             )}
 
+          </div>
+            ))}
           </div>
         ))
       )}

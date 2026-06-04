@@ -52,7 +52,6 @@ import {
   SearchPanel,
   LayersPanel,
   DepthContourLayer,
-  DEPTH_MIN_ZOOM,
   AutopilotPanel,
   WaterDebugOverlay,
   DebugInfoPanel,
@@ -1083,7 +1082,18 @@ export const ChartView = React.memo<ChartViewProps>(({
         {overlayList.map((ov, idx) => {
           if (!overlayEnabled[ov.id]) return null;
           if (ov.kind === 'contours') {
-            return <DepthContourLayer key={`overlay-${ov.id}`} loadingLabel={t('chart.loading_depth')} />;
+            return (
+              <DepthContourLayer
+                key={`overlay-${ov.id}`}
+                labels={{
+                  loading: t('chart.loading_depth'),
+                  online: t('chart.depth_online_note'),
+                  noData: t('chart.depth_none_note'),
+                  zoomHint: t('chart.depth_zoom_hint'),
+                }}
+                onRequestDownload={() => navigate('settings', { settings: { tab: 'downloads' } })}
+              />
+            );
           }
           return (
             <BufferedTileLayer
@@ -1367,28 +1377,9 @@ export const ChartView = React.memo<ChartViewProps>(({
         )}
       </MapContainer>
 
-      {/* Depth overlay enabled but zoomed too far out to show contours */}
-      {mapZoom < DEPTH_MIN_ZOOM &&
-        overlayList.some((o) => o.kind === 'contours' && overlayEnabled[o.id]) && (
-          <div
-            style={{
-              position: 'absolute',
-              top: '12px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              zIndex: 1100,
-              padding: '6px 12px',
-              borderRadius: '16px',
-              background: theme.colors.bgOverlayHeavy,
-              color: theme.colors.textPrimary,
-              fontSize: theme.fontSize.xs,
-              boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
-              pointerEvents: 'none',
-            }}
-          >
-            {t('chart.depth_zoom_hint')}
-          </div>
-        )}
+      {/* Depth overlay messaging (zoom-in hint, "online — download for offline",
+          and "no data — download") is shown by DepthContourLayer as tappable info
+          notifications, matching the rest of the notification system. */}
 
       {/* Scale bar - Google Maps style */}
       {!hideSidebar && (() => {

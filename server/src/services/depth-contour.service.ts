@@ -1,31 +1,34 @@
 /**
  * Depth Contour Service
  *
- * Generates vector depth contours (isobaths) on demand from the EMODnet
- * Bathymetry DTM (~115 m, all European seas) via its WCS GetCoverage endpoint.
+ * Generates vector depth contours (isobaths) by running marching-squares
+ * (d3-contour) over a depth grid, smoothing/simplifying the lines, and emitting
+ * GeoJSON LineString isobaths tagged with depth (metres).
  *
- * Flow: fetch a depth-value GeoTIFF for the requested bbox → parse the grid →
- * run marching-squares (d3-contour) at a set of depth thresholds → emit GeoJSON
- * LineString isobaths tagged with depth (metres). The client renders these as
- * translucent labelled lines over the base map.
+ * **Offline-first, online-fallback** — the grid comes from, in order:
+ *   1. `local`  — downloaded tiles via `depthTileService` (fast, offline;
+ *                 EMODnet ~115 m basins + GEBCO ~450 m global).
+ *   2. `online` — streamed on demand from the global **GEBCO COG** via HTTP
+ *                 range reads (~450 m). Works ANYWHERE out of the box (incl. the
+ *                 Americas — EMODnet is European-only), and is fast (a couple of
+ *                 range requests, not a cold WCS GetCoverage). Disk-cached.
+ *   3. `none`   — even GEBCO had nothing / fetch failed.
+ * The result reports its `source` so the client can nudge the user to download
+ * the relevant pack for offline + faster loading.
  *
- * Online only — nothing is cached to disk; results are held in a small
- * in-memory LRU. Outside EMODnet coverage the WCS returns an error and we
- * yield an empty FeatureCollection.
+ * In-memory LRU (cleared on depth-pack (re)download) + a persistent on-disk
+ * cache of online results under `data/depth-contours/`.
  *
- * Data: EMODnet Bathymetry (CC BY 4.0). NOT FOR NAVIGATION.
+ * Data: EMODnet Bathymetry (CC BY 4.0); GEBCO Compilation Group. NOT FOR NAVIGATION.
  */
 
-import * as https from 'https';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import * as GeoTIFF from 'geotiff';
 import { contours as d3contours } from 'd3-contour';
+import { depthTileService, DepthValueGrid } from './depth-tile.service';
 import { assertSafeOutboundUrl } from '../utils/url-safety';
-
-const WCS_BASE = 'https://ows.emodnet-bathymetry.eu/wcs';
-const COVERAGE_ID = 'emodnet__mean'; // raw mean-depth grid (elevation, m; sea floor < 0)
 
 // Default isobath depths in metres. Coastal-friendly near the surface, sparser
 // in deep water. Contours are drawn at the negative of each (elevation grid).
@@ -37,24 +40,26 @@ const MAX_GRID_DIM = 384;
 // Contours are a zoomed-in feature; refuse spans larger than this (degrees).
 const MAX_SPAN_DEG = 3;
 
-// EMODnet elevation outside this range is treated as nodata/land.
+// Elevation outside this range is treated as nodata/land.
 const MIN_VALID_M = -12000;
 const MAX_VALID_M = 9000;
 // Sentinel placed in nodata/land cells: a high "elevation" so no submarine
 // contour threads through it.
 const LAND_SENTINEL = 1e6;
 
-// EMODnet WCS cold-fetches a fresh region slowly (seen up to ~2 min), so give
-// it a long timeout — the result is then cached on disk forever.
-const WCS_TIMEOUT_MS = 150000;
-
 // Snap requested bboxes outward to this grid so small pans / zoom jitter reuse
-// the same cache entry (and the same warmed EMODnet region).
+// the same cache entry.
 const SNAP_DEG = 0.25;
 
-// Bump to invalidate all cached contours (e.g. if the coverage, depth set, or
-// post-processing like smoothing changes).
-const CACHE_VERSION = 'v5';
+// Bump to invalidate cached contours (e.g. if the depth set or post-processing
+// like smoothing changes).
+const CACHE_VERSION = 'v7';
+
+// Online fallback for areas with no downloaded tile: the global GEBCO 2024 COG
+// (Int16 elevation, m; sea floor < 0; EPSG:4326, ~450 m). Read on demand via
+// HTTP range requests (geotiff fromUrl) — global + fast, and the same data as
+// the downloadable GEBCO packs. Disk-cached so it's computed once per area.
+const GEBCO_COG_URL = 'https://data.source.coop/alexgleith/gebco-2024/GEBCO_2024.tif';
 
 // Chaikin corner-cutting passes applied to each contour ring to round off the
 // "polygony" look from the coarse grid. Each pass ~doubles vertex count; 3
@@ -182,23 +187,33 @@ export interface DepthContourCollection {
   features: GeoJSONFeature[];
 }
 
+/** Where the contour grid came from: downloaded tiles, the online GEBCO COG, or nothing. */
+export type DepthSource = 'local' | 'online' | 'none';
+
+/** Contours plus where they came from (drives the client's offline/online note). */
+export interface DepthContourResult {
+  collection: DepthContourCollection;
+  source: DepthSource;
+}
+
 interface CacheEntry {
   at: number;
   data: DepthContourCollection;
+  source: Exclude<DepthSource, 'none'>;
 }
 
 const EMPTY: DepthContourCollection = { type: 'FeatureCollection', features: [] };
 
 class DepthContourService {
-  // Hot in-memory cache (this process).
+  // Hot in-memory cache (this process). Cleared on depth-pack (re)download.
   private cache = new Map<string, CacheEntry>();
   private readonly MAX_CACHE = 60;
-  // De-dupe concurrent fetches for the same area so a 2-min cold fetch isn't
-  // run N times in parallel.
-  private inflight = new Map<string, Promise<DepthContourCollection>>();
-  // Persistent on-disk cache — depth data is static, so a cold fetch is paid
-  // at most once ever (survives restarts).
+  // De-dupe concurrent builds for the same area.
+  private inflight = new Map<string, Promise<{ data: DepthContourCollection; source: Exclude<DepthSource, 'none'> } | null>>();
+  // Persistent cache of ONLINE results so a region is contoured once.
   private readonly diskDir: string;
+  // Lazily-opened handle to the remote GEBCO COG (reused across range reads).
+  private gebcoTiff: Promise<any> | null = null;
 
   constructor() {
     this.diskDir = path.join(__dirname, '..', 'data', 'depth-contours');
@@ -210,46 +225,76 @@ class DepthContourService {
   }
 
   /**
-   * Get depth contours (GeoJSON isobaths) for a bbox. Returns an empty
-   * collection for out-of-coverage areas, oversized spans, or upstream errors.
+   * Get depth contours (GeoJSON isobaths) for a bbox, offline-first: downloaded
+   * tiles → online GEBCO COG fallback → none. `source` tells the client which, so it can
+   * nudge a download for offline + faster loading.
    */
-  async getContours(reqBbox: DepthBbox, depths: number[] = DEFAULT_DEPTHS): Promise<DepthContourCollection> {
+  async getContours(reqBbox: DepthBbox, depths: number[] = DEFAULT_DEPTHS): Promise<DepthContourResult> {
     const bbox = this.snap(reqBbox);
-    if (!this.isValidBbox(bbox)) return EMPTY;
+    if (!this.isValidBbox(bbox)) return { collection: EMPTY, source: 'none' };
 
     const key = this.cacheKey(bbox, depths);
 
-    // 1) hot memory cache
     const mem = this.cache.get(key);
-    if (mem) return mem.data;
+    if (mem) return { collection: mem.data, source: mem.source };
 
-    // 2) persistent disk cache
-    const disk = this.readDisk(key);
-    if (disk) {
-      this.putMem(key, disk);
-      return disk;
+    // Coalesce concurrent builds for the same area.
+    let promise = this.inflight.get(key);
+    if (!promise) {
+      promise = this.build(bbox, depths, key).finally(() => this.inflight.delete(key));
+      this.inflight.set(key, promise);
     }
 
-    // 3) coalesce concurrent cold fetches for the same area
-    const existing = this.inflight.get(key);
-    if (existing) return existing;
+    let result: { data: DepthContourCollection; source: Exclude<DepthSource, 'none'> } | null;
+    try {
+      result = await promise;
+    } catch (err) {
+      console.warn('Depth contours build failed for bbox', bbox, err instanceof Error ? err.message : err);
+      return { collection: EMPTY, source: 'none' };
+    }
 
-    const promise = (async () => {
-      try {
-        const data = await this.buildContours(bbox, depths);
-        this.putMem(key, data);
-        this.writeDisk(key, data);
-        return data;
-      } catch (err) {
-        // Out-of-coverage / WCS hiccup / parse failure → no contours, not an error.
-        console.warn('Depth contours unavailable for bbox', bbox, err instanceof Error ? err.message : err);
-        return EMPTY;
-      } finally {
-        this.inflight.delete(key);
-      }
-    })();
-    this.inflight.set(key, promise);
-    return promise;
+    if (!result) return { collection: EMPTY, source: 'none' };
+    this.putMem(key, result.data, result.source);
+    return { collection: result.data, source: result.source };
+  }
+
+  /**
+   * Resolve the depth grid offline-first and build contours. Returns null (→
+   * 'none') when neither local tiles nor the online GEBCO COG cover the bbox.
+   */
+  private async build(
+    bbox: DepthBbox,
+    depths: number[],
+    key: string,
+  ): Promise<{ data: DepthContourCollection; source: Exclude<DepthSource, 'none'> } | null> {
+    // 1) Offline: downloaded tiles take precedence.
+    if (depthTileService.hasCoverage(bbox)) {
+      const grid = await depthTileService.getValueGrid(bbox);
+      if (grid) return { data: this.buildContoursFromGrid(grid, depths), source: 'local' };
+    }
+    // 2) Online fallback: stream from the global GEBCO COG (disk-cached).
+    const disk = this.readDisk(key);
+    if (disk) return { data: disk, source: 'online' };
+    const grid = await this.fetchOnlineGrid(bbox);
+    if (!grid) return null; // GEBCO fetch failed / no data → 'none'
+    const data = this.buildContoursFromGrid(grid, depths);
+    this.writeDisk(key, data);
+    return { data, source: 'online' };
+  }
+
+  /**
+   * Cheap up-front check (no contouring / no network): is this bbox covered by
+   * downloaded tiles? Lets the client say "fetching online…" immediately for
+   * un-downloaded areas instead of only after the online fetch returns.
+   */
+  hasLocal(reqBbox: DepthBbox): boolean {
+    return depthTileService.hasCoverage(this.snap(reqBbox));
+  }
+
+  /** Drop cached contours (called when a depth pack is downloaded/deleted). */
+  clearCache(): void {
+    this.cache.clear();
+    this.inflight.clear();
   }
 
   /** Snap a requested bbox outward to the SNAP_DEG grid for cache reuse. */
@@ -276,9 +321,8 @@ class DepthContourService {
     return `${CACHE_VERSION}|${depths.join(',')}|${r(b.west)},${r(b.south)},${r(b.east)},${r(b.north)}`;
   }
 
-  private putMem(key: string, data: DepthContourCollection): void {
+  private putMem(key: string, data: DepthContourCollection, source: Exclude<DepthSource, 'none'>): void {
     if (this.cache.size >= this.MAX_CACHE) {
-      // Evict oldest
       let oldestKey = '';
       let oldest = Infinity;
       for (const [k, v] of this.cache) {
@@ -286,8 +330,10 @@ class DepthContourService {
       }
       if (oldestKey) this.cache.delete(oldestKey);
     }
-    this.cache.set(key, { at: Date.now(), data });
+    this.cache.set(key, { at: Date.now(), data, source });
   }
+
+  // ---- Online (GEBCO COG) fallback + persistent disk cache ----------------
 
   private diskPath(key: string): string {
     const hash = crypto.createHash('sha1').update(key).digest('hex');
@@ -317,61 +363,59 @@ class DepthContourService {
   }
 
   /**
-   * Fetch the EMODnet WCS GeoTIFF for a bbox into an ArrayBuffer.
+   * Online depth grid streamed from the global GEBCO COG via HTTP range reads,
+   * shaped like a local tile grid. The GeoTIFF handle is cached so only the
+   * windowed tiles are fetched per call (not the whole 4 GB file or its header
+   * each time). Returns null on error / too-small a window.
    */
-  private fetchCoverage(bbox: DepthBbox): Promise<ArrayBuffer> {
-    const url =
-      `${WCS_BASE}?service=WCS&version=2.0.1&request=GetCoverage&coverageId=${COVERAGE_ID}` +
-      `&format=image/tiff&subset=Lat(${bbox.south},${bbox.north})&subset=Long(${bbox.west},${bbox.east})`;
-
-    // Fixed host, but validate defensively (SSRF guard / CodeQL sanitiser).
-    const parsed = assertSafeOutboundUrl(url, 'emodnet wcs');
-
-    return new Promise((resolve, reject) => {
-      const req = https.get(parsed, { headers: { 'User-Agent': 'BigaOS/1.0 (Depth Contours)' } }, (res) => {
-        const ctype = (res.headers['content-type'] || '').toLowerCase();
-        if (res.statusCode !== 200 || !ctype.includes('tif')) {
-          res.resume();
-          reject(new Error(`WCS returned ${res.statusCode} ${ctype}`));
-          return;
-        }
-        const chunks: Buffer[] = [];
-        res.on('data', (c: Buffer) => chunks.push(c));
-        res.on('end', () => {
-          const buf = Buffer.concat(chunks);
-          resolve(buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength));
-        });
-        res.on('error', reject);
-      });
-      req.on('error', reject);
-      req.setTimeout(WCS_TIMEOUT_MS, () => {
-        req.destroy();
-        reject(new Error('WCS timeout'));
-      });
-    });
+  private async fetchOnlineGrid(bbox: DepthBbox): Promise<DepthValueGrid | null> {
+    try {
+      assertSafeOutboundUrl(GEBCO_COG_URL, 'gebco cog'); // SSRF guard (fixed URL)
+      if (!this.gebcoTiff) this.gebcoTiff = GeoTIFF.fromUrl(GEBCO_COG_URL);
+      const image = await (await this.gebcoTiff).getImage();
+      const [ox, oy] = image.getOrigin() as [number, number, number]; // (-180, 90)
+      const [rx, ry] = image.getResolution() as [number, number, number]; // ry < 0 (north-up)
+      const W = image.getWidth();
+      const H = image.getHeight();
+      const clamp = (v: number, hi: number) => Math.max(0, Math.min(hi, v));
+      const x0 = clamp(Math.floor((bbox.west - ox) / rx), W);
+      const x1 = clamp(Math.ceil((bbox.east - ox) / rx), W);
+      const y0 = clamp(Math.floor((bbox.north - oy) / ry), H); // north → smaller row
+      const y1 = clamp(Math.ceil((bbox.south - oy) / ry), H);
+      if (x1 - x0 < 2 || y1 - y0 < 2) return null;
+      const rasters = await image.readRasters({ window: [x0, y0, x1, y1], pool: null });
+      const nodata = image.getGDALNoData();
+      return {
+        band: rasters[0] as ArrayLike<number>,
+        width: x1 - x0,
+        height: y1 - y0,
+        // [minX, minY, maxX, maxY]; y grows southward so y1 is the south edge.
+        bbox: [ox + x0 * rx, oy + y1 * ry, ox + x1 * rx, oy + y0 * ry],
+        nodata: nodata == null ? NaN : nodata,
+      };
+    } catch (err) {
+      console.warn('Online depth (GEBCO COG) unavailable for bbox', bbox, err instanceof Error ? err.message : err);
+      this.gebcoTiff = null; // reset so a later call re-opens the COG
+      return null;
+    }
   }
 
-  private async buildContours(bbox: DepthBbox, depths: number[]): Promise<DepthContourCollection> {
-    const ab = await this.fetchCoverage(bbox);
-    const tiff = await GeoTIFF.fromArrayBuffer(ab);
-    const image = await tiff.getImage();
-    const rawW = image.getWidth();
-    const rawH = image.getHeight();
+  /** Build contours from a normalised depth grid (local tile or online GEBCO COG). */
+  private buildContoursFromGrid(grid: DepthValueGrid, depths: number[]): DepthContourCollection {
+    const { band, width: rawW, height: rawH, nodata } = grid;
+    const [minX, minY, maxX, maxY] = grid.bbox;
     if (rawW < 2 || rawH < 2) return EMPTY;
 
-    // Actual georeferenced extent of the returned grid (the WCS may snap to the
-    // native grid, so use this rather than the requested bbox).
-    const [minX, minY, maxX, maxY] = image.getBoundingBox();
-    const nodata = image.getGDALNoData();
-    const rasters = await image.readRasters({ pool: null });
-    const band = rasters[0] as ArrayLike<number>;
-
     // Downsample (stride) so the contoured grid is at most MAX_GRID_DIM per side.
+    // (The tile service already caps its output, so this is normally a no-op.)
     const stride = Math.max(1, Math.ceil(Math.max(rawW, rawH) / MAX_GRID_DIM));
     const W = Math.ceil(rawW / stride);
     const H = Math.ceil(rawH / stride);
 
     const values: number[] = new Array(W * H);
+    // Track the deepest (most-negative) real value so we can drop thresholds
+    // below it — see the artifact note in the contour loop.
+    let deepest = Infinity;
     for (let y = 0; y < H; y++) {
       for (let x = 0; x < W; x++) {
         const sx = Math.min(rawW - 1, x * stride);
@@ -385,6 +429,7 @@ class DepthContourService {
           v = LAND_SENTINEL;
         }
         values[y * W + x] = v;
+        if (v < LAND_SENTINEL && v < deepest) deepest = v;
       }
     }
 
@@ -393,21 +438,24 @@ class DepthContourService {
     const generator = d3contours().size([W, H]).thresholds(thresholds);
     const multipolys = generator(values);
 
-    // d3-contour coordinates index grid SAMPLES; EMODnet's grid is cell-centred,
-    // so a sample at grid index g sits half a cell in from the bbox edge. Without
-    // the −0.5 the contours land half a cell to the SE of the basemap.
+    // d3-contour coordinates index grid SAMPLES; the grid is cell-centred, so a
+    // sample at grid index g sits half a cell in from the bbox edge. Without the
+    // −0.5 the contours land half a cell to the SE of the basemap.
     const toLon = (x: number) => minX + ((x - 0.5) / W) * (maxX - minX);
     const toLat = (y: number) => maxY - ((y - 0.5) / H) * (maxY - minY);
     const round = (n: number) => Math.round(n * 1e5) / 1e5;
 
     const features: GeoJSONFeature[] = [];
     for (const mp of multipolys) {
+      // Drop thresholds below the deepest real value. d3-contour treats the area
+      // outside the grid as −∞, so any threshold deeper than every cell still
+      // yields a ring tracing the whole data extent — a spurious rectangle along
+      // the region edges (very visible in shallow seas like the Baltic).
+      if ((mp.value as number) <= deepest) continue;
       const depth = -(mp.value as number);
       for (const polygon of mp.coordinates) {
         for (const ring of polygon) {
           if (ring.length < 2) continue;
-          // Map grid → lon/lat, smooth (Chaikin), prune redundant points (DP),
-          // then round to ~1 m precision.
           const lonlat = ring.map(
             ([x, y]) => [toLon(x), toLat(y)] as [number, number]
           );

@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import axios from 'axios';
@@ -23,7 +23,13 @@ import { useAlerts } from '../../../context/AlertContext';
  */
 
 export const DEPTH_MIN_ZOOM = 9;
-const DEBOUNCE_MS = 450;
+// Max viewport span (degrees) we'll request contours for. The server refuses
+// spans over MAX_SPAN_DEG (3°) on the *outward-snapped* bbox, so we gate a bit
+// lower (snapping adds up to ~0.5°). Crucially the "zoom in" hint uses the SAME
+// gate as the fetch, so there's no dead band where neither contours nor the
+// hint show (the old bug: zoom ≥ 9 but span > 3° → server returned nothing and
+// the hint, keyed only on zoom, stayed hidden).
+const CONTOUR_MAX_SPAN_DEG = 2.5;
 const SNAP_DEG = 0.25; // must match the server's SNAP_DEG
 const LABEL_SPACING_PX = 130;
 const LABEL_START_PX = 40;
@@ -54,9 +60,10 @@ function lighten(hex: string, t: number): string {
 
 // Canvas is drawn larger than the viewport by this fraction on each side, so
 // panning reveals already-drawn area instead of blank edges until moveend.
-// Cost is ~quadratic in canvas memory only — contours are sparse vector data
-// redrawn on moveend (not per frame) and culled to the canvas, so CPU is flat.
-const CANVAS_PAD = 0.75;
+// Kept modest: the clearRect + line/label rasterization each redraw scale with
+// canvas area (∝ (1+2·PAD)²), and moveend now fires directly (no debounce), so a
+// big buffer isn't needed. 0.4 → 1.8× viewport per axis (~3.2× area) vs 6.25×.
+const CANVAS_PAD = 0.4;
 // Cap the backing-store resolution so a big padded canvas on a HiDPI screen
 // doesn't balloon memory (thin lines + small text stay crisp enough at 2×).
 const MAX_DPR = 2;
@@ -76,6 +83,12 @@ function snapKey(b: L.LatLngBounds): string {
  */
 const DepthCanvasLayer = (L.Layer as any).extend({
   _data: null as DepthContours | null,
+  // Per-zoom projection cache. Re-projecting every contour vertex on every
+  // moveend (including the follow-GPS recenter storm) was the redraw hot path.
+  // project() depends only on zoom, so cache it and re-project only on a zoom
+  // change; pans/recenters then become a single per-redraw offset add.
+  _proj: null as null | Array<{ depth: number; lineColor: string; labelColor: string; pts: { x: number; y: number }[] }>,
+  _projZoom: null as number | null,
 
   onAdd(map: L.Map) {
     this._map = map;
@@ -110,6 +123,7 @@ const DepthCanvasLayer = (L.Layer as any).extend({
 
   setData(data: DepthContours | null) {
     this._data = data;
+    this._proj = null; // new data → invalidate projection cache
     this._redraw();
     return this;
   },
@@ -166,6 +180,37 @@ const DepthCanvasLayer = (L.Layer as any).extend({
     const data = this._data as DepthContours | null;
     if (!data) return;
 
+    // (Re)build the per-zoom projection cache. project() is zoom-only, so this
+    // runs once per zoom change (or new data) instead of every moveend.
+    const zoom = map.getZoom();
+    if (!this._proj || this._projZoom !== zoom) {
+      this._proj = data.features.map((feature) => {
+        const lineColor = depthColor(feature.properties.depth);
+        const coords = feature.geometry?.coordinates || [];
+        return {
+          depth: feature.properties.depth,
+          lineColor,
+          // Label colour: a lightened tint of the line colour — readable
+          // everywhere (with the dark halo) yet still depth-graded.
+          labelColor: lighten(lineColor, 0.55),
+          pts: coords.map(([lon, lat]) => {
+            const p = map.project([lat, lon], zoom);
+            return { x: p.x, y: p.y };
+          }),
+        };
+      });
+      this._projZoom = zoom;
+    }
+
+    // Cached pts are absolute pixel coords at this zoom; convert to canvas coords
+    // with one offset per redraw (canvas pixel = layerPoint − canvasTopLeft).
+    // This matches the old latLngToContainerPoint()+pad result but skips the
+    // per-vertex projection on pans/recenters.
+    const origin = map.getPixelOrigin();
+    const tl = map.containerPointToLayerPoint([-padX, -padY]);
+    const offX = -origin.x - tl.x;
+    const offY = -origin.y - tl.y;
+
     ctx.font = '700 12px sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -192,20 +237,18 @@ const DepthCanvasLayer = (L.Layer as any).extend({
       labelCount++;
     };
 
-    for (const feature of data.features) {
-      const coords = feature.geometry?.coordinates;
-      if (!coords || coords.length < 2) continue;
-      const depth = feature.properties.depth;
-      const lineColor = depthColor(depth);
-      // Label colour: a lightened tint of the line colour — readable everywhere
-      // (with the dark halo) yet still depth-graded so it ties to its contour.
-      const labelColor = lighten(lineColor, 0.55);
+    for (const feature of this._proj) {
+      const projPts = feature.pts;
+      if (projPts.length < 2) continue;
+      const depth = feature.depth;
+      const lineColor = feature.lineColor;
+      const labelColor = feature.labelColor;
 
-      // Canvas coords = container point + padding offset.
-      const pts = coords.map(([lon, lat]) => {
-        const p = map.latLngToContainerPoint([lat, lon]);
-        return { x: p.x + padX, y: p.y + padY };
-      });
+      // Cached projection → canvas coords: one add per vertex, no re-projection.
+      const pts = new Array<{ x: number; y: number }>(projPts.length);
+      for (let i = 0; i < projPts.length; i++) {
+        pts[i] = { x: projPts[i].x + offX, y: projPts[i].y + offY };
+      }
 
       // Cull contours whose bbox doesn't intersect the padded canvas.
       let minx = Infinity;
@@ -283,90 +326,167 @@ const DepthCanvasLayer = (L.Layer as any).extend({
 });
 
 interface DepthContourLayerProps {
-  /** Translated "Loading depth…" text for the loading notification. */
-  loadingLabel: string;
+  /** Translated notification texts (kept in a ref so the layer effect is stable). */
+  labels: {
+    loading: string;   // "Loading depth…" (brief, for downloaded areas)
+    online: string;    // "Loading depth online — tap to download for faster loading" (the single online note)
+    noData: string;    // "No depth data for this area — tap to download"
+    zoomHint: string;  // "Zoom in for depth contours"
+  };
+  /** Open Settings → Downloads; wired to the tap action of the status notes. */
+  onRequestDownload?: () => void;
 }
 
-export const DepthContourLayer = ({ loadingLabel }: DepthContourLayerProps) => {
+export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLayerProps) => {
   const map = useMap();
-  const { pushNotification, clearNotification } = useAlerts();
+  const { pushNotification, clearNotification, updateNotification } = useAlerts();
+
+  // Keep the latest labels / callback in refs so the layer effect doesn't tear
+  // down and re-add the canvas layer when they change identity each render.
+  const labelsRef = useRef(labels);
+  labelsRef.current = labels;
+  const onRequestDownloadRef = useRef(onRequestDownload);
+  onRequestDownloadRef.current = onRequestDownload;
 
   useEffect(() => {
     const layer = new DepthCanvasLayer();
     layer.addTo(map);
 
     let abort: AbortController | null = null;
-    let timer: ReturnType<typeof setTimeout> | null = null;
     let disposed = false;
-    let lastKey: string | null = null;
+    let lastKey: string | null = null;     // region of the last successful load
+    let inflightKey: string | null = null; // region currently being fetched
 
-    let loadingNotifId: string | null = null;
-    const showLoading = () => {
-      if (loadingNotifId) return;
-      loadingNotifId = pushNotification({ message: loadingLabel, severity: 'info', tone: 'none' });
+    const download = () => onRequestDownloadRef.current?.();
+
+    // ONE depth-status note, updated in place (never stacked): it morphs
+    // loading → online / no-data as the request resolves, so the user only ever
+    // sees a single notification. Tappable (→ Downloads) when withDownload.
+    let statusId: string | null = null;
+    const setStatus = (message: string, withDownload: boolean) => {
+      const onClick = withDownload ? download : undefined;
+      if (statusId) updateNotification(statusId, { message, onClick });
+      else statusId = pushNotification({ message, severity: 'info', tone: 'none', onClick });
     };
-    const hideLoading = () => {
-      if (loadingNotifId) {
-        clearNotification(loadingNotifId);
-        loadingNotifId = null;
-      }
+    const clearStatus = () => {
+      if (statusId) { clearNotification(statusId); statusId = null; }
+    };
+
+    // "Zoom in for depth contours" — same info-notification styling.
+    let zoomHintId: string | null = null;
+    const showZoomHint = () => {
+      if (!zoomHintId) zoomHintId = pushNotification({ message: labelsRef.current.zoomHint, severity: 'info', tone: 'none' });
+    };
+    const hideZoomHint = () => {
+      if (zoomHintId) { clearNotification(zoomHintId); zoomHintId = null; }
     };
 
     const refresh = async () => {
       if (disposed) return;
-      if (map.getZoom() < DEPTH_MIN_ZOOM) {
+      // "Too far out" for contours: zoom below the gate, OR the view spans more
+      // than the server will contour. The hint uses this SAME condition as the
+      // fetch below, so the two are complementary — no zoom level shows neither.
+      const vb = map.getBounds();
+      const tooFarOut =
+        map.getZoom() < DEPTH_MIN_ZOOM ||
+        vb.getEast() - vb.getWest() > CONTOUR_MAX_SPAN_DEG ||
+        vb.getNorth() - vb.getSouth() > CONTOUR_MAX_SPAN_DEG;
+      if (tooFarOut) {
         layer.setData(null);
         lastKey = null;
-        hideLoading();
+        inflightKey = null;
+        clearStatus();
+        showZoomHint();
         return;
       }
+      hideZoomHint();
       const key = snapKey(map.getBounds());
-      if (key === lastKey) return; // same region; the canvas reprojects itself
+      // Already showing this region, or already fetching it. The inflight guard
+      // is what keeps a direct (un-debounced) call on every moveend/zoomend
+      // cheap: a follow-GPS setView storm and the zoomend+moveend pair just
+      // early-return here instead of restarting the fetch.
+      if (key === lastKey || key === inflightKey) return;
 
       abort?.abort();
       abort = new AbortController();
       const myAbort = abort;
-      const notifyTimer = setTimeout(() => {
-        if (!disposed && myAbort === abort) showLoading();
-      }, LOADING_NOTIFY_DELAY_MS);
+      inflightKey = key;
+
+      const b = map.getBounds();
+      const bbox = { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
+
+      // Up-front coverage check so we can tell the user immediately when a region
+      // is being fetched online (slower) rather than from downloaded tiles (fast).
+      let local: boolean | null = null;
+      try {
+        local = (await depthAPI.getCoverage(bbox, myAbort.signal)).data.local !== false;
+      } catch (err) {
+        if (axios.isCancel(err)) return; // superseded — the newer fetch owns inflightKey
+        local = null; // unknown (pre-check failed)
+      }
+      if (disposed || myAbort !== abort) return;
+
+      // Drive the single status note: online areas say so right away (and stay
+      // saying it after the fast GEBCO load); local areas get a brief generic
+      // note only if the load isn't near-instant.
+      let notifyTimer: ReturnType<typeof setTimeout> | null = null;
+      if (local === false) {
+        setStatus(labelsRef.current.online, true);
+      } else {
+        notifyTimer = setTimeout(() => {
+          if (!disposed && myAbort === abort && !statusId) setStatus(labelsRef.current.loading, false);
+        }, LOADING_NOTIFY_DELAY_MS);
+      }
 
       try {
-        const b = map.getBounds();
-        const res = await depthAPI.getContours(
-          { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() },
-          myAbort.signal
-        );
+        const res = await depthAPI.getContours(bbox, myAbort.signal);
         if (disposed) return;
-        clearTimeout(notifyTimer);
-        hideLoading();
-        lastKey = key;
+        if (notifyTimer) clearTimeout(notifyTimer);
+        if (myAbort === abort) inflightKey = null;
         layer.setData(res.data);
+        const source = res.data.source ?? 'local';
+        if (source === 'none') {
+          // No data (e.g. offline + un-downloaded, or the GEBCO read failed) —
+          // keep a tappable nudge. Don't cache the key, so a move after
+          // downloading a pack re-fetches and the contours appear.
+          lastKey = null;
+          setStatus(labelsRef.current.noData, true);
+        } else {
+          // local OR online both loaded fine — the note was only a loading
+          // indicator, so clear it now the contours are drawn (online is cached
+          // like local to avoid refetch spam). This is why the "loading online"
+          // note disappears once the fetch completes.
+          lastKey = key;
+          clearStatus();
+        }
       } catch (err) {
-        clearTimeout(notifyTimer);
-        if (axios.isCancel(err)) return;
-        if (!disposed && myAbort === abort) hideLoading();
+        if (notifyTimer) clearTimeout(notifyTimer);
+        if (axios.isCancel(err)) return; // superseded — the newer fetch owns inflightKey
+        if (myAbort === abort) inflightKey = null;
+        // Leave any current note as-is; a move will retry.
       }
     };
 
-    const debounced = () => {
-      if (timer) clearTimeout(timer);
-      timer = setTimeout(refresh, DEBOUNCE_MS);
-    };
-
-    map.on('moveend', debounced);
-    map.on('zoomend', debounced);
+    // Fire directly (not debounced). A trailing debounce gets perpetually reset
+    // by the follow-GPS setView storm (MapController re-centres on every GPS
+    // tick → moveend), so it would never fire while following the boat — the
+    // bug where depth only loaded after a manual pan disabled follow-GPS. The
+    // snapped-key / inflight guards above make each direct call cheap.
+    // (See project_weather_overlay_recenter for the same lesson.)
+    map.on('moveend', refresh);
+    map.on('zoomend', refresh);
     refresh();
 
     return () => {
       disposed = true;
-      map.off('moveend', debounced);
-      map.off('zoomend', debounced);
-      if (timer) clearTimeout(timer);
+      map.off('moveend', refresh);
+      map.off('zoomend', refresh);
       abort?.abort();
-      hideLoading();
+      clearStatus();
+      hideZoomHint();
       map.removeLayer(layer);
     };
-  }, [map, loadingLabel, pushNotification, clearNotification]);
+  }, [map, pushNotification, clearNotification, updateNotification]);
 
   return null;
 };

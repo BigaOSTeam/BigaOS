@@ -147,6 +147,11 @@ export const AlertContainer: React.FC = () => {
             }}
             severity={notification.severity}
             onDismiss={() => handleDismiss(notification)}
+            onClick={
+              notification.onClick
+                ? () => { notification.onClick!(); handleDismiss(notification); }
+                : undefined
+            }
           />
         </div>
       ))}

@@ -118,13 +118,15 @@ export const TILE_SOURCES: readonly TileSource[] = [
     labelKey: 'tile_source.depth',
     role: 'overlay',
     kind: 'contours',
-    // Vector depth contours generated server-side from the EMODnet DTM (~115m,
-    // all European seas). The client fetches GeoJSON isobaths from
-    // `/depth/contours` for the visible bbox and renders translucent labelled
-    // lines over the base map. Online only (no offline caching). European
-    // waters only — outside EMODnet coverage the response is empty.
+    // Vector depth contours generated server-side, offline-first: from
+    // locally-downloaded bathymetry tiles (EMODnet ~115 m / GEBCO ~450 m — see
+    // the depth-data packs in the Downloads tab), falling back to the live
+    // EMODnet WCS for un-downloaded areas so it works out of the box. The client
+    // fetches GeoJSON isobaths from `/depth/contours` and shows an "online —
+    // download for offline" note when served from the (slower) WCS fallback.
     attribution:
-      '© <a href="https://emodnet.ec.europa.eu/">EMODnet</a> Bathymetry — CC BY 4.0',
+      '© <a href="https://emodnet.ec.europa.eu/">EMODnet</a> Bathymetry (CC BY 4.0) · ' +
+      '<a href="https://www.gebco.net/">GEBCO</a> 2024 Grid',
     defaultEnabled: false,
     notForNavigation: true,
   },
