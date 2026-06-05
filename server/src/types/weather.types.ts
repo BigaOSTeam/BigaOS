@@ -30,6 +30,7 @@ export interface WeatherPoint {
   pressure?: number; // hPa
   seaTemperature?: number; // celsius
   airTemperature?: number; // celsius
+  seaLevel?: number; // meters relative to MSL (tide)
 }
 
 export interface WeatherForecast {
@@ -122,6 +123,7 @@ export interface OpenMeteoMarineResponse {
     sea_surface_temperature?: string;
     ocean_current_velocity?: string;
     ocean_current_direction?: string;
+    sea_level_height_msl?: string;
   };
   hourly: {
     time: string[];
@@ -134,6 +136,7 @@ export interface OpenMeteoMarineResponse {
     sea_surface_temperature?: (number | null)[];
     ocean_current_velocity?: (number | null)[];
     ocean_current_direction?: (number | null)[];
+    sea_level_height_msl?: (number | null)[];
   };
 }
 

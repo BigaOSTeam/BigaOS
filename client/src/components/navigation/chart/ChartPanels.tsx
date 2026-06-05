@@ -6,6 +6,7 @@ import { useLanguage } from '../../../i18n/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useTileSources, useChartLayers } from '../../../context/TileSourcesContext';
 import { radToDeg, degToRad, TWO_PI } from '../../../utils/angle';
+import { TIDE_WINDOW_HOURS, type TideForecast } from './WeatherOverlay';
 
 // Helper to compute panel positioning based on sidebar position
 function getPanelPositionStyle(sidebarWidth: number, sidebarPosition: SidebarPosition): React.CSSProperties {
@@ -576,7 +577,7 @@ export const AutopilotPanel: React.FC<AutopilotPanelProps> = ({
 };
 
 // Weather forecast panel
-type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp';
+type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp' | 'tide';
 
 interface WeatherPanelProps {
   sidebarWidth: number;
@@ -586,6 +587,7 @@ interface WeatherPanelProps {
   displayMode: WeatherDisplayMode;
   loading?: boolean;
   error?: string | null;
+  tide?: TideForecast; // tide series (only supplied/used in 'tide' mode)
   onToggleEnabled: () => void;
   onSetForecastHour: (hour: number) => void;
   onSetDisplayMode: (mode: WeatherDisplayMode) => void;
@@ -612,6 +614,7 @@ const DISPLAY_MODES: { mode: WeatherDisplayMode; label: string }[] = [
   { mode: 'swell', label: 'Swell' },
   { mode: 'current', label: 'Current' },
   { mode: 'water-temp', label: 'Temp' },
+  { mode: 'tide', label: 'Tide' },
 ];
 
 export const WeatherPanel: React.FC<WeatherPanelProps> = ({
@@ -622,6 +625,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
   displayMode,
   loading = false,
   error = null,
+  tide,
   onToggleEnabled,
   onSetForecastHour,
   onSetDisplayMode,
@@ -629,13 +633,21 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
 }) => {
   const settingsPanelWidth = 320;
   const { theme } = useTheme();
-  const { windUnit, depthUnit, temperatureUnit, timeFormat, dateFormat } = useSettings();
+  const { windUnit, depthUnit, temperatureUnit, timeFormat, dateFormat, convertDepth } = useSettings();
   const { t, language } = useLanguage();
+  const isTide = displayMode === 'tide';
 
   // Custom time dialog state
   const [showCustomDialog, setShowCustomDialog] = React.useState(false);
   const [customDays, setCustomDays] = React.useState(0);
   const [customHours, setCustomHours] = React.useState(0);
+
+  // Time-slider drag value. Tide mode commits live (no network — instant
+  // recolour); grid-backed modes commit on release to avoid a grid refetch per
+  // hour dragged. The slider window is short for tides (48h) and full otherwise.
+  const sliderMax = isTide ? TIDE_WINDOW_HOURS : 168;
+  const [scrubHour, setScrubHour] = React.useState(forecastHour);
+  React.useEffect(() => { setScrubHour(forecastHour); }, [forecastHour]);
 
   // Calculate forecast time (rounded to actual forecast hours)
   const getForecastTime = () => {
@@ -756,6 +768,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               'swell': t('weather.swell'),
               'current': t('weather.current'),
               'water-temp': t('weather.temp'),
+              'tide': t('weather.tide'),
             };
             return (
               <button
@@ -837,6 +850,48 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           {t('weather.time')}
         </div>
 
+        {/* Time scrubber. Drag to slide through the forecast; in tide mode the
+            track is annotated with high (▲) / low (▼) water markers. */}
+        <div style={{ marginBottom: '0.6rem' }}>
+          <input
+            type="range"
+            min={0}
+            max={sliderMax}
+            step={1}
+            value={Math.min(scrubHour, sliderMax)}
+            onChange={(e) => {
+              const h = parseInt(e.target.value, 10);
+              setScrubHour(h);
+              if (!enabled) onToggleEnabled();
+              if (isTide) onSetForecastHour(h); // live recolour, no network
+            }}
+            onMouseUp={() => { if (!isTide) onSetForecastHour(scrubHour); }}
+            onTouchEnd={() => { if (!isTide) onSetForecastHour(scrubHour); }}
+            onKeyUp={() => { if (!isTide) onSetForecastHour(scrubHour); }}
+            style={{ width: '100%', accentColor: '#1976d2', cursor: 'pointer' }}
+          />
+          {enabled && isTide && tide && tide.extrema.length > 0 && (
+            <div style={{ position: 'relative', height: '14px', marginTop: '-2px' }}>
+              {tide.extrema.filter((e) => e.hour <= sliderMax).map((e, i) => (
+                <span
+                  key={i}
+                  title={`${e.type === 'high' ? t('weather.high_tide') : t('weather.low_tide')} · ${new Date(e.timestamp).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' })}`}
+                  style={{
+                    position: 'absolute',
+                    left: `${(e.hour / sliderMax) * 100}%`,
+                    transform: 'translateX(-50%)',
+                    fontSize: '0.7rem',
+                    lineHeight: 1,
+                    color: e.type === 'high' ? '#4aa0e0' : '#d75050',
+                  }}
+                >
+                  {e.type === 'high' ? '▲' : '▼'}
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+
         {/* Time preset buttons + Custom */}
         <div style={{
           display: 'grid',
@@ -844,7 +899,7 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
           gap: '0.4rem',
           marginBottom: '0.75rem',
         }}>
-          {FORECAST_PRESETS.map((opt) => (
+          {(isTide ? FORECAST_PRESETS.filter((p) => p.hour <= TIDE_WINDOW_HOURS) : FORECAST_PRESETS).map((opt) => (
             <button
               key={opt.hour}
               onClick={() => handlePresetSelect(opt.hour)}
@@ -861,21 +916,23 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
               {opt.hour === 0 ? t('weather.now') : opt.label}
             </button>
           ))}
-          <button
-            onClick={handleOpenCustomDialog}
-            style={{
-              padding: '0.9rem 0.3rem',
-              borderRadius: '6px',
-              border: 'none',
-              background: !isPresetSelected && enabled ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
-              color: theme.colors.textPrimary,
-              fontSize: '0.9rem',
-              cursor: 'pointer',
-              fontWeight: !isPresetSelected && enabled ? 'bold' : 'normal',
-            }}
-          >
-            {t('weather.custom')}
-          </button>
+          {!isTide && (
+            <button
+              onClick={handleOpenCustomDialog}
+              style={{
+                padding: '0.9rem 0.3rem',
+                borderRadius: '6px',
+                border: 'none',
+                background: !isPresetSelected && enabled ? 'rgba(25, 118, 210, 0.5)' : theme.colors.bgCardActive,
+                color: theme.colors.textPrimary,
+                fontSize: '0.9rem',
+                cursor: 'pointer',
+                fontWeight: !isPresetSelected && enabled ? 'bold' : 'normal',
+              }}
+            >
+              {t('weather.custom')}
+            </button>
+          )}
         </div>
 
         {/* Legend */}
@@ -1012,6 +1069,60 @@ export const WeatherPanel: React.FC<WeatherPanelProps> = ({
                 </span>
               </div>
             </>
+          ) : displayMode === 'tide' ? (
+            // When the overlay is off, show no live tide readout (displayMode
+            // stays 'tide' while disabled, so guard on enabled here).
+            !enabled ? null : (() => {
+              const dLabel = depthConversions[depthUnit].label;
+              const fmt = (m: number | null | undefined) => {
+                if (m == null) return '--';
+                const v = convertDepth(m);
+                return `${v > 0 ? '+' : ''}${v.toFixed(1)}`;
+              };
+              const clock = (ts: string) =>
+                new Date(ts).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', hour12: timeFormat === '12h' });
+              const state = tide?.stateAt(forecastHour);
+              const trend = state?.trend ?? null;
+              const trendColor = trend === 'rising' ? '#4aa0e0' : trend === 'falling' ? '#d75050' : theme.colors.textMuted;
+              const trendLabel =
+                trend === 'rising' ? `▲ ${t('weather.rising')}` :
+                trend === 'falling' ? `▼ ${t('weather.falling')}` :
+                trend === 'slack' ? `● ${t('weather.slack')}` : '';
+              const nextHigh = tide?.extrema.find((e) => e.type === 'high' && e.hour > forecastHour);
+              const nextLow = tide?.extrema.find((e) => e.type === 'low' && e.hour > forecastHour);
+              return (
+                <>
+                  {/* Selected-time tide height + trend */}
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.4rem' }}>
+                    <div>
+                      <span style={{ fontSize: '1.3rem', fontWeight: 'bold', color: theme.colors.textPrimary }}>{fmt(state?.height)}</span>
+                      <span style={{ fontSize: '0.8rem', color: theme.colors.textMuted, marginLeft: '0.3rem' }}>{dLabel}</span>
+                    </div>
+                    {trendLabel && <span style={{ fontSize: '0.8rem', color: trendColor }}>{trendLabel}</span>}
+                  </div>
+
+                  {/* Next high / low water */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: theme.colors.textPrimary, marginBottom: '0.6rem' }}>
+                    <span><span style={{ color: '#4aa0e0' }}>▲ {t('weather.high_tide')}</span> {nextHigh ? `${clock(nextHigh.timestamp)} ${fmt(nextHigh.height)}${dLabel}` : '--'}</span>
+                    <span><span style={{ color: '#d75050' }}>▼ {t('weather.low_tide')}</span> {nextLow ? `${clock(nextLow.timestamp)} ${fmt(nextLow.height)}${dLabel}` : '--'}</span>
+                  </div>
+
+                  {/* Low-water → high-water colour scale (location range) */}
+                  <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.25rem' }}>
+                    {t('weather.tide_height')} ({dLabel})
+                  </div>
+                  <div style={{ height: '10px', borderRadius: '4px', marginBottom: '0.25rem', background: 'linear-gradient(to right, rgb(215,50,50), rgb(235,235,245), rgb(40,100,210))' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.7rem', color: theme.colors.textMuted }}>
+                    <span>{tide ? fmt(tide.range.min) : '--'}</span>
+                    <span>{tide ? fmt(tide.range.max) : '--'}</span>
+                  </div>
+
+                  <div style={{ fontSize: '0.65rem', opacity: 0.6, marginTop: '0.5rem', fontStyle: 'italic' }}>
+                    {t('weather.tide_disclaimer')}
+                  </div>
+                </>
+              );
+            })()
           ) : (
             <>
               <div style={{ fontSize: '0.75rem', opacity: 0.6, marginBottom: '0.5rem' }}>

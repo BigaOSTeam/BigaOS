@@ -25,6 +25,7 @@ import {
   GustForecastItem,
   SeaTempForecastItem,
   TempForecastItem,
+  TideForecastItem,
   RollItem,
   PitchItem,
   SwitchItem,
@@ -70,6 +71,7 @@ const ITEM_TYPE_CONFIG: Record<DashboardItemType, { label: string; targetView: V
   'pressure-forecast': { label: 'Pressure', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
   'sea-temp-forecast': { label: 'Sea Temp', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
   'temp-forecast': { label: 'Air Temp', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
+  'tide-forecast': { label: 'Tide', targetView: 'weather', defaultSize: { w: 1, h: 1 } },
 };
 
 // Migrate old items to use new targetView values
@@ -124,6 +126,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
       'pressure-forecast': 'dashboard.weather_pressure',
       'sea-temp-forecast': 'dashboard.weather_sea_temp',
       'temp-forecast': 'dashboard.weather_air_temp',
+      'tide-forecast': 'dashboard.weather_tide',
       'roll': 'dashboard.roll',
       'pitch': 'dashboard.pitch',
       'switch': 'dashboard.switch',
@@ -439,6 +442,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
         return <SeaTempForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'temp-forecast':
         return <TempForecastItem latitude={forecastLat} longitude={forecastLon} />;
+      case 'tide-forecast':
+        return <TideForecastItem latitude={forecastLat} longitude={forecastLon} />;
       case 'roll':
         return <RollItem roll={sensorData.navigation.attitude.roll} />;
       case 'pitch':
@@ -567,6 +572,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ sensorData, onNavigate }) 
           <div style={{ textAlign: 'center' }}>
             <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#FFB74D' }}>22.3°</div>
             <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>Air</div>
+          </div>
+        );
+      case 'tide-forecast':
+        return (
+          <div style={{ textAlign: 'center' }}>
+            <div style={{ fontSize: '1.5rem', fontWeight: 'bold', lineHeight: 1, color: '#4aa0e0' }}>+1.2</div>
+            <div style={{ fontSize: '0.6rem', opacity: 0.5, marginTop: '2px' }}>▲ HW</div>
           </div>
         );
       case 'roll':

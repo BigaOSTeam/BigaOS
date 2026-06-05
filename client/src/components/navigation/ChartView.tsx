@@ -60,6 +60,7 @@ import {
   WeatherOverlay,
   WeatherPanel,
   useWeatherOverlay,
+  useTideForecast,
 } from './chart';
 
 // Component to refresh tiles when connectivity changes from offline to online
@@ -208,6 +209,18 @@ export const ChartView = React.memo<ChartViewProps>(({
   const [markerColor, setMarkerColor] = useState(markerColors[0]);
   const [markerIcon, setMarkerIcon] = useState('pin');
   const [mapZoom, setMapZoom] = useState(14);
+  // Map centre (the area being looked at) — used by the tide overlay so its
+  // rendering matches the visible screen rather than the boat's GPS. Only
+  // updated past a small threshold to avoid re-rendering on every tiny pan.
+  const [mapCenter, setMapCenter] = useState<{ lat: number; lon: number }>({
+    lat: position.latitude,
+    lon: position.longitude,
+  });
+  const handleMapCenterChange = useCallback((lat: number, lon: number) => {
+    setMapCenter((prev) =>
+      Math.abs(prev.lat - lat) < 0.02 && Math.abs(prev.lon - lon) < 0.02 ? prev : { lat, lon }
+    );
+  }, []);
 
   // Memoize marker icons to prevent constant re-rendering
   const markerIcons = useMemo(() => {
@@ -252,6 +265,15 @@ export const ChartView = React.memo<ChartViewProps>(({
 
   // Weather overlay hook
   const weatherOverlay = useWeatherOverlay();
+
+  // Tide forecast for the area being viewed (the map centre, not the boat GPS)
+  // so the overlay matches what's on screen. Fetched as soon as the weather
+  // overlay is enabled (regardless of the active mode) so switching to Tide is
+  // instant. Drives the overlay colour and the panel's slider markers/readout.
+  const tide = useTideForecast(
+    { latitude: mapCenter.lat, longitude: mapCenter.lon },
+    weatherOverlayEnabled
+  );
 
   // Navigation context for navigating to other views
   const { navigate } = useNavigation();
@@ -1356,7 +1378,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           onUserInteract={handleMapDrag}
           flagButtonZoomRef={flagButtonZoomRef}
         />
-        <ZoomTracker onZoomChange={setMapZoom} />
+        <ZoomTracker onZoomChange={setMapZoom} onCenterChange={handleMapCenterChange} />
         <LongPressHandler onLongPress={handleLongPress} />
 
         {/* Water debug overlay */}
@@ -1371,6 +1393,8 @@ export const ChartView = React.memo<ChartViewProps>(({
             hidden={weatherOverlayHidden}
             forecastHour={weatherOverlay.forecastHour}
             displayMode={weatherOverlay.displayMode}
+            tideHeight={weatherOverlay.displayMode === 'tide' ? tide.heightAt(weatherOverlay.forecastHour) : null}
+            tideRange={tide.range}
             onLoadingChange={weatherOverlay.setLoading}
             onError={weatherOverlay.setError}
           />
@@ -1500,8 +1524,9 @@ export const ChartView = React.memo<ChartViewProps>(({
           enabled={weatherOverlayEnabled}
           forecastHour={weatherOverlay.forecastHour}
           displayMode={weatherOverlay.displayMode}
-          loading={weatherOverlay.loading}
-          error={weatherOverlay.error}
+          loading={weatherOverlay.displayMode === 'tide' ? tide.loading : weatherOverlay.loading}
+          error={weatherOverlay.displayMode === 'tide' ? tide.error : weatherOverlay.error}
+          tide={tide}
           onToggleEnabled={() => setWeatherOverlayEnabled(!weatherOverlayEnabled)}
           onSetForecastHour={weatherOverlay.setForecastHour}
           onSetDisplayMode={weatherOverlay.setDisplayMode}

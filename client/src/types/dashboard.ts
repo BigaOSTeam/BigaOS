@@ -34,6 +34,7 @@ export type DashboardItemType =
   | 'gust-forecast'
   | 'sea-temp-forecast'
   | 'temp-forecast'
+  | 'tide-forecast'
   | 'roll'
   | 'pitch'
   | 'switch'

@@ -6,7 +6,7 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { wsService } from '../../services/websocket';
 import { radToDeg } from '../../utils/angle';
-import { getWindColor, getWaveColor, formatWindDirection } from '../../utils/weather.utils';
+import { getWindColor, getWaveColor, getTideColor, formatWindDirection } from '../../utils/weather.utils';
 import { ViewLayout } from './shared';
 
 interface WeatherViewProps {
@@ -32,6 +32,9 @@ interface DaySummary {
   maxAirTemp: number;
   minAirTemp: number;
   dominantDirection: number;
+  hasTide: boolean;
+  tideLow: number;  // lowest sea level of the day (m rel. MSL)
+  tideHigh: number; // highest sea level of the day (m rel. MSL)
 }
 
 const computeDaySummary = (label: string, shortLabel: string, date: string, hours: WeatherPoint[]): DaySummary => {
@@ -42,6 +45,7 @@ const computeDaySummary = (label: string, shortLabel: string, date: string, hour
   const pressures = hours.filter(h => h.pressure).map(h => h.pressure!);
   const temps = hours.filter(h => h.seaTemperature !== undefined).map(h => h.seaTemperature!);
   const airTemps = hours.filter(h => h.airTemperature !== undefined).map(h => h.airTemperature!);
+  const tides = hours.filter(h => h.seaLevel !== undefined).map(h => h.seaLevel!);
 
   // Dominant direction: circular mean
   let sinSum = 0, cosSum = 0;
@@ -68,6 +72,9 @@ const computeDaySummary = (label: string, shortLabel: string, date: string, hour
     maxAirTemp: airTemps.length ? Math.max(...airTemps) : 0,
     minAirTemp: airTemps.length ? Math.min(...airTemps) : 0,
     dominantDirection,
+    hasTide: tides.length > 0,
+    tideLow: tides.length ? Math.min(...tides) : 0,
+    tideHigh: tides.length ? Math.max(...tides) : 0,
   };
 };
 
@@ -81,6 +88,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
     const v = convertWind(kt);
     return windUnit === 'bft' ? v.toFixed(0) : v.toFixed(1);
   };
+  // Tide is shown in metres rel. MSL (signed), matching how this view shows
+  // waves/temperatures in raw metric units.
+  const fmtTide = (m: number) => `${m > 0 ? '+' : ''}${m.toFixed(1)}`;
   const [forecast, setForecast] = useState<WeatherForecastResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedDay, setSelectedDay] = useState(0);
@@ -275,6 +285,16 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
                 </div>
               </div>
             )}
+            {selected.hasTide && (
+              <div style={{ textAlign: 'center' }}>
+                <div style={statLabelStyle}>{t('weather.tide')}</div>
+                <div style={{ ...statValueStyle, fontSize: 'clamp(0.85rem, 2.6vw, 1.2rem)' }}>
+                  <span style={{ color: '#4aa0e0' }}>▲{fmtTide(selected.tideHigh)}</span>{' '}
+                  <span style={{ color: '#d75050' }}>▼{fmtTide(selected.tideLow)}</span>
+                  <span style={{ fontSize: '0.6em', opacity: 0.7 }}> m</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -394,6 +414,7 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
               <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right' }}>{t('weather.period')}</div>
               <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right' }}>{t('weather.swell')}</div>
               <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right' }}>{t('weather.period')}</div>
+              <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right' }}>{t('weather.tide')}</div>
               <div style={{ width: 'clamp(4rem, 12vw, 7rem)', textAlign: 'center' }}>{t('weather.sea_temperature')}</div>
             </div>
 
@@ -450,6 +471,9 @@ export const WeatherView: React.FC<WeatherViewProps> = ({ latitude, longitude, o
                   </div>
                   <div style={{ width: 'clamp(2rem, 5vw, 2.5rem)', textAlign: 'right', color: theme.colors.textDisabled, fontSize: '0.85em' }}>
                     {hour.swell?.period ? `${hour.swell.period.toFixed(0)}s` : ''}
+                  </div>
+                  <div style={{ width: 'clamp(2.5rem, 7vw, 3.5rem)', textAlign: 'right', fontWeight: theme.fontWeight.bold, color: hour.seaLevel !== undefined && selected.hasTide ? getTideColor(hour.seaLevel, selected.tideLow, selected.tideHigh) : theme.colors.textDisabled }}>
+                    {hour.seaLevel !== undefined ? `${fmtTide(hour.seaLevel)}m` : ''}
                   </div>
                   <div style={{ width: 'clamp(4rem, 12vw, 7rem)', textAlign: 'center', color: hour.seaTemperature !== undefined ? '#4FC3F7' : theme.colors.textDisabled }}>
                     {hour.seaTemperature !== undefined ? `${hour.seaTemperature.toFixed(1)}°C` : ''}

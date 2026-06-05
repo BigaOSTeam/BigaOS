@@ -157,6 +157,47 @@ export function getCurrentColor(velocityMs: number): string {
 }
 
 /**
+ * Get color for a tidal sea-level height, normalised within the location's
+ * own low-water..high-water range so the scale is meaningful everywhere
+ * (tidal range varies from ~0.3m in the Med to >5m on Atlantic coasts).
+ * Diverging ramp: red at low water (least depth — the grounding hazard) ->
+ * pale at mid -> blue at high water. Falls back to a fixed +-2m scale around
+ * MSL when the range is degenerate (missing data or near-zero tide).
+ */
+export function getTideColor(heightM: number, min: number, max: number): string {
+  // Normalised color stops: [position 0..1, [r, g, b]]
+  const colorStops: Array<[number, number[]]> = [
+    [0, [215, 50, 50]],      // Red (low water — least depth, grounding hazard)
+    [0.5, [235, 235, 245]],  // Pale (mid tide)
+    [1, [40, 100, 210]],     // Blue (high water)
+  ];
+
+  let lo = min;
+  let hi = max;
+  if (!(hi - lo > 0.05)) {
+    // Degenerate range -> fixed scale around mean sea level
+    lo = -2;
+    hi = 2;
+  }
+
+  const t = Math.max(0, Math.min(1, (heightM - lo) / (hi - lo)));
+
+  for (let i = 0; i < colorStops.length - 1; i++) {
+    const [pos1, color1] = colorStops[i];
+    const [pos2, color2] = colorStops[i + 1];
+
+    if (t >= pos1 && t <= pos2) {
+      const factor = (t - pos1) / (pos2 - pos1);
+      const rgb = interpolateColor(color1, color2, factor);
+      return `rgb(${rgb[0]}, ${rgb[1]}, ${rgb[2]})`;
+    }
+  }
+
+  const lastColor = colorStops[colorStops.length - 1][1];
+  return `rgb(${lastColor[0]}, ${lastColor[1]}, ${lastColor[2]})`;
+}
+
+/**
  * Format wind direction as compass point.
  * Expects direction in radians (internal standard).
  */

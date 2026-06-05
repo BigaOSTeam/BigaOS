@@ -36,5 +36,5 @@ export { WaterDebugOverlay, DebugInfoPanel, useWaterDebugGrid } from './WaterDeb
 export type { DebugMode } from './WaterDebugOverlay';
 
 // Weather overlay
-export { WeatherOverlay, useWeatherOverlay } from './WeatherOverlay';
-export type { WeatherDisplayMode } from './WeatherOverlay';
+export { WeatherOverlay, useWeatherOverlay, useTideForecast, TIDE_WINDOW_HOURS } from './WeatherOverlay';
+export type { WeatherDisplayMode, TideForecast } from './WeatherOverlay';

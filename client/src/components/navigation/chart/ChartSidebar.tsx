@@ -10,7 +10,7 @@ import {
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
-type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp';
+type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp' | 'tide';
 
 interface ChartSidebarProps {
   heading: number;
@@ -326,6 +326,12 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
                     <path d="M3 12L6 10V11.5H9V12.5H6V14L3 12Z" />
                     <path d="M12 15L15 13V14.5H18V15.5H15V17L12 15Z" />
                     <path d="M7 18L10 16V17.5H13V18.5H10V20L7 18Z" />
+                  </g>
+                ) : weatherDisplayMode === 'tide' ? (
+                  /* Tide icon - water surface with rise/fall level arrows */
+                  <g transform="matrix(-40, 0, 0, 40, 960, -960)">
+                    <path d="M12 2L8.5 6.5H10.75V11H13.25V6.5H15.5L12 2M12 22L15.5 17.5H13.25V13H10.75V17.5H8.5L12 22Z" />
+                    <path d="M20 21C18.61 21 17.22 20.53 16 19.67C13.56 21.38 10.44 21.38 8 19.67C6.78 20.53 5.39 21 4 21H2V19H4C5.39 19 6.78 18.53 8 17.67C10.44 19.38 13.56 19.38 16 17.67C17.22 18.53 18.61 19 20 19H22V21H20Z" />
                   </g>
                 ) : (
                   /* Sea temperature icon - Bootstrap thermometer */

@@ -106,6 +106,7 @@ export interface WeatherPoint {
   pressure?: number; // hPa
   seaTemperature?: number; // celsius
   airTemperature?: number; // celsius
+  seaLevel?: number; // meters relative to MSL (tide)
 }
 
 export interface WeatherForecast {

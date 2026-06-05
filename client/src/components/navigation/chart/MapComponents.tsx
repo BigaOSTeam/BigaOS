@@ -108,27 +108,39 @@ export const MapController: React.FC<MapControllerProps> = ({
 
 interface ZoomTrackerProps {
   onZoomChange: (zoom: number) => void;
+  // Optional: report the map centre (on pan/zoom end) so view-following
+  // features (e.g. the tide overlay) can use the area being looked at.
+  onCenterChange?: (lat: number, lon: number) => void;
 }
 
 /**
- * Component to track map zoom changes
+ * Component to track map zoom (and optionally centre) changes
  */
-export const ZoomTracker: React.FC<ZoomTrackerProps> = ({ onZoomChange }) => {
+export const ZoomTracker: React.FC<ZoomTrackerProps> = ({ onZoomChange, onCenterChange }) => {
   const map = useMap();
 
   useEffect(() => {
     const handleZoom = () => {
       onZoomChange(map.getZoom());
     };
+    const handleMove = () => {
+      if (onCenterChange) {
+        const c = map.getCenter();
+        onCenterChange(c.lat, c.lng);
+      }
+    };
 
-    // Set initial zoom
+    // Set initial zoom + centre
     onZoomChange(map.getZoom());
+    handleMove();
 
     map.on('zoomend', handleZoom);
+    map.on('moveend', handleMove);
     return () => {
       map.off('zoomend', handleZoom);
+      map.off('moveend', handleMove);
     };
-  }, [map, onZoomChange]);
+  }, [map, onZoomChange, onCenterChange]);
 
   return null;
 };

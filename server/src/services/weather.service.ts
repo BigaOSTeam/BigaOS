@@ -429,6 +429,11 @@ class WeatherService {
             point.seaTemperature = marineData.hourly.sea_surface_temperature[i]!;
           }
 
+          // Add tidal sea level (relative to MSL) if available
+          if (marineData.hourly.sea_level_height_msl?.[i] != null) {
+            point.seaLevel = marineData.hourly.sea_level_height_msl[i]!;
+          }
+
           // Add ocean current if available
           if (
             marineData.hourly.ocean_current_velocity?.[i] != null &&
@@ -572,7 +577,7 @@ class WeatherService {
     const params = new URLSearchParams({
       latitude: lat.toString(),
       longitude: lon.toString(),
-      hourly: 'wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction',
+      hourly: 'wave_height,wave_direction,wave_period,swell_wave_height,swell_wave_direction,swell_wave_period,sea_surface_temperature,ocean_current_velocity,ocean_current_direction,sea_level_height_msl',
       forecast_days: days.toString(),
     });
 

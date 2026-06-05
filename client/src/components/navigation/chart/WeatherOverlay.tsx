@@ -2,8 +2,17 @@ import React, { useEffect, useRef, useCallback } from 'react';
 import { useMap } from 'react-leaflet';
 import L from 'leaflet';
 import { weatherAPI, navigationAPI } from '../../../services/api';
-import { WeatherGridPoint } from '../../../types';
-import { getWindColor, getWaveColor, getWaterTempColor, getCurrentColor } from '../../../utils/weather.utils';
+import { wsService } from '../../../services/websocket';
+import { WeatherGridPoint, WeatherPoint } from '../../../types';
+import { getWindColor, getWaveColor, getWaterTempColor, getCurrentColor, getTideColor } from '../../../utils/weather.utils';
+import {
+  findTideExtrema,
+  getTideHeightAt,
+  getTideRange,
+  getTideStateAt,
+  type TideExtreme,
+  type TideState,
+} from '../../../utils/tide.utils';
 import { TWO_PI } from '../../../utils/angle';
 import { useSettings } from '../../../context/SettingsContext';
 import { useClientSetting } from '../../../context/ClientSettingsContext';
@@ -19,13 +28,18 @@ interface WaterGridPoint {
   type: 'ocean' | 'lake' | 'land';
 }
 
-export type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp';
+export type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp' | 'tide';
 
 interface WeatherOverlayProps {
   enabled: boolean;
   hidden?: boolean;
   forecastHour: number;
   displayMode: WeatherDisplayMode;
+  // Tide mode is driven by a single boat-position forecast (sea level is ~uniform
+  // across the visible area) rather than the weather grid — so the selected-hour
+  // height and the location's low/high-water range are supplied from outside.
+  tideHeight?: number | null; // meters relative to MSL at the selected hour
+  tideRange?: { min: number; max: number } | null;
   onLoadingChange?: (loading: boolean) => void;
   onError?: (error: string | null) => void;
 }
@@ -364,6 +378,11 @@ class WeatherCanvasLayer extends L.Layer {
   private loadingAnimationFrame: number | null = null;
   private loadingStartTime: number = 0;
   private displayMode: WeatherDisplayMode = 'wind';
+  // Tide mode state (sea level is locally uniform, so a single value + the
+  // location's low/high-water range drive the whole overlay).
+  private tideHeight: number | null = null;
+  private tideMin: number = 0;
+  private tideMax: number = 0;
 
   onAdd(map: L.Map): this {
     const pane = map.getPane('overlayPane');
@@ -420,6 +439,13 @@ class WeatherCanvasLayer extends L.Layer {
   setWaterGrid(grid: WaterGridPoint[], spacing: number = 0): void {
     this.waterGrid = grid;
     this.waterGridSpacing = spacing;
+    this.redraw();
+  }
+
+  setTide(height: number | null, min: number, max: number): void {
+    this.tideHeight = height;
+    this.tideMin = min;
+    this.tideMax = max;
     this.redraw();
   }
 
@@ -521,13 +547,20 @@ class WeatherCanvasLayer extends L.Layer {
   }
 
   private render(): void {
-    if (!this.canvas || !this.ctx || !this._map || this.dataPoints.length === 0) return;
+    if (!this.canvas || !this.ctx || !this._map) return;
 
     const ctx = this.ctx;
     const map = this._map;
     const size = map.getSize();
 
+    // Always start from a clean canvas. Otherwise switching AWAY from a mode
+    // (especially tide, which loads no grid data) early-returns below and would
+    // leave the previous mode's drawing stranded on screen.
     ctx.clearRect(0, 0, size.x, size.y);
+
+    // Tide mode draws from a single supplied height (no grid), so it renders
+    // even with no dataPoints; every other mode needs grid data.
+    if (this.dataPoints.length === 0 && this.displayMode !== 'tide') return;
 
     const bounds = map.getBounds();
 
@@ -591,6 +624,13 @@ class WeatherCanvasLayer extends L.Layer {
           const temp = interpolateSeaTemp(lat, lon, this.dataPoints);
           if (temp === null) continue;
           this.drawWaterTemp(ctx, screenPoint.x, screenPoint.y, temp);
+        } else if (this.displayMode === 'tide') {
+          // Sea level is ~uniform across the visible area, so every water cell
+          // shows the same selected-hour height; colour encodes where that sits
+          // in the location's low..high-water range.
+          if (this.tideHeight === null) continue;
+          if (!this.isPointOnOcean(lat, lon)) continue;
+          this.drawTide(ctx, screenPoint.x, screenPoint.y, this.tideHeight);
         }
       }
     }
@@ -722,6 +762,27 @@ class WeatherCanvasLayer extends L.Layer {
     ctx.fillText(text, x, y);
   }
 
+  private drawTide(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    heightMeters: number
+  ): void {
+    const color = getTideColor(heightMeters, this.tideMin, this.tideMax);
+    const converted = this.heightConverter(heightMeters);
+    const sign = converted > 0 ? '+' : '';
+    const text = `${sign}${converted.toFixed(1)}`;
+
+    ctx.fillStyle = color;
+    ctx.strokeStyle = getContrastOutline(color);
+    ctx.lineWidth = 1;
+    ctx.font = 'bold 12px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.strokeText(text, x, y);
+    ctx.fillText(text, x, y);
+  }
+
   private drawSwellArrow(
     ctx: CanvasRenderingContext2D,
     x: number,
@@ -837,6 +898,8 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   hidden,
   forecastHour,
   displayMode,
+  tideHeight = null,
+  tideRange = null,
   onLoadingChange,
   onError,
 }) => {
@@ -865,6 +928,9 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   // Fetch weather data for current bounds
   const fetchWeatherData = useCallback(async () => {
     if (!enabled) return;
+    // Tide mode doesn't use the weather grid — it's driven by a single
+    // boat-position forecast supplied via tideHeight/tideRange.
+    if (displayMode === 'tide') return;
 
     let bounds;
     try {
@@ -1030,7 +1096,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
   // Fetch water grid for marine data filtering (needed for waves, swell, current, and water-temp modes)
   // Uses the exact same grid positions as arrow rendering
   const fetchWaterGrid = useCallback(async () => {
-    const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
+    const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp', 'tide'];
     if (!enabled || !marineDisplayModes.includes(displayMode)) {
       waterGridRef.current = [];
       layerRef.current?.setWaterGrid([]);
@@ -1117,6 +1183,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     layer.setHeightConverter(convertDepth);
     layer.setTempConverter(convertTemperature);
     layer.setDisplayMode(displayMode);
+    layer.setTide(tideHeight, tideRange?.min ?? 0, tideRange?.max ?? 0);
     layerRef.current = layer;
 
     if (dataPointsRef.current.length > 0) {
@@ -1126,7 +1193,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       layer.setWaterGrid(waterGridRef.current, waterGridSpacingRef.current);
     }
     fetchWeatherData();
-    const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
+    const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp', 'tide'];
     if (marineDisplayModes.includes(displayMode)) {
       fetchWaterGrid();
     }
@@ -1160,13 +1227,22 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
     }
   }, [convertTemperature]);
 
+  // Push tide height/range into the layer. In tide mode this is what the
+  // overlay draws (the weather grid is skipped), so scrubbing the time slider
+  // recolours instantly without any network fetch.
+  useEffect(() => {
+    if (layerRef.current) {
+      layerRef.current.setTide(tideHeight, tideRange?.min ?? 0, tideRange?.max ?? 0);
+    }
+  }, [tideHeight, tideRange?.min, tideRange?.max]);
+
   // Update display mode when it changes
   useEffect(() => {
     if (layerRef.current) {
       layerRef.current.setDisplayMode(displayMode);
     }
     // Fetch water grid when switching to marine data modes
-    const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
+    const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp', 'tide'];
     if (marineDisplayModes.includes(displayMode)) {
       fetchWaterGrid();
     } else {
@@ -1212,7 +1288,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
       // Cancel any pending water-grid fetch — we're about to fire fresh ones.
       if (waterGridDebounceRef.current) clearTimeout(waterGridDebounceRef.current);
       fetchWeatherData();
-      const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp'];
+      const marineDisplayModes = ['waves', 'swell', 'current', 'water-temp', 'tide'];
       if (marineDisplayModes.includes(displayMode)) {
         fetchWaterGrid();
       }
@@ -1248,7 +1324,7 @@ export const WeatherOverlay: React.FC<WeatherOverlayProps> = ({
 
   useEffect(() => {
     const isMarine = (mode: WeatherDisplayMode) =>
-      mode === 'waves' || mode === 'swell' || mode === 'current' || mode === 'water-temp';
+      mode === 'waves' || mode === 'swell' || mode === 'current' || mode === 'water-temp' || mode === 'tide';
 
     const onMove = () => {
       const { enabled, hidden } = eventStateRef.current;
@@ -1313,7 +1389,7 @@ export function useWeatherOverlay() {
     'weatherDisplayMode',
     'wind'
   );
-  const validModes: WeatherDisplayMode[] = ['wind', 'waves', 'swell', 'current', 'water-temp'];
+  const validModes: WeatherDisplayMode[] = ['wind', 'waves', 'swell', 'current', 'water-temp', 'tide'];
   const displayMode: WeatherDisplayMode = validModes.includes(storedDisplayMode)
     ? storedDisplayMode
     : 'wind';
@@ -1344,4 +1420,102 @@ export function useWeatherOverlay() {
     setError,
     toggle,
   };
+}
+
+// ============================================
+// Hook for the tide forecast at the boat position
+// ============================================
+
+// Fetch 3 days so there is always a full forward window regardless of the time
+// of day (the hourly series starts at 00:00 of the current day). 3 days also
+// matches UPFRONT_FORECAST_DAYS, so this is usually a server cache hit.
+const TIDE_FETCH_HOURS = 72;
+// Scrub/marker window shown on the time slider in tide mode.
+export const TIDE_WINDOW_HOURS = 48;
+
+export interface TideForecast {
+  range: { min: number; max: number };
+  extrema: TideExtreme[]; // high/low water within the scrub window (hours from now)
+  loading: boolean;
+  error: string | null;
+  heightAt: (forecastHour: number) => number | null;
+  stateAt: (forecastHour: number) => TideState;
+}
+
+/**
+ * Fetches the hourly sea-level series at the boat position and derives the
+ * tide range, high/low-water turning points and per-hour state. Only active
+ * (and only fetches) when the tide overlay is showing. Refetches when the boat
+ * moves a meaningful distance or the server pushes a weather update.
+ */
+export function useTideForecast(
+  position: { latitude: number; longitude: number },
+  active: boolean
+): TideForecast {
+  const [points, setPoints] = React.useState<WeatherPoint[]>([]);
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  // Read the latest exact position without making it an effect dependency —
+  // we only want to refetch when the rounded position changes.
+  const posRef = useRef(position);
+  posRef.current = position;
+
+  // ~0.1° rounding mirrors the server's weather-cache coordinate rounding.
+  const roundedLat = Math.round(position.latitude * 10) / 10;
+  const roundedLon = Math.round(position.longitude * 10) / 10;
+
+  useEffect(() => {
+    if (!active) {
+      setPoints([]);
+      setError(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const res = await weatherAPI.getForecast(
+          posRef.current.latitude,
+          posRef.current.longitude,
+          TIDE_FETCH_HOURS
+        );
+        if (cancelled) return;
+        setPoints(res.data?.hourly ?? []);
+      } catch {
+        if (cancelled) return;
+        setError('Failed to load tide data');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+
+    load();
+    // The server pushes a fresh boat-position forecast on this event; refetch
+    // so the tide curve stays current without polling.
+    const onWeather = () => load();
+    wsService.on('weather', onWeather);
+
+    return () => {
+      cancelled = true;
+      wsService.off('weather', onWeather);
+    };
+  }, [active, roundedLat, roundedLon]);
+
+  const range = React.useMemo(() => getTideRange(points, TIDE_WINDOW_HOURS), [points]);
+  // Forward-looking turning points across the whole fetched series. The panel
+  // filters these to the slider window for tick marks, but searches the full
+  // list for the "next high/low water" readout so it isn't blank when the next
+  // turn falls just beyond the 48h slider.
+  const extrema = React.useMemo(
+    () => findTideExtrema(points).filter((e) => e.hour >= 0),
+    [points]
+  );
+  const heightAt = React.useCallback((h: number) => getTideHeightAt(points, h), [points]);
+  const stateAt = React.useCallback((h: number) => getTideStateAt(points, h), [points]);
+
+  return { range, extrema, loading, error, heightAt, stateAt };
 }
