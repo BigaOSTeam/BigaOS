@@ -114,7 +114,7 @@ export interface DataFileInfo {
   id: string;
   name: string;
   description: string;
-  category: 'navigation' | 'depth' | 'other';
+  category: 'navigation' | 'depth' | 'heritage' | 'other';
   defaultUrl: string;
   url: string;
   localPath: string;
@@ -167,7 +167,7 @@ export const dataAPI = {
 
 // Tile source registry
 export type TileSourceRole = 'base' | 'overlay';
-export type TileSourceKind = 'remote' | 'contours' | 'mbtiles';
+export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles';
 
 /**
  * Public view of a server tile source (from GET /tiles/sources). The chart UI
@@ -339,6 +339,52 @@ export const depthAPI = {
     signal?: AbortSignal
   ) =>
     api.get<{ local: boolean }>('/depth/coverage', { params: bbox, signal, timeout: 8000 }),
+};
+
+// "Worth a Look" points of interest: EMODnet shipwrecks + UNESCO coastal World
+// Heritage sites, as GeoJSON Points. Coordinates are [lon, lat]; depth is metres.
+export interface HeritageFeature {
+  type: 'Feature';
+  properties: {
+    kind: 'wreck' | 'site';
+    name?: string;
+    country?: string;
+    depth?: number; // metres (wrecks only)
+    year?: number; // sink year (wrecks) / inscription year (sites)
+    period?: string;
+    category?: string;
+    desc?: string;
+    url?: string;
+    // Baked German variants (present only in a downloaded pack, where known).
+    // The client picks these when the app language is German. The live WFS
+    // fallback has no translations, so those stay English.
+    name_de?: string;
+    country_de?: string;
+    period_de?: string;
+    category_de?: string;
+    desc_de?: string;
+  };
+  geometry: { type: 'Point'; coordinates: [number, number] };
+}
+export interface HeritageFeatures {
+  type: 'FeatureCollection';
+  features: HeritageFeature[];
+  // 'local' = downloaded pack (offline), 'online' = live EMODnet WFS fallback
+  // (suggest downloading), 'none' = no data / fetch failed.
+  source?: 'local' | 'online' | 'none';
+}
+
+export const heritageAPI = {
+  /**
+   * Fetch heritage points (wrecks + sites) for a bbox. Offline-first: a
+   * downloaded pack is instant, the live EMODnet WFS fallback is small but adds a
+   * round-trip; callers pass an AbortSignal to cancel on map move.
+   */
+  getFeatures: (
+    bbox: { west: number; south: number; east: number; north: number },
+    signal?: AbortSignal
+  ) =>
+    api.get<HeritageFeatures>('/heritage/features', { params: bbox, signal, timeout: 30000 }),
 };
 
 // Map status: connectivity + device storage (no offline tile downloads).

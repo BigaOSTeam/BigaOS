@@ -364,6 +364,28 @@ body {
   border: none !important;
 }
 
+/* Dark-theme Leaflet popups (used by the "Worth a Look" heritage markers). */
+.leaflet-popup-content-wrapper {
+  background: var(--color-bg-secondary) !important;
+  color: var(--color-text-primary) !important;
+  border: 1px solid var(--color-border) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5) !important;
+}
+
+.leaflet-popup-content {
+  margin: 10px 12px !important;
+}
+
+.leaflet-popup-tip {
+  background: var(--color-bg-secondary) !important;
+  border: 1px solid var(--color-border) !important;
+}
+
+.leaflet-popup-close-button {
+  color: var(--color-text-muted) !important;
+}
+
 
 /* ========================================
    Animations

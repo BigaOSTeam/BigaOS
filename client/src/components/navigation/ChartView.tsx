@@ -55,6 +55,7 @@ import {
   SearchPanel,
   LayersPanel,
   DepthContourLayer,
+  HeritageLayer,
   AutopilotPanel,
   WaterDebugOverlay,
   DebugInfoPanel,
@@ -1227,6 +1228,21 @@ export const ChartView = React.memo<ChartViewProps>(({
                   noData: t('chart.depth_none_note'),
                   zoomHint: t('chart.depth_zoom_hint'),
                 }}
+                onRequestDownload={() => navigate('settings', { settings: { tab: 'downloads' } })}
+              />
+            );
+          }
+          if (ov.kind === 'heritage') {
+            return (
+              <HeritageLayer
+                key={`overlay-${ov.id}`}
+                labels={{
+                  loading: t('heritage.loading'),
+                  online: t('heritage.online_note'),
+                  noData: t('heritage.none_note'),
+                  zoomHint: t('heritage.zoom_hint'),
+                }}
+                followGps={autoCenter}
                 onRequestDownload={() => navigate('settings', { settings: { tab: 'downloads' } })}
               />
             );

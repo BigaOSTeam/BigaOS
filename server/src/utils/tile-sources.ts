@@ -20,10 +20,13 @@ export type TileSourceRole = 'base' | 'overlay';
 // `contours` — not tiles at all: a vector depth-contour overlay the client
 //   fetches as GeoJSON from `/depth/contours` and renders itself (see the
 //   depth-contour service). Has no `url`.
+// `heritage` — like `contours`, a vector overlay (not tiles): the client fetches
+//   GeoJSON Points from `/heritage/features` and renders its own markers (EMODnet
+//   shipwrecks + UNESCO coastal World Heritage sites). Has no `url`.
 // `mbtiles` — reserved for user-imported chart packs (NV Verlag etc.); the
 //   server will need to serve tiles out of a local SQLite file before this is
 //   wired up. Keeping the discriminator now means the public shape is stable.
-export type TileSourceKind = 'remote' | 'contours' | 'mbtiles';
+export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles';
 
 export interface TileSource {
   id: string;
@@ -129,6 +132,24 @@ export const TILE_SOURCES: readonly TileSource[] = [
       '<a href="https://www.gebco.net/">GEBCO</a> 2024 Grid',
     defaultEnabled: false,
     notForNavigation: true,
+  },
+  {
+    // "Worth a Look" — points of interest near the boat: EMODnet shipwrecks +
+    // UNESCO coastal World Heritage sites. Like depth, this is a vector overlay
+    // (not bitmap tiles): the client fetches GeoJSON Points from
+    // `/heritage/features` and renders its own markers. Offline-first from a
+    // downloaded pack (Downloads tab), with a live EMODnet WFS fallback so it
+    // works out of the box. Placed AFTER `depth` so the Layers panel shows its
+    // toggle directly below Depth.
+    id: 'heritage',
+    labelKey: 'tile_source.heritage',
+    role: 'overlay',
+    kind: 'heritage',
+    attribution:
+      '© <a href="https://emodnet.ec.europa.eu/">EMODnet</a> Human Activities (CC BY 4.0) · originator AND-International',
+    defaultEnabled: false,
+    // No "not for navigation" badge: this is a sightseeing / points-of-interest
+    // layer, not a charting source you'd navigate by (unlike depth/satellite).
   },
 ];
 

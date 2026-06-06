@@ -182,3 +182,99 @@ no other code changes.
 
 Both are rendered in the chart attribution (`server/src/utils/tile-sources.ts`).
 **NOT FOR NAVIGATION** — free bathymetry is coarse inshore.
+
+---
+
+# BigaOS "Worth a Look" (heritage) data — regeneration runbook
+
+The "Worth a Look" chart overlay shows points of interest near the boat —
+**EMODnet shipwrecks** + **UNESCO coastal World Heritage sites** — as tappable
+markers. It is offline-first from a downloaded pack, with a live EMODnet WFS
+fallback so it works out of the box (see `server/src/services/heritage.service.ts`).
+
+The pack is a **single small GeoJSON** (~7.2k points), published as
+`heritage-emodnet.tar.gz` on the GitHub release
+**`BigaOSTeam/BigaOS-data` → `heritage-data-v1`**. The server reads it from
+`server/src/data/heritage-data/emodnet/heritage.geojson` (downloaded via
+Settings → Downloads → "Worth a Look").
+
+## Sources (EMODnet Human Activities WFS — `https://ows.emodnet-humanactivities.eu/wfs`)
+
+| Layer (`typeName`) | Content | ~Count |
+|---|---|---|
+| `emodnet:heritageshipwrecks` | Shipwrecks (FR/IE/UK/Med) | 7,073 |
+| `emodnet:unescowhl` | UNESCO coastal World Heritage sites (European seas) | 140 |
+
+Both are Points, both CC-BY 4.0. `prepare-heritage.py` pulls each in a single
+high-count GetFeature (`outputFormat=application/json`, `count=100000`;
+`CountDefault` on the server is 1,000,000, so no paging). It normalises both into
+one slim shape (`kind, name, country, depth, year, period, category, desc, url`).
+
+> **WFS axis-order note** (for the *runtime* bbox fallback, not this full pull):
+> EPSG:4326 in WFS 2.0.0 takes `bbox` as `minLat,minLon,maxLat,maxLon` — append
+> `urn:ogc:def:crs:EPSG::4326`. The GeoJSON *output* stays standard `[lon,lat]`.
+> The full-dataset pull here uses no bbox, so order is moot.
+
+## Regenerate + publish
+
+```powershell
+# Pure stdlib — any Python 3, no conda/GDAL needed.
+python scripts\prepare-heritage.py tmp\heritage
+
+# First time — cut the release:
+gh release create heritage-data-v1 -R BigaOSTeam/BigaOS-data tmp\heritage\heritage-emodnet.tar.gz `
+  --title "Heritage data v1" --notes "EMODnet shipwrecks + UNESCO coastal World Heritage sites."
+
+# Later refreshes — update the asset in place:
+gh release upload heritage-data-v1 -R BigaOSTeam/BigaOS-data tmp\heritage\heritage-emodnet.tar.gz --clobber
+```
+
+The Downloads tab and the heritage service pick the pack up automatically; the
+normaliser in `prepare-heritage.py` and `heritage.service.ts` must stay in sync.
+
+For a brand-new vintage, cut a new tag and bump `HERITAGE_REL` in
+`server/src/controllers/navigation-data.controller.ts`.
+
+### Translations (German, extensible)
+
+The EMODnet data is English; we bake localized `<field>_de` fields into the pack
+so the chart shows German offline (wreck **names stay original** — proper nouns;
+UNESCO **site names use their established German form**). Translation is a
+PERSISTENT layer in `scripts/heritage-translations/de.json` (one file per
+language) so re-pulling the data doesn't lose it — `prepare-heritage.py` just
+re-applies it.
+
+Tooling: `scripts/heritage-translate.py` (`extract` → translate → `merge`). The
+translation itself is done by parallel translation agents (the descriptions are
+~3,500 distinct strings — too many to hand-translate):
+
+```powershell
+# 1) Extract distinct strings into field-tagged batches under <workdir>/in/
+python scripts\heritage-translate.py extract tmp\heritage\emodnet\heritage.geojson tmp\heritage\i18n
+
+# 2) Translate every tmp\heritage\i18n\in\*.json -> tmp\heritage\i18n\out\<same>.json
+#    (a JSON ARRAY of German strings, SAME order/length as the input "items").
+#    Done via a multi-agent translation run (see the heritage-translate-de
+#    workflow); agents write the per-batch out/ files directly.
+
+# 3) Merge the per-batch German files into the dictionary
+python scripts\heritage-translate.py merge tmp\heritage\i18n scripts\heritage-translations\de.json
+
+# 4) Re-bake (prepare-heritage.py auto-loads the dictionary) and re-upload
+python scripts\prepare-heritage.py tmp\heritage
+gh release upload heritage-data-v1 -R BigaOSTeam/BigaOS-data tmp\heritage\heritage-emodnet.tar.gz --clobber
+```
+
+`merge` reports any missing/length-mismatched batches — re-translate just those
+out/ files and merge again. The client (`HeritageLayer.tsx`) shows the `_de`
+value when the app language is German, else the English source. The live WFS
+fallback has no translations, so un-downloaded areas show English until the pack
+is downloaded.
+
+## Licensing / attribution (keep on-chart)
+
+- **EMODnet Human Activities — Cultural Heritage** (shipwrecks + UNESCO WHL) —
+  CC BY 4.0, originator AND-International.
+
+Rendered in the chart attribution (`server/src/utils/tile-sources.ts`).
+**NOT FOR NAVIGATION** — heritage positions can be approximate.

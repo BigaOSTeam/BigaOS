@@ -6,6 +6,7 @@
  * separate groups in the Settings → Downloads tab:
  *   - 'navigation' — OSM Water Layer (feeds water detection + routing).
  *   - 'depth'      — EMODnet / GEBCO bathymetry packs (feed depth contours).
+ *   - 'heritage'   — EMODnet cultural-heritage points (feeds the "Worth a Look" overlay).
  *
  * Bound to the `/data/*` routes; extends the generic DataManagementController
  * with download → extract → reload wiring. (Export name kept as
@@ -19,6 +20,7 @@ import { waterDetectionService } from '../services/water-detection.service';
 import { routeWorkerService } from '../services/route-worker.service';
 import { depthTileService } from '../services/depth-tile.service';
 import { depthContourService } from '../services/depth-contour.service';
+import { heritageService } from '../services/heritage.service';
 
 // OSM Water Layer — oceans, lakes, rivers (90 m). Drives water detection + routing.
 const NAVIGATION_DATA_FILES: DataFileConfig[] = [
@@ -116,7 +118,23 @@ const DEPTH_DATA_FILES: DataFileConfig[] = [
   }
 ];
 
-const ALL_DATA_FILES: DataFileConfig[] = [...NAVIGATION_DATA_FILES, ...DEPTH_DATA_FILES];
+// Cultural-heritage points for the "Worth a Look" overlay: EMODnet shipwrecks +
+// UNESCO coastal World Heritage sites, baked into one small GeoJSON by
+// scripts/prepare-heritage.py. Extracts into heritage-data/<pack>/; the heritage
+// service scans that tree. One pack covers the whole (European) dataset.
+const HERITAGE_REL = 'https://github.com/BigaOSTeam/BigaOS-data/releases/download/heritage-data-v1';
+const HERITAGE_DATA_FILES: DataFileConfig[] = [
+  {
+    id: 'heritage-emodnet',
+    name: 'Cultural Heritage',
+    description: 'EMODnet shipwrecks + UNESCO coastal World Heritage sites',
+    category: 'heritage',
+    defaultUrl: `${HERITAGE_REL}/heritage-emodnet.tar.gz`,
+    localPath: 'heritage-data/emodnet'
+  }
+];
+
+const ALL_DATA_FILES: DataFileConfig[] = [...NAVIGATION_DATA_FILES, ...DEPTH_DATA_FILES, ...HERITAGE_DATA_FILES];
 
 class NavigationDataController extends DataManagementController {
   constructor() {
@@ -134,6 +152,9 @@ class NavigationDataController extends DataManagementController {
       console.log('Depth data changed, reloading depth tiles + clearing contour cache...');
       await depthTileService.reload();
       depthContourService.clearCache();
+    } else if (category === 'heritage') {
+      console.log('Heritage data changed, reloading heritage features...');
+      await heritageService.reload();
     }
   }
 

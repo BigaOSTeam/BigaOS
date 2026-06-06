@@ -32,6 +32,9 @@ export { DepthSettingsPanel, SearchPanel, AutopilotPanel, WeatherPanel, LayersPa
 // Depth contour overlay
 export { DepthContourLayer, DEPTH_MIN_ZOOM } from './DepthContourLayer';
 
+// Heritage ("Worth a Look") overlay — wrecks + UNESCO sites
+export { HeritageLayer, HERITAGE_MIN_ZOOM } from './HeritageLayer';
+
 // Debug overlay
 export { WaterDebugOverlay, DebugInfoPanel, useWaterDebugGrid } from './WaterDebugOverlay';
 export type { DebugMode } from './WaterDebugOverlay';

@@ -6,6 +6,7 @@ import { navigationController } from '../controllers/navigation.controller';
 import { navigationDataController } from '../controllers/navigation-data.controller';
 import { tilesController } from '../controllers/tiles.controller';
 import { depthController } from '../controllers/depth.controller';
+import { heritageController } from '../controllers/heritage.controller';
 import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
 import { unifiedDataController } from '../controllers/unified-data.controller';
@@ -124,6 +125,10 @@ router.get('/tiles/:source/:z/:x/:y', tileServeLimiter, tilesController.serveTil
 // EMODnet WCS online fallback. /coverage is a fast local-vs-online pre-check.
 router.get('/depth/contours', fileOpsLimiter, depthController.getContours.bind(depthController));
 router.get('/depth/coverage', fileOpsLimiter, depthController.getCoverage.bind(depthController));
+
+// "Worth a Look" points of interest — EMODnet shipwrecks + UNESCO coastal World
+// Heritage sites, offline-first (downloaded pack) with a live EMODnet WFS fallback.
+router.get('/heritage/features', fileOpsLimiter, heritageController.getFeatures.bind(heritageController));
 
 // Weather routes
 router.get('/weather/current', weatherController.getCurrent.bind(weatherController));

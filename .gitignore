@@ -77,6 +77,9 @@ claude-code/
 tmpclaude-*
 nul
 
+# Planning notes (local, not source-controlled)
+plans*
+
 # Data & Databases
 data/
 *.db

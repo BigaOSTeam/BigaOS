@@ -186,6 +186,37 @@ export const createMOBIcon = (timeLabel: string): L.DivIcon => {
 };
 
 /**
+ * Heritage ("Worth a Look") marker icons — small circular badges with a white
+ * glyph, kept label-less so a dense area stays readable (details show on tap).
+ * Teal anchor = shipwreck, gold star = UNESCO World Heritage site.
+ */
+const heritageBadge = (bg: string, glyphPath: string): L.DivIcon => {
+  const size = 26;
+  const html = `
+    <div style="
+      width:${size}px; height:${size}px; border-radius:50%;
+      background:${bg}; border:1.5px solid #fff;
+      box-shadow:0 1px 4px rgba(0,0,0,0.5);
+      display:flex; align-items:center; justify-content:center;
+      pointer-events:auto;
+    ">
+      <svg width="16" height="16" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+        <path d="${glyphPath}" fill="#fff"/>
+      </svg>
+    </div>`;
+  return L.divIcon({
+    html,
+    className: 'heritage-marker',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    popupAnchor: [0, -(size / 2 + 2)],
+  });
+};
+
+export const createWreckIcon = (): L.DivIcon => heritageBadge('#0d8b8b', markerIcons.anchor);
+export const createHeritageSiteIcon = (): L.DivIcon => heritageBadge('#c8860a', markerIcons.star);
+
+/**
  * Create a crosshair (X) icon for anchor placement mode
  */
 export const createCrosshairIcon = (): L.DivIcon => {
