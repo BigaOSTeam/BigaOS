@@ -143,6 +143,49 @@ export const createAnchorIcon = (isDragging: boolean = false): L.DivIcon => {
 };
 
 /**
+ * Create a Man Overboard (MOB) marker icon - red life-ring with a time label.
+ * Mirrors the label-box styling of createCustomMarkerIcon.
+ */
+export const createMOBIcon = (timeLabel: string): L.DivIcon => {
+  const red = '#ef5350';
+  const markerHtml = `
+    <div style="display: flex; flex-direction: column; align-items: center; pointer-events: auto;">
+      <div style="
+        background: ${darkTheme.colors.bgSecondary};
+        border: 1px solid ${red};
+        border-radius: 4px;
+        padding: 4px 8px;
+        color: #fff;
+        font-size: 12px;
+        font-weight: bold;
+        white-space: nowrap;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+        margin-bottom: 4px;
+      ">MOB ${timeLabel}</div>
+      <svg width="34" height="34" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" style="display: block; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.5));">
+        <!-- Life-ring: red outer ring, white inner, red hub, white cross bands -->
+        <circle cx="12" cy="12" r="10" fill="${red}" stroke="#fff" stroke-width="1.5"/>
+        <circle cx="12" cy="12" r="4.5" fill="${darkTheme.colors.bgSecondary}" stroke="#fff" stroke-width="1.5"/>
+        <g stroke="#fff" stroke-width="2.5">
+          <line x1="12" y1="2" x2="12" y2="7.5"/>
+          <line x1="12" y1="16.5" x2="12" y2="22"/>
+          <line x1="2" y1="12" x2="7.5" y2="12"/>
+          <line x1="16.5" y1="12" x2="22" y2="12"/>
+        </g>
+      </svg>
+    </div>
+  `;
+
+  return L.divIcon({
+    html: markerHtml,
+    className: '',
+    iconSize: [34, 60],
+    iconAnchor: [17, 47],
+    popupAnchor: [0, -60],
+  });
+};
+
+/**
  * Create a crosshair (X) icon for anchor placement mode
  */
 export const createCrosshairIcon = (): L.DivIcon => {

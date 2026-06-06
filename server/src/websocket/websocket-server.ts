@@ -26,6 +26,9 @@ import { buttonActionExecutor } from '../services/button-action.service';
 import { UserUnitPreferences } from '../types/units.types';
 import { setLanguage as setI18nLanguage } from '../i18n/lang';
 
+// Man Overboard position shared across all clients.
+type MobState = { active: boolean; position: { lat: number; lon: number }; timestamp: number } | null;
+
 export class WebSocketServer {
   private io: SocketIOServer;
   private dataController: DataController | null = null;
@@ -36,6 +39,10 @@ export class WebSocketServer {
   // for legitimate use.
   private lastRebootRequestMs: number = 0;
   private readonly REBOOT_COOLDOWN_MS: number = 60_000;
+  // Current Man Overboard position, shared across all clients. Held in memory
+  // (no server-side evaluation needed) and replayed to clients on connect so a
+  // screen that reloads mid-event re-shows it.
+  private currentMob: MobState = null;
 
   constructor(httpServer: HttpServer) {
     this.io = new SocketIOServer(httpServer, {
@@ -629,6 +636,17 @@ export class WebSocketServer {
         });
       });
 
+      // Handle Man Overboard updates - store current state and broadcast.
+      // No server-side evaluation (unlike the anchor geofence); this is a
+      // marked position that all displays mirror.
+      socket.on('mob_update', (data: { mob: MobState }) => {
+        this.currentMob = data.mob?.active ? data.mob : null;
+        this.io.emit('mob_changed', {
+          mob: this.currentMob,
+          timestamp: new Date(),
+        });
+      });
+
       // Handle depth alarm updates - forward to alert service
       socket.on('depth_alarm_update', (data: { threshold: number | null; soundEnabled: boolean }) => {
         if (this.dataController) {
@@ -986,6 +1004,14 @@ export class WebSocketServer {
           timestamp: new Date(),
         });
       }
+    }
+
+    // Replay current MOB to a newly-connected/reloaded client
+    if (this.currentMob?.active) {
+      socket.emit('mob_changed', {
+        mob: this.currentMob,
+        timestamp: new Date(),
+      });
     }
 
     // Send plugin data

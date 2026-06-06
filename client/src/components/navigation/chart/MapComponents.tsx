@@ -466,18 +466,21 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 interface CompassProps {
   heading: number;
   bearingToTarget?: number | null; // Bearing to next navigation waypoint
+  bearingToMOB?: number | null; // Bearing to a Man Overboard position
 }
 
 /**
  * Compass component with animated cardinal line
- * Shows a green indicator pointing to the navigation target when active
- * heading and bearingToTarget arrive in radians; convert to degrees for display
+ * Shows a green indicator pointing to the navigation target, and a red one
+ * pointing to a Man Overboard position, when active.
+ * heading and bearings arrive in radians; convert to degrees for display
  */
-export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingToTarget: bearingToTargetRad }) => {
+export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingToTarget: bearingToTargetRad, bearingToMOB: bearingToMOBRad }) => {
   const { theme } = useTheme();
   // Convert radians to degrees for compass display logic
   const heading = radToDeg(headingRad);
   const bearingToTarget = bearingToTargetRad != null ? radToDeg(bearingToTargetRad) : bearingToTargetRad;
+  const bearingToMOB = bearingToMOBRad != null ? radToDeg(bearingToMOBRad) : bearingToMOBRad;
   const points = [
     { deg: 0, label: 'N' },
     { deg: 45, label: 'NE' },
@@ -498,11 +501,11 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
 
   const lineWidth = 80;
 
-  // Calculate the position of the navigation indicator
-  // When bearing matches heading, it should be at center (under the white triangle)
-  const getTargetIndicatorPosition = () => {
-    if (bearingToTarget === null || bearingToTarget === undefined) return null;
-    let diff = bearingToTarget - heading;
+  // Calculate the on-strip position of a bearing indicator.
+  // When the bearing matches heading, it sits at center (under the white triangle).
+  const getIndicatorPosition = (bearingDeg: number | null | undefined) => {
+    if (bearingDeg === null || bearingDeg === undefined) return null;
+    let diff = bearingDeg - heading;
     while (diff > 180) diff -= 360;
     while (diff < -180) diff += 360;
     // Scale the position - when aligned (diff=0), indicator is at center
@@ -512,7 +515,8 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
     return Math.max(4, Math.min(lineWidth - 4, rawPos));
   };
 
-  const targetPos = getTargetIndicatorPosition();
+  const targetPos = getIndicatorPosition(bearingToTarget);
+  const mobPos = getIndicatorPosition(bearingToMOB);
 
   return (
     <div style={{ width: '100%', textAlign: 'center' }}>
@@ -600,8 +604,9 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
         </div>
       </div>
 
-      {/* Navigation target indicator - green triangle at bottom */}
-      {targetPos !== null && (
+      {/* Bearing indicators at bottom - green triangle for the navigation
+          target, red triangle for a Man Overboard position */}
+      {(targetPos !== null || mobPos !== null) && (
         <div
           style={{
             position: 'relative',
@@ -611,20 +616,38 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
             overflow: 'hidden',
           }}
         >
-          <div
-            style={{
-              position: 'absolute',
-              left: `${targetPos}px`,
-              top: 0,
-              transform: 'translateX(-50%)',
-              width: '0',
-              height: '0',
-              borderLeft: '4px solid transparent',
-              borderRight: '4px solid transparent',
-              borderBottom: '6px solid #66bb6a',
-              transition: 'left 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)',
-            }}
-          />
+          {targetPos !== null && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${targetPos}px`,
+                top: 0,
+                transform: 'translateX(-50%)',
+                width: '0',
+                height: '0',
+                borderLeft: '4px solid transparent',
+                borderRight: '4px solid transparent',
+                borderBottom: '6px solid #66bb6a',
+                transition: 'left 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)',
+              }}
+            />
+          )}
+          {mobPos !== null && (
+            <div
+              style={{
+                position: 'absolute',
+                left: `${mobPos}px`,
+                top: 0,
+                transform: 'translateX(-50%)',
+                width: '0',
+                height: '0',
+                borderLeft: '4px solid transparent',
+                borderRight: '4px solid transparent',
+                borderBottom: '6px solid #ef5350',
+                transition: 'left 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)',
+              }}
+            />
+          )}
         </div>
       )}
     </div>

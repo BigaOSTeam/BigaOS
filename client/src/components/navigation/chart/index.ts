@@ -11,6 +11,7 @@ export {
   createFinishFlagIcon,
   createAnchorIcon,
   createCrosshairIcon,
+  createMOBIcon,
 } from './map-icons';
 export type { CustomMarker } from './map-icons';
 

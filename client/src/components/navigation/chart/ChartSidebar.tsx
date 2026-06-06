@@ -25,6 +25,7 @@ interface ChartSidebarProps {
   layersPanelOpen: boolean;
   autoCenter: boolean;
   bearingToTarget?: number | null;
+  bearingToMOB?: number | null;
   autopilotOpen: boolean;
   autopilotActive: boolean;
   debugMode?: boolean;
@@ -37,6 +38,8 @@ interface ChartSidebarProps {
   onSearchClick: () => void;
   onLayersClick: () => void;
   onRecenter: () => void;
+  onMOBPressStart: () => void;
+  onMOBPressEnd: () => void;
   onCompassClick: () => void;
   onDebugToggle?: () => void;
   onWeatherClick?: () => void;
@@ -57,6 +60,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   layersPanelOpen,
   autoCenter,
   bearingToTarget,
+  bearingToMOB,
   autopilotOpen,
   autopilotActive: _autopilotActive,
   debugMode: _debugMode,
@@ -69,6 +73,8 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   onSearchClick,
   onLayersClick,
   onRecenter,
+  onMOBPressStart,
+  onMOBPressEnd,
   onCompassClick,
   onDebugToggle: _onDebugToggle,
   onWeatherClick,
@@ -159,7 +165,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           transition: 'background 0.2s',
         }}
       >
-        <Compass heading={heading} bearingToTarget={bearingToTarget} />
+        <Compass heading={heading} bearingToTarget={bearingToTarget} bearingToMOB={bearingToMOB} />
       </div>
 
       {/* Speed & Depth - side by side in compact mode */}
@@ -429,6 +435,34 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
                 fill={autoCenter ? '#4fc3f7' : 'currentColor'}
               />
             </svg>
+          </button>
+
+          {/* Man Overboard button — press and hold 1.5s to activate.
+              Pointer events are forwarded to ChartView, which owns the hold
+              timer and the centered ring overlay. */}
+          <button
+            className="chart-sidebar-btn with-label mob"
+            style={{ borderTop: separator }}
+            title={t('chart.mob_title')}
+            onPointerDown={(e) => {
+              e.preventDefault();
+              onMOBPressStart();
+            }}
+            onPointerUp={onMOBPressEnd}
+            onPointerLeave={onMOBPressEnd}
+            onPointerCancel={onMOBPressEnd}
+            onContextMenu={(e) => e.preventDefault()}
+          >
+            {/* Life-ring icon */}
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <circle cx="12" cy="12" r="4" />
+              <line x1="12" y1="2" x2="12" y2="8" />
+              <line x1="12" y1="16" x2="12" y2="22" />
+              <line x1="2" y1="12" x2="8" y2="12" />
+              <line x1="16" y1="12" x2="22" y2="12" />
+            </svg>
+            <span>{t('chart.mob')}</span>
           </button>
       </div>
     </div>

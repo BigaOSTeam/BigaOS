@@ -10,6 +10,8 @@ import {
 } from '../../context/SettingsContext';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
+import { useAlerts } from '../../context/AlertContext';
+import { playMobAlarm } from '../../utils/audio';
 import { radToDeg, degToRad, TWO_PI } from '../../utils/angle';
 import { useNavigation } from '../../context/NavigationContext';
 import { useChartControl } from '../../context/ChartControlContext';
@@ -39,6 +41,7 @@ import {
   createFinishFlagIcon,
   createAnchorIcon,
   createCrosshairIcon,
+  createMOBIcon,
   MapController,
   LongPressHandler,
   ContextMenu,
@@ -134,7 +137,8 @@ export const ChartView = React.memo<ChartViewProps>(({
   hideSidebar = false,
 }) => {
   const { theme } = useTheme();
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
+  const { pushNotification, clearNotification } = useAlerts();
   // UI State
   const [autoCenter, setAutoCenter] = useState(true);
   const [depthSettingsOpen, setDepthSettingsOpen] = useState(false);
@@ -203,6 +207,17 @@ export const ChartView = React.memo<ChartViewProps>(({
   // Chain/depth state lifted from dialog for preview during placement
   const [anchorChainLength, setAnchorChainLength] = useState(30);
   const [anchorDepth, setAnchorDepth] = useState(depth);
+
+  // Man Overboard (MOB) state. Shared across all clients (like the anchor
+  // alarm); `mobHolding` drives the centered press-and-hold ring overlay.
+  const [mob, setMob] = useState<{
+    active: boolean;
+    position: { lat: number; lon: number };
+    timestamp: number;
+  } | null>(null);
+  const [mobHolding, setMobHolding] = useState(false);
+  const mobHoldTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mobNotificationId = useRef<string | null>(null);
 
   const [editingMarker, setEditingMarker] = useState<CustomMarker | null>(null);
   const [markerName, setMarkerName] = useState('');
@@ -283,6 +298,7 @@ export const ChartView = React.memo<ChartViewProps>(({
     speedUnit,
     depthUnit,
     distanceUnit,
+    timeFormat,
     depthAlarm,
     setDepthAlarm,
     soundAlarmEnabled,
@@ -867,6 +883,104 @@ export const ChartView = React.memo<ChartViewProps>(({
     };
   }, []);
 
+  // --- Man Overboard (MOB) ---------------------------------------------------
+  // Tracks active state in a ref so the broadcast handler can tell a fresh
+  // activation from the originator's own echo, and only alarm on a real
+  // transition to active (including replay-on-connect to a reloaded screen).
+  const mobActiveRef = useRef(false);
+
+  // Short audible burst + a silent (tone: 'none') critical entry in the alert
+  // stack so the MOB is visible app-wide even off the Chart view. The burst is
+  // deliberately brief so it does not distract during the rescue.
+  const raiseMobAlert = useCallback(() => {
+    playMobAlarm();
+    if (!mobNotificationId.current) {
+      mobNotificationId.current = pushNotification({
+        message: t('chart.mob_active'),
+        severity: 'critical',
+        tone: 'none',
+        snoozeDurationMinutes: 0,
+      });
+    }
+  }, [pushNotification, t]);
+
+  const dismissMobAlert = useCallback(() => {
+    if (mobNotificationId.current) {
+      clearNotification(mobNotificationId.current);
+      mobNotificationId.current = null;
+    }
+  }, [clearNotification]);
+
+  const fireMOB = useCallback(() => {
+    const newMob = {
+      active: true,
+      position: { lat: position.latitude, lon: position.longitude },
+      timestamp: Date.now(),
+    };
+    // The initiating device deliberately does NOT raise the alert banner/alarm
+    // — whoever pressed MOB already knows. It still shows the marker and the
+    // range/bearing banner (driven by `mob` state). All OTHER devices raise the
+    // alert when they receive the broadcast below (handleMobChanged, where
+    // wasActive is false for them).
+    mobActiveRef.current = true;
+    setMob(newMob);
+    setMobHolding(false);
+    wsService.emit('mob_update', { mob: newMob });
+  }, [position.latitude, position.longitude]);
+
+  const clearMOB = useCallback(() => {
+    mobActiveRef.current = false;
+    setMob(null);
+    dismissMobAlert();
+    wsService.emit('mob_update', { mob: null });
+  }, [dismissMobAlert]);
+
+  // Press-and-hold mechanics: a 1.5s timer fires the MOB; releasing the button
+  // before then cancels it. Drives the centered ring overlay via `mobHolding`.
+  const handleMOBPressStart = useCallback(() => {
+    if (mob?.active) return; // already active — ignore further presses
+    setMobHolding(true);
+    if (mobHoldTimer.current) clearTimeout(mobHoldTimer.current);
+    mobHoldTimer.current = setTimeout(() => {
+      mobHoldTimer.current = null;
+      fireMOB();
+    }, 1500);
+  }, [mob?.active, fireMOB]);
+
+  const handleMOBPressEnd = useCallback(() => {
+    if (mobHoldTimer.current) {
+      clearTimeout(mobHoldTimer.current);
+      mobHoldTimer.current = null;
+    }
+    setMobHolding(false);
+  }, []);
+
+  // Sync MOB across all clients and replay on (re)connect.
+  useEffect(() => {
+    const handleMobChanged = (data: { mob: typeof mob }) => {
+      const incomingActive = !!data.mob?.active;
+      const wasActive = mobActiveRef.current;
+      mobActiveRef.current = incomingActive;
+      setMob(data.mob ?? null);
+      if (incomingActive && !wasActive) {
+        raiseMobAlert();
+      } else if (!incomingActive && wasActive) {
+        dismissMobAlert();
+      }
+    };
+    wsService.on('mob_changed', handleMobChanged);
+    return () => {
+      wsService.off('mob_changed', handleMobChanged);
+    };
+  }, [raiseMobAlert, dismissMobAlert]);
+
+  // Clean up the hold timer on unmount.
+  useEffect(() => {
+    return () => {
+      if (mobHoldTimer.current) clearTimeout(mobHoldTimer.current);
+    };
+  }, []);
+
   // Ctrl+D keyboard shortcut for debug mode toggle
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -1186,6 +1300,21 @@ export const ChartView = React.memo<ChartViewProps>(({
               />
             )}
           </>
+        )}
+
+        {/* Man Overboard marker */}
+        {mob?.active && (
+          <Marker
+            position={[mob.position.lat, mob.position.lon]}
+            icon={createMOBIcon(
+              new Date(mob.timestamp).toLocaleTimeString(language, {
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: timeFormat === '12h',
+              })
+            )}
+            zIndexOffset={1000}
+          />
         )}
 
         {/* Anchor position placement mode - viewport centered */}
@@ -1757,6 +1886,16 @@ export const ChartView = React.memo<ChartViewProps>(({
                 )
               : null
           }
+          bearingToMOB={
+            mob?.active
+              ? calculateBearing(
+                  position.latitude,
+                  position.longitude,
+                  mob.position.lat,
+                  mob.position.lon
+                )
+              : null
+          }
           autopilotOpen={autopilotOpen}
           autopilotActive={autopilotActive}
           debugMode={debugMode !== 'off'}
@@ -1787,6 +1926,8 @@ export const ChartView = React.memo<ChartViewProps>(({
             setWeatherPanelOpen(false);
           }}
           onRecenter={handleRecenter}
+          onMOBPressStart={handleMOBPressStart}
+          onMOBPressEnd={handleMOBPressEnd}
           onCompassClick={() => {
             setAutopilotOpen(!autopilotOpen);
             setDepthSettingsOpen(false);
@@ -1805,8 +1946,8 @@ export const ChartView = React.memo<ChartViewProps>(({
         />
       )}
 
-      {/* Top banners container - navigation, autopilot, and anchor alarm side by side */}
-      {!hideSidebar && (navigationTarget && !routeLoading && routeWaypoints.length >= 2 || autopilotActive || anchorAlarm?.active) && (() => {
+      {/* Top banners container - navigation, autopilot, anchor alarm, and MOB side by side */}
+      {!hideSidebar && (navigationTarget && !routeLoading && routeWaypoints.length >= 2 || autopilotActive || anchorAlarm?.active || mob?.active) && (() => {
         const hasNavigation = navigationTarget && !routeLoading && routeWaypoints.length >= 2;
 
         // Calculate navigation info if active
@@ -2023,9 +2164,124 @@ export const ChartView = React.memo<ChartViewProps>(({
               </button>
             )}
 
+            {/* Man Overboard banner - live range & bearing back to the MOB */}
+            {mob?.active && (() => {
+              const mobDist = convertDistance(
+                calculateDistanceNm(position.latitude, position.longitude, mob.position.lat, mob.position.lon)
+              );
+              const mobBrg =
+                Math.round(
+                  radToDeg(calculateBearing(position.latitude, position.longitude, mob.position.lat, mob.position.lon))
+                ) % 360;
+              return (
+                <div
+                  style={{
+                    background: 'rgba(239, 83, 80, 0.95)',
+                    borderRadius: '8px',
+                    padding: '0.8rem 0.5rem 0.7rem 1rem',
+                    color: '#fff',
+                    fontSize: '0.9rem',
+                    fontWeight: 'bold',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                  }}
+                >
+                  {/* Life-ring icon */}
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    style={{ display: 'block', flexShrink: 0 }}
+                  >
+                    <circle cx="12" cy="12" r="10" />
+                    <circle cx="12" cy="12" r="4" />
+                    <line x1="12" y1="2" x2="12" y2="8" />
+                    <line x1="12" y1="16" x2="12" y2="22" />
+                    <line x1="2" y1="12" x2="8" y2="12" />
+                    <line x1="16" y1="12" x2="22" y2="12" />
+                  </svg>
+                  <span>{t('chart.mob')}</span>
+                  <span style={{ opacity: 0.7 }}>|</span>
+                  <span style={{ fontWeight: 'normal' }}>
+                    {mobDist.toFixed(mobDist < 10 ? 2 : 1)} {distanceConversions[distanceUnit].label}
+                  </span>
+                  <span style={{ opacity: 0.7 }}>|</span>
+                  <span style={{ fontWeight: 'normal' }}>{mobBrg}°</span>
+                  {/* Stand Down - clears the MOB on all clients */}
+                  <button
+                    onClick={clearMOB}
+                    title={t('chart.mob_stand_down')}
+                    style={{
+                      marginLeft: '0.25rem',
+                      background: 'rgba(0,0,0,0.2)',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '0.3rem 0.6rem',
+                      color: '#fff',
+                      fontSize: '0.8rem',
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.3rem',
+                    }}
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round">
+                      <line x1="18" y1="6" x2="6" y2="18" />
+                      <line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                    {t('chart.mob_stand_down')}
+                  </button>
+                </div>
+              );
+            })()}
+
           </div>
         );
       })()}
+
+      {/* MOB press-and-hold overlay - a red ring fills over 1.5s around "MOB".
+          Releasing the button before completion unmounts this and cancels. */}
+      {mobHolding && (
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1500,
+            pointerEvents: 'none',
+          }}
+        >
+          <div style={{ position: 'relative', width: 170, height: 170, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <svg width="170" height="170" viewBox="0 0 120 120">
+              <circle cx="60" cy="60" r="54" fill="rgba(0,0,0,0.6)" stroke="rgba(255,255,255,0.2)" strokeWidth="8" />
+              <circle
+                className="mob-ring-progress"
+                cx="60"
+                cy="60"
+                r="54"
+                fill="none"
+                stroke="#ef5350"
+                strokeWidth="8"
+                strokeLinecap="round"
+                strokeDasharray="339.292"
+                strokeDashoffset="339.292"
+                transform="rotate(-90 60 60)"
+              />
+            </svg>
+            <span style={{ position: 'absolute', color: '#fff', fontWeight: 'bold', fontSize: '1.7rem', letterSpacing: '0.08em' }}>
+              {t('chart.mob')}
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Course Change Warning Dialog */}
       {courseChangeWarning && courseChangeWarning.secondsUntil <= 60 && !warningDismissed && (

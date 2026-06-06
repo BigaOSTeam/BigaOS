@@ -564,6 +564,30 @@ body {
   background: var(--color-primary-light);
 }
 
+/* Man Overboard button — always red so it reads as an emergency control */
+.chart-sidebar-btn.mob {
+  background: #ef5350;
+  color: #fff;
+  touch-action: none; /* keep press-and-hold from triggering scroll/select */
+}
+.chart-sidebar-btn.mob:active {
+  background: #e53935;
+}
+@media (hover: hover) and (pointer: fine) {
+  .chart-sidebar-btn.mob:hover {
+    background: #e53935;
+  }
+}
+
+/* Centered press-and-hold ring overlay for MOB activation */
+@keyframes mob-ring-fill {
+  from { stroke-dashoffset: 339.292; } /* 2*pi*54 */
+  to { stroke-dashoffset: 0; }
+}
+.mob-ring-progress {
+  animation: mob-ring-fill 1.5s linear forwards;
+}
+
 .chart-sidebar-btn:active {
   background: var(--color-bg-card-active);
 }

@@ -283,6 +283,16 @@ export const playSoftDing = (): void => {
 };
 
 /**
+ * Play a short Man Overboard alarm burst - urgent, loud enough to alert
+ * everyone, then auto-stops after a couple of seconds so it does not distract
+ * during the rescue (deliberately NOT a persistent siren).
+ */
+export const playMobAlarm = (): void => {
+  const stop = startRepeatingAlarm(450, playUrgentBeeps);
+  setTimeout(stop, 2500);
+};
+
+/**
  * Create a repeating alarm interval that plays beeps
  * @returns A function to stop the alarm
  */
