@@ -35,6 +35,7 @@ import { AlertContainer } from './components/alerts';
 import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
+import { NightModeProvider } from './context/NightModeContext';
 import { useClient } from './context/ClientContext';
 import { useClientSettings, useClientSetting } from './context/ClientSettingsContext';
 import { wsService } from './services/websocket';
@@ -784,6 +785,7 @@ function App() {
       <LanguageProvider>
         <SettingsProvider>
           <ThemeProvider>
+          <NightModeProvider>
           <LanguageSyncBridge />
           <PluginProvider>
             <PluginI18nBridge />
@@ -808,6 +810,7 @@ function App() {
             </ButtonProvider>
             </SwitchProvider>
           </PluginProvider>
+          </NightModeProvider>
           </ThemeProvider>
         </SettingsProvider>
       </LanguageProvider>

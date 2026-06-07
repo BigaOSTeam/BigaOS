@@ -5,6 +5,7 @@ import { useClient } from '../../context/ClientContext';
 import { wsService } from '../../services/websocket';
 import { SButton, SLabel, SSection } from '../ui/SettingsUI';
 import { CustomSelect } from '../ui/CustomSelect';
+import { NightModeSection } from './NightModeSection';
 
 interface DisplayInfo {
   output: string;
@@ -24,7 +25,12 @@ const COMMON_RESOLUTIONS = [
   '800x600', '800x480', '480x320',
 ];
 
-export const DisplayTab: React.FC = () => {
+interface DisplayTabProps {
+  /** Whether this client has a connected Pi agent (drives the hardware controls). */
+  hasAgent: boolean;
+}
+
+export const DisplayTab: React.FC<DisplayTabProps> = ({ hasAgent }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { clientId } = useClient();
@@ -77,9 +83,10 @@ export const DisplayTab: React.FC = () => {
   }, [clientId, t]);
 
   useEffect(() => {
+    if (!hasAgent) return;
     const cleanup = fetchDisplayInfo();
     return cleanup;
-  }, [fetchDisplayInfo]);
+  }, [fetchDisplayInfo, hasAgent]);
 
   // Fetch overlay FS state
   const fetchOverlayState = useCallback(() => {
@@ -96,9 +103,10 @@ export const DisplayTab: React.FC = () => {
   }, [clientId]);
 
   useEffect(() => {
+    if (!hasAgent) return;
     const cleanup = fetchOverlayState();
     return cleanup;
-  }, [fetchOverlayState]);
+  }, [fetchOverlayState, hasAgent]);
 
   // Toggle overlay (writable <-> read-only). Pi will reboot.
   const handleOverlayToggle = useCallback(() => {
@@ -214,6 +222,12 @@ export const DisplayTab: React.FC = () => {
 
   return (
     <div>
+      {/* Night mode (red display) — per device, shown on every client */}
+      <NightModeSection />
+
+      {/* Pi-specific hardware controls — only when this client has an agent */}
+      {hasAgent && (
+      <>
       <SSection description={t('clients.display_hint')}>{t('clients.display')}</SSection>
 
       {loading ? (
@@ -469,6 +483,8 @@ export const DisplayTab: React.FC = () => {
             </div>
           )}
         </>
+      )}
+      </>
       )}
     </div>
   );

@@ -55,6 +55,13 @@ export class ButtonActionExecutor extends EventEmitter {
           action: { type: 'settings_tab', tab: action.tab },
         });
         return;
+
+      case 'toggle_night_mode':
+        this.emitUiAction({
+          targetClientId: action.targetClientId,
+          action: { type: 'toggle_night_mode' },
+        });
+        return;
     }
   }
 
