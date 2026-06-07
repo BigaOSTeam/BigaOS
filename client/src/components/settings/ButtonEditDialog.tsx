@@ -14,6 +14,7 @@ import type {
   ButtonTrigger,
   ButtonOverlayEdge,
 } from '../../types/buttons';
+import { ALL_DISPLAYS_TARGET } from '../../types/buttons';
 import type { DeviceType } from '../../types/switches';
 
 interface RawClient {
@@ -91,6 +92,7 @@ function builtActionForPreview(
     case 'chart_zoom_out': return { type: 'chart_zoom_out', targetClientId: actionTargetClientId };
     case 'navigate': return { type: 'navigate', targetClientId: actionTargetClientId, view: actionView };
     case 'settings_tab': return { type: 'settings_tab', targetClientId: actionTargetClientId, tab: actionTab };
+    case 'toggle_night_mode': return { type: 'toggle_night_mode', targetClientId: actionTargetClientId };
   }
 }
 
@@ -156,6 +158,11 @@ export const ButtonEditDialog: React.FC<ButtonEditDialogProps> = ({ buttonDef, o
   }, []);
 
   const clientOptions: SelectOption<string>[] = clients.map(c => ({ value: c.id, label: c.name }));
+  // Night mode can target every built-in display at once, not just one client.
+  const nightModeTargetOptions: SelectOption<string>[] = [
+    { value: ALL_DISPLAYS_TARGET, label: t('buttons.action_target_all_displays') },
+    ...clientOptions,
+  ];
   const switchOptions: SelectOption<string>[] = switches.map(s => ({ value: s.id, label: s.name }));
 
   const actionTypeOptions: SelectOption<ButtonActionType>[] = [
@@ -165,6 +172,7 @@ export const ButtonEditDialog: React.FC<ButtonEditDialogProps> = ({ buttonDef, o
     { value: 'chart_zoom_out', label: t('buttons.action_chart_zoom_out') },
     { value: 'navigate', label: t('buttons.action_navigate') },
     { value: 'settings_tab', label: t('buttons.action_settings_tab') },
+    { value: 'toggle_night_mode', label: t('buttons.action_toggle_night_mode') },
   ];
 
   const pinInUse = buttons.some(b =>
@@ -210,6 +218,8 @@ export const ButtonEditDialog: React.FC<ButtonEditDialogProps> = ({ buttonDef, o
         return actionTargetClientId && actionView ? { type: 'navigate', targetClientId: actionTargetClientId, view: actionView } : null;
       case 'settings_tab':
         return actionTargetClientId && actionTab ? { type: 'settings_tab', targetClientId: actionTargetClientId, tab: actionTab } : null;
+      case 'toggle_night_mode':
+        return actionTargetClientId ? { type: 'toggle_night_mode', targetClientId: actionTargetClientId } : null;
     }
   }, [actionType, actionSwitchId, actionTargetClientId, actionView, actionTab]);
 
@@ -413,12 +423,12 @@ export const ButtonEditDialog: React.FC<ButtonEditDialogProps> = ({ buttonDef, o
           </div>
         )}
 
-        {(actionType === 'chart_recenter' || actionType === 'chart_zoom_in' || actionType === 'chart_zoom_out') && (
+        {(actionType === 'chart_recenter' || actionType === 'chart_zoom_in' || actionType === 'chart_zoom_out' || actionType === 'toggle_night_mode') && (
           <div style={{ marginBottom: theme.space.xl }}>
             <SLabel>{t('buttons.action_target_client')}</SLabel>
             <CustomSelect
               value={actionTargetClientId}
-              options={clientOptions}
+              options={actionType === 'toggle_night_mode' ? nightModeTargetOptions : clientOptions}
               onChange={setActionTargetClientId}
               placeholder={t('buttons.action_target_client')}
             />

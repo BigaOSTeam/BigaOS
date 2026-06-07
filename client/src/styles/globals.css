@@ -99,6 +99,26 @@
 }
 
 /* ========================================
+   Night mode (red display)
+   ========================================
+   The wrapper has no layout effect until night mode is active (display:
+   contents). When active it becomes a viewport-sized fixed box carrying the
+   luminance->red SVG filter, so the whole app — UI chrome, map tiles and
+   canvas overlays — is reddened uniformly. It is sized to the viewport so the
+   fixed overlays it now contains still cover the screen. */
+.night-wrapper {
+  display: contents;
+}
+
+.night-wrapper.night-vision {
+  display: block;
+  position: fixed;
+  inset: 0;
+  overflow: hidden;
+  filter: url("#bigaos-night") brightness(var(--night-brightness, 0.75));
+}
+
+/* ========================================
    Base Styles
    ======================================== */
 

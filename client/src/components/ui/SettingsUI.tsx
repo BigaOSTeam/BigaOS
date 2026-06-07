@@ -261,6 +261,9 @@ interface SOptionGroupProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
   colorMap?: Partial<Record<T, string>>;
+  /** Give every option an equal share of the width (e.g. 50/50 for two),
+   *  ignoring label length. Still wraps when the row is too narrow. */
+  equalWidth?: boolean;
 }
 
 export function SOptionGroup<T extends string>({
@@ -269,6 +272,7 @@ export function SOptionGroup<T extends string>({
   value,
   onChange,
   colorMap,
+  equalWidth,
 }: SOptionGroupProps<T>) {
   const { theme } = useTheme();
   return (
@@ -284,7 +288,7 @@ export function SOptionGroup<T extends string>({
             className="s-option-btn"
             onClick={() => onChange(option)}
             style={{
-              flex: '1 1 auto',
+              flex: equalWidth ? '1 1 0' : '1 1 auto',
               minWidth: '60px',
               padding: '0.5rem 0.75rem',
               background: isSelected ? accentBg : theme.colors.bgCardActive,

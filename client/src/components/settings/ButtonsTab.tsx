@@ -8,6 +8,7 @@ import { wsService } from '../../services/websocket';
 import { SButton, SCard, SLabel, SSection } from '../ui/SettingsUI';
 import { ButtonEditDialog } from './ButtonEditDialog';
 import type { ButtonDefinition, ButtonAction } from '../../types/buttons';
+import { ALL_DISPLAYS_TARGET } from '../../types/buttons';
 
 interface RawClient {
   id: string;
@@ -33,6 +34,12 @@ function describeAction(
       return t('buttons.summary_navigate', { client: getClientName(action.targetClientId), view: action.view });
     case 'settings_tab':
       return t('buttons.summary_settings_tab', { client: getClientName(action.targetClientId), tab: action.tab });
+    case 'toggle_night_mode':
+      return t('buttons.summary_toggle_night_mode', {
+        client: action.targetClientId === ALL_DISPLAYS_TARGET
+          ? t('buttons.action_target_all_displays')
+          : getClientName(action.targetClientId),
+      });
   }
 }
 

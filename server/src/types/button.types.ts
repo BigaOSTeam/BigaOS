@@ -20,9 +20,13 @@ export type ButtonAction =
   | { type: 'chart_zoom_in'; targetClientId: string }
   | { type: 'chart_zoom_out'; targetClientId: string }
   | { type: 'navigate'; targetClientId: string; view: string }
-  | { type: 'settings_tab'; targetClientId: string; tab: string };
+  | { type: 'settings_tab'; targetClientId: string; tab: string }
+  | { type: 'toggle_night_mode'; targetClientId: string };
 
 export type ButtonActionType = ButtonAction['type'];
+
+/** Sentinel targetClientId meaning "every built-in display" (excludes remotes). */
+export const ALL_DISPLAYS_TARGET = '__all_displays__';
 
 /** Button definition as stored in memory / sent to clients */
 export interface ButtonDefinition {
@@ -119,7 +123,8 @@ export interface UiActionMessage {
     | { type: 'chart_zoom_in' }
     | { type: 'chart_zoom_out' }
     | { type: 'navigate'; view: string }
-    | { type: 'settings_tab'; tab: string };
+    | { type: 'settings_tab'; tab: string }
+    | { type: 'toggle_night_mode' };
 }
 
 /** Convert a database row to a ButtonDefinition */

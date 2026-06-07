@@ -9,6 +9,7 @@ import { useEffect } from 'react';
 import { wsService } from '../services/websocket';
 import { useNavigation } from '../context/NavigationContext';
 import { useChartControl } from '../context/ChartControlContext';
+import { useNightMode } from '../context/NightModeContext';
 import type { UiAction } from '../types/buttons';
 import type { ViewType } from '../types/dashboard';
 
@@ -20,6 +21,7 @@ const ALLOWED_TABS = new Set([
 export const UiActionListener: React.FC = () => {
   const { navigate } = useNavigation();
   const chartControl = useChartControl();
+  const { toggle: toggleNightMode } = useNightMode();
 
   useEffect(() => {
     const handler = (data: { action: UiAction }) => {
@@ -27,6 +29,9 @@ export const UiActionListener: React.FC = () => {
       if (!action || typeof action.type !== 'string') return;
 
       switch (action.type) {
+        case 'toggle_night_mode':
+          toggleNightMode();
+          return;
         case 'chart_recenter':
           chartControl.recenter();
           return;
@@ -53,7 +58,7 @@ export const UiActionListener: React.FC = () => {
     return () => {
       wsService.off('ui_action', handler);
     };
-  }, [navigate, chartControl]);
+  }, [navigate, chartControl, toggleNightMode]);
 
   return null;
 };

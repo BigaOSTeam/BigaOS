@@ -21,7 +21,7 @@ import { DisplaySensorData } from '../types/data.types';
 import { TriggeredAlert, AlertSettings } from '../types/alert.types';
 import { SwitchDefinition, GpioResult } from '../types/switch.types';
 import { gpioService } from '../services/gpio.service';
-import { ButtonDefinition, UiActionMessage } from '../types/button.types';
+import { ButtonDefinition, UiActionMessage, ALL_DISPLAYS_TARGET } from '../types/button.types';
 import { buttonActionExecutor } from '../services/button-action.service';
 import { UserUnitPreferences } from '../types/units.types';
 import { setLanguage as setI18nLanguage } from '../i18n/lang';
@@ -185,7 +185,24 @@ export class WebSocketServer {
     });
 
     // UI action forwarding (from button-action executor → target client browser)
-    buttonActionExecutor.on('ui_action_send', (msg: UiActionMessage) => {
+    buttonActionExecutor.on('ui_action_send', async (msg: UiActionMessage) => {
+      // "All displays" target: fan out to every built-in display (excludes
+      // remote clients like phones — they manage night mode themselves).
+      if (msg.targetClientId === ALL_DISPLAYS_TARGET) {
+        try {
+          const clients = await dbWorker.getAllClients();
+          for (const client of clients) {
+            if (client.client_type !== 'display') continue;
+            this.io.to(`client:${client.id}`).emit('ui_action', {
+              action: msg.action,
+              timestamp: new Date(),
+            });
+          }
+        } catch (error) {
+          console.error('[WebSocket] Failed to fan out UI action to all displays:', error);
+        }
+        return;
+      }
       this.io.to(`client:${msg.targetClientId}`).emit('ui_action', {
         action: msg.action,
         timestamp: new Date(),
@@ -773,6 +790,30 @@ export class WebSocketServer {
           socket.emit('client_settings_sync', { settings: settingsObj, timestamp: new Date() });
         } catch (error) {
           console.error('[WebSocket] Failed to get client settings:', error);
+        }
+      });
+
+      // Push one device's night-mode config to the boat's built-in displays.
+      // Night mode is a per-client setting, so we write it for each display and
+      // notify each one — this persists for offline displays too. Remote
+      // clients (phones/tablets, client_type 'remote') are deliberately
+      // excluded: their users set night mode themselves.
+      socket.on('night_mode_apply_all', async (data: { config: any }) => {
+        try {
+          if (!data || typeof data.config !== 'object' || data.config === null) return;
+          const config = data.config;
+          const clients = await dbWorker.getAllClients();
+          const displays = clients.filter((c) => c.client_type === 'display');
+          for (const client of displays) {
+            await dbWorker.setClientSetting(client.id, 'nightMode', JSON.stringify(config));
+            this.io.to(`client:${client.id}`).emit('client_settings_changed', {
+              key: 'nightMode',
+              value: config,
+              timestamp: new Date(),
+            });
+          }
+        } catch (error) {
+          console.error('[WebSocket] Failed to apply night mode to all displays:', error);
         }
       });
 
