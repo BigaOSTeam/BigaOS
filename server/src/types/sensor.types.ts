@@ -9,6 +9,7 @@ export interface NavigationData {
   position: GeoPosition;
   courseOverGround: number;      // Radians
   speedOverGround: number;        // Knots
+  speedThroughWater: number;      // Knots — 0 if no log/paddlewheel sensor
   heading: number;                // Radians — true if GPS available, else magnetic
   attitude: AttitudeData;
 }

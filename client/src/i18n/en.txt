@@ -450,6 +450,10 @@ terminal.cmd_node=Node Version
 
 # ==================== Chart / Navigation ====================
 chart.speed=Speed
+chart.cog=COG
+chart.sog=SOG
+chart.hdg=HDG
+chart.stw=STW
 chart.depth=Depth
 chart.forecast=Forecast
 chart.search=Search

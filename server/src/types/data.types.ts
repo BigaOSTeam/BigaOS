@@ -34,6 +34,7 @@ export interface StandardNavigationData {
   position: GeoPosition;
   courseOverGround: number; // radians (0-2π)
   speedOverGround: number; // m/s (standard unit)
+  speedThroughWater: number; // m/s (standard unit) — 0 if no log/paddlewheel sensor
   heading: number; // radians (0-2π) — true heading if GPS available, else magnetic
   attitude: AttitudeData;
 }
@@ -163,6 +164,7 @@ export interface DisplaySensorData {
     position: GeoPosition;
     courseOverGround: number; // radians
     speedOverGround: number; // user's speed unit (kt, km/h, etc.)
+    speedThroughWater: number; // user's speed unit
     heading: number; // radians
     attitude: AttitudeData;
   };

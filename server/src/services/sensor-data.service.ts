@@ -125,6 +125,7 @@ export class SensorDataService extends EventEmitter {
       position: { ...position },
       courseOverGround: heading * DEG_TO_RAD,
       speedOverGround: knotsToMs(speedKnots), // Convert to m/s
+      speedThroughWater: knotsToMs(speedKnots), // no separate sim log; mirror SOG
       heading: heading * DEG_TO_RAD,
       attitude: {
         roll: heelAngle * DEG_TO_RAD,

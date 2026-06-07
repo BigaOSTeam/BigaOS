@@ -254,6 +254,7 @@ export class SensorMappingService extends EventEmitter {
       position: { ...position, timestamp: position.timestamp || new Date() },
       courseOverGround: cog,
       speedOverGround: sog,
+      speedThroughWater: get('speed_through_water') ?? 0,
       heading,
       attitude,
     };

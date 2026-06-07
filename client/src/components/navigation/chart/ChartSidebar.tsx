@@ -10,12 +10,15 @@ import {
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { ScrollableControlColumn } from './ScrollableControlColumn';
+import { radToDeg } from '../../../utils/angle';
 
 type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp' | 'tide';
 
 interface ChartSidebarProps {
   heading: number;
+  cog: number;
   convertedSpeed: number;
+  convertedStw: number;
   speedUnit: SpeedUnit;
   convertedDepth: number;
   depthUnit: DepthUnit;
@@ -52,7 +55,9 @@ interface ChartSidebarProps {
 
 export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   heading,
+  cog,
   convertedSpeed,
+  convertedStw,
   speedUnit,
   convertedDepth,
   depthUnit,
@@ -91,6 +96,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   const sidebarWidth = sidebarWidthProp ?? 100;
   const separator = `1px solid ${theme.colors.border}`;
   const isCompact = window.innerHeight <= 500;
+  // COG arrives in radians (NMEA2000 convention); show it as a 3-digit course.
+  const cogDeg = Number.isFinite(cog) ? (((Math.round(radToDeg(cog)) % 360) + 360) % 360) : 0;
+  const cogText = `${cogDeg}°`;
 
   return (
     <div
@@ -173,119 +181,101 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         <Compass heading={heading} bearingToTarget={bearingToTarget} bearingToMOB={bearingToMOB} />
       </div>
 
-      {/* Speed & Depth - side by side in compact mode */}
-      {isCompact ? (
+      {/* COG — small line directly under the compass heading */}
+      <div
+        style={{
+          padding: isCompact ? '0.1rem 0.25rem 0.3rem' : '0 0.5rem 0.4rem',
+          textAlign: 'center',
+          borderBottom: separator,
+          display: 'flex',
+          alignItems: 'baseline',
+          justifyContent: 'center',
+          gap: '0.35rem',
+        }}
+      >
+        <span style={{ fontSize: 'clamp(0.5rem, 1.1vh, 0.75rem)', opacity: 0.6, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {t('chart.cog')}
+        </span>
+        <span style={{ fontSize: 'clamp(0.85rem, 2vh, 1.25rem)', fontWeight: 'bold' }}>
+          {cogText}
+        </span>
+      </div>
+
+      {/* Speed — SOG primary (always-available GPS), STW secondary below */}
+      <div
+        style={{
+          padding: isCompact ? '0.3rem 0.25rem' : '0.5rem 0.5rem',
+          textAlign: 'center',
+          borderBottom: separator,
+        }}
+      >
+        <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6, marginBottom: '0.1rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+          {t('chart.sog')}
+        </div>
+        <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold' }}>
+          {convertedSpeed.toFixed(1)}
+          <span style={{ fontSize: '0.6em', opacity: 0.6, fontWeight: 'normal', marginLeft: '0.2rem' }}>
+            {speedConversions[speedUnit].label}
+          </span>
+        </div>
+        <div style={{ fontSize: 'clamp(0.7rem, 1.7vh, 1.05rem)', marginTop: '0.2rem' }}>
+          <span style={{ opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {t('chart.stw')}
+          </span>{' '}
+          <span style={{ fontWeight: 600 }}>{convertedStw.toFixed(1)}</span>
+          <span style={{ opacity: 0.55, fontSize: '0.8em' }}> {speedConversions[speedUnit].label}</span>
+        </div>
+      </div>
+
+      {/* Depth — clickable to open alarm settings */}
+      <div
+        onClick={onDepthClick}
+        style={{
+          padding: isCompact ? '0.3rem 0.25rem' : '0.5rem 0.5rem',
+          textAlign: 'center',
+          borderBottom: separator,
+          cursor: 'pointer',
+          background: depthSettingsOpen ? theme.colors.bgCardActive : 'transparent',
+          transition: 'background 0.2s',
+        }}
+      >
         <div
           style={{
+            fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)',
+            opacity: 0.6,
+            marginBottom: '0.15rem',
             display: 'flex',
-            borderBottom: separator,
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '0.25rem',
+            textTransform: 'uppercase',
+            letterSpacing: '0.05em',
           }}
         >
-          <div
-            style={{
-              flex: 1,
-              padding: '0.3rem 0.25rem',
-              textAlign: 'center',
-              borderRight: separator,
-            }}
-          >
-            <div style={{ fontSize: 'clamp(1rem, 2.5vh, 1.5rem)', fontWeight: 'bold' }}>
-              {convertedSpeed.toFixed(1)}
-            </div>
-            <div style={{ fontSize: 'clamp(0.5rem, 1vh, 0.7rem)', opacity: 0.6 }}>
-              {speedConversions[speedUnit].label}
-            </div>
-          </div>
-          <div
-            onClick={onDepthClick}
-            style={{
-              flex: 1,
-              padding: '0.3rem 0.25rem',
-              textAlign: 'center',
-              cursor: 'pointer',
-              background: depthSettingsOpen ? theme.colors.bgCardActive : 'transparent',
-            }}
-          >
-            <div style={{ fontSize: 'clamp(1rem, 2.5vh, 1.5rem)', fontWeight: 'bold', color: depthColor }}>
-              {convertedDepth.toFixed(1)}
-            </div>
-            <div style={{ fontSize: 'clamp(0.5rem, 1vh, 0.7rem)', opacity: 0.6 }}>
-              {depthConversions[depthUnit].label}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <>
-          {/* Speed */}
-          <div
-            style={{
-              padding: '0.5rem 0.5rem',
-              textAlign: 'center',
-              borderBottom: separator,
-            }}
-          >
-            <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6, marginBottom: '0.15rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-              {t('chart.speed')}
-            </div>
-            <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold' }}>
-              {convertedSpeed.toFixed(1)}
-            </div>
-            <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6 }}>
-              {speedConversions[speedUnit].label}
-            </div>
-          </div>
-
-          {/* Depth - clickable to open alarm settings */}
-          <div
-            onClick={onDepthClick}
-            style={{
-              padding: '0.5rem 0.5rem',
-              textAlign: 'center',
-              borderBottom: separator,
-              cursor: 'pointer',
-              background: depthSettingsOpen ? theme.colors.bgCardActive : 'transparent',
-              transition: 'background 0.2s',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)',
-                opacity: 0.6,
-                marginBottom: '0.15rem',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.25rem',
-                textTransform: 'uppercase',
-                letterSpacing: '0.05em',
-              }}
+          {t('chart.depth')}
+          {depthAlarm !== null && (
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="#4fc3f7"
+              strokeWidth="2.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              {t('chart.depth')}
-              {depthAlarm !== null && (
-                <svg
-                  width="12"
-                  height="12"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="#4fc3f7"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-                  <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-                </svg>
-              )}
-            </div>
-            <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold', color: depthColor }}>
-              {convertedDepth.toFixed(1)}
-            </div>
-            <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6 }}>
-              {depthConversions[depthUnit].label}
-            </div>
-          </div>
-        </>
-      )}
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          )}
+        </div>
+        <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold', color: depthColor }}>
+          {convertedDepth.toFixed(1)}
+        </div>
+        <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6 }}>
+          {depthConversions[depthUnit].label}
+        </div>
+      </div>
 
       {/* Bottom action buttons — windowed/paginated when they don't all fit;
           MOB stays pinned at the bottom and is never scrolled away. */}

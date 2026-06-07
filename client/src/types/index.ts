@@ -22,6 +22,7 @@ export interface NavigationData {
   position: GeoPosition;
   courseOverGround: number;
   speedOverGround: number;
+  speedThroughWater: number;
   heading: number;
   attitude: AttitudeData;
 }

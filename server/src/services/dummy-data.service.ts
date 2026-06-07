@@ -58,6 +58,7 @@ class DummyDataService {
         position: { ...position },
         courseOverGround: heading * DEG_TO_RAD,
         speedOverGround: speed,
+        speedThroughWater: speed,
         heading: heading * DEG_TO_RAD,
         attitude: {
           roll: heelAngle * DEG_TO_RAD,

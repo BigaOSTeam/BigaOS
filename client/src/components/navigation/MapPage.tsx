@@ -258,6 +258,10 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
 
   const heading = demoMode ? dummyHeading : sensorData.navigation.heading;
   const speed = demoMode ? dummySpeed : sensorData.navigation.speedOverGround;
+  // In demo mode the boat tracks along its heading (no current), so COG ≈ heading.
+  const cog = demoMode ? dummyHeading : sensorData.navigation.courseOverGround;
+  // No simulated log in demo, so STW mirrors SOG there.
+  const stw = demoMode ? dummySpeed : sensorData.navigation.speedThroughWater;
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative', background: theme.colors.bgPrimary }}>
@@ -265,7 +269,9 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
       <ChartView
         position={position}
         heading={heading}
+        cog={cog}
         speed={speed}
+        stw={stw}
         depth={sensorData.environment.depth.belowTransducer}
         onClose={onClose}
         onOpenSettings={onOpenSettings}

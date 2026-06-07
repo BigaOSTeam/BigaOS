@@ -450,6 +450,10 @@ terminal.cmd_node=Node-Version
 
 # ==================== Karte / Navigation ====================
 chart.speed=Geschw.
+chart.cog=KüG
+chart.sog=FüG
+chart.hdg=HDG
+chart.stw=FdW
 chart.depth=Tiefe
 chart.forecast=Vorhersage
 chart.search=Suche

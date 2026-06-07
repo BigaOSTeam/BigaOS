@@ -125,7 +125,9 @@ const ConnectivityRefresher: React.FC = () => {
 interface ChartViewProps {
   position: GeoPosition;
   heading: number;
+  cog: number;
   speed: number;
+  stw: number;
   depth: number;
   onClose?: () => void;
   onOpenSettings?: () => void;
@@ -135,7 +137,9 @@ interface ChartViewProps {
 export const ChartView = React.memo<ChartViewProps>(({
   position,
   heading,
+  cog,
   speed,
+  stw,
   depth,
   onClose,
   onOpenSettings,
@@ -323,6 +327,7 @@ export const ChartView = React.memo<ChartViewProps>(({
   } = useSettings();
 
   const convertedSpeed = convertSpeed(speed);
+  const convertedStw = convertSpeed(stw);
   const convertedDepth = convertDepth(depth);
   const isMobile = window.innerWidth <= 600;
   const sidebarWidth = hideSidebar ? 0 : (isMobile ? 64 : 100);
@@ -1983,7 +1988,9 @@ export const ChartView = React.memo<ChartViewProps>(({
           sidebarWidth={sidebarWidth}
           sidebarPosition={sidebarPosition}
           heading={heading}
+          cog={cog}
           convertedSpeed={convertedSpeed}
+          convertedStw={convertedStw}
           speedUnit={speedUnit}
           convertedDepth={convertedDepth}
           depthUnit={depthUnit}
