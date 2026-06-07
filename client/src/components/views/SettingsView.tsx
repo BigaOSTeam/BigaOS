@@ -30,6 +30,7 @@ import { ChartTab } from '../settings/ChartTab';
 import { ClientsTab } from '../settings/ClientsTab';
 import { DisplayTab } from '../settings/DisplayTab';
 import { ServerConnectionSection } from '../settings/ServerConnectionSection';
+import { RegionalImportSection } from '../settings/RegionalImportSection';
 import { isNativeApp } from '../../utils/serverConfig';
 
 import { useClient } from '../../context/ClientContext';
@@ -1069,6 +1070,9 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
           </div>
         ))
       )}
+
+      {/* User-added regional layers (lake depth). Folds into the Depth overlay. */}
+      <RegionalImportSection />
 
       {/* Storage + attribution */}
       {!loadingFiles && (

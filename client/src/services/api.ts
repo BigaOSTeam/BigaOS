@@ -165,9 +165,40 @@ export const dataAPI = {
     api.delete<{ success: boolean; message: string }>(`/data/${fileId}`)
 };
 
+// Regional importer — user-added lake depth (modeled from an OSM outline + max
+// depth). Generated lakes fold into the existing Depth overlay; this API just
+// searches OSM and manages the named datasets. Progress arrives over the shared
+// `download_progress` WebSocket (fileId = the lake id).
+export interface LakeCandidate {
+  relationId: number;
+  name: string;
+  center: { lat: number; lon: number };
+  areaKm2: number;
+}
+
+export interface ImportedLake {
+  id: string;
+  name: string;
+  relationId: number;
+  maxDepth: number;
+  profile: number;
+  bbox: { west: number; south: number; east: number; north: number };
+  cells: number;
+  createdAt: string;
+}
+
+export const regionalAPI = {
+  search: (q: string) =>
+    api.get<{ candidates: LakeCandidate[] }>('/regional/search', { params: { q }, timeout: 30000 }),
+  listLakes: () => api.get<{ lakes: ImportedLake[] }>('/regional/lakes'),
+  createLake: (body: { name: string; relationId: number; maxDepth: number; profile?: number }) =>
+    api.post<{ id: string; status: string }>('/regional/lakes', body),
+  removeLake: (id: string) => api.delete<{ success: boolean }>(`/regional/lakes/${id}`),
+};
+
 // Tile source registry
 export type TileSourceRole = 'base' | 'overlay';
-export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles';
+export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles' | 'zones';
 
 /**
  * Public view of a server tile source (from GET /tiles/sources). The chart UI

@@ -26,7 +26,10 @@ export type TileSourceRole = 'base' | 'overlay';
 // `mbtiles` — reserved for user-imported chart packs (NV Verlag etc.); the
 //   server will need to serve tiles out of a local SQLite file before this is
 //   wired up. Keeping the discriminator now means the public shape is stable.
-export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles';
+// `zones` — user-authored regulatory/area overlays (no-go, nature, anchorage,
+//   speed). Like `contours`/`heritage` it's a vector overlay the client renders
+//   itself; the polygons live in the `chartZones` boat setting (no server data).
+export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles' | 'zones';
 
 export interface TileSource {
   id: string;
@@ -129,7 +132,8 @@ export const TILE_SOURCES: readonly TileSource[] = [
     // download for offline" note when served from the (slower) WCS fallback.
     attribution:
       '© <a href="https://emodnet.ec.europa.eu/">EMODnet</a> Bathymetry (CC BY 4.0) · ' +
-      '<a href="https://www.gebco.net/">GEBCO</a> 2024 Grid',
+      '<a href="https://www.gebco.net/">GEBCO</a> 2024 Grid · ' +
+      '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors (imported lake outlines)',
     defaultEnabled: false,
     notForNavigation: true,
   },
@@ -150,6 +154,17 @@ export const TILE_SOURCES: readonly TileSource[] = [
     defaultEnabled: false,
     // No "not for navigation" badge: this is a sightseeing / points-of-interest
     // layer, not a charting source you'd navigate by (unlike depth/satellite).
+  },
+  {
+    // User-authored zones (no-go / nature / anchorage / speed). Vector overlay
+    // rendered client-side from the `chartZones` boat setting — no server data.
+    id: 'zones',
+    labelKey: 'tile_source.zones',
+    role: 'overlay',
+    kind: 'zones',
+    attribution: 'User-authored — not an official source',
+    defaultEnabled: false,
+    notForNavigation: true,
   },
 ];
 

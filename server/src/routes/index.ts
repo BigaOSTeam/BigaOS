@@ -7,6 +7,7 @@ import { navigationDataController } from '../controllers/navigation-data.control
 import { tilesController } from '../controllers/tiles.controller';
 import { depthController } from '../controllers/depth.controller';
 import { heritageController } from '../controllers/heritage.controller';
+import { regionalImportController } from '../controllers/regional-import.controller';
 import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
 import { unifiedDataController } from '../controllers/unified-data.controller';
@@ -129,6 +130,13 @@ router.get('/depth/coverage', fileOpsLimiter, depthController.getCoverage.bind(d
 // "Worth a Look" points of interest — EMODnet shipwrecks + UNESCO coastal World
 // Heritage sites, offline-first (downloaded pack) with a live EMODnet WFS fallback.
 router.get('/heritage/features', fileOpsLimiter, heritageController.getFeatures.bind(heritageController));
+
+// Regional importer — user-added lake depth (modeled from an OSM outline + max
+// depth), generated on-device and folded into the Depth overlay.
+router.get('/regional/search', fileOpsLimiter, regionalImportController.search.bind(regionalImportController));
+router.get('/regional/lakes', fileOpsLimiter, regionalImportController.list.bind(regionalImportController));
+router.post('/regional/lakes', heavyOpsLimiter, regionalImportController.create.bind(regionalImportController));
+router.delete('/regional/lakes/:id', heavyOpsLimiter, regionalImportController.remove.bind(regionalImportController));
 
 // Weather routes
 router.get('/weather/current', weatherController.getCurrent.bind(weatherController));

@@ -169,7 +169,7 @@ interface RulerLeg {
   bearingText: string;
 }
 
-type ToolId = 'ruler' | 'goto' | 'sun' | 'cts';
+type ToolId = 'ruler' | 'goto' | 'sun' | 'cts' | 'zone';
 
 interface ToolsPanelProps {
   sidebarWidth: number;
@@ -181,6 +181,14 @@ interface ToolsPanelProps {
   /** Fired when the ruler becomes the open tool (true) or is left (false). */
   onRulerActiveChange: (active: boolean) => void;
   onClearRuler: () => void;
+  // Zones — polygon drawing; vertices live in ChartView (driven by map taps).
+  zonePointCount: number;
+  /** Fired when the zone tool becomes the open tool (true) or is left (false). */
+  onZoneActiveChange: (active: boolean) => void;
+  onZoneUndo: () => void;
+  onZoneClear: () => void;
+  onZoneFinish: () => void;
+  onZoneImport: () => void;
   // Go to coordinates
   onGoToCoordinates: (lat: number, lon: number) => void;
   // Sun & moon — boat position to compute against
@@ -217,6 +225,12 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
   rulerLegs,
   onRulerActiveChange,
   onClearRuler,
+  zonePointCount,
+  onZoneActiveChange,
+  onZoneUndo,
+  onZoneClear,
+  onZoneFinish,
+  onZoneImport,
   onGoToCoordinates,
   boatLat,
   boatLon,
@@ -229,11 +243,17 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
 
   const [activeTool, setActiveTool] = React.useState<ToolId | null>(null);
   const rulerActive = activeTool === 'ruler';
+  const zoneActive = activeTool === 'zone';
+  // Tools that capture map taps; the click-outside overlay is suppressed for them.
+  const mapTapActive = rulerActive || zoneActive;
 
-  // Let the chart arm/disarm map taps as the ruler tool is opened/left.
+  // Let the chart arm/disarm map taps as the ruler / zone tools are opened/left.
   React.useEffect(() => {
     onRulerActiveChange(rulerActive);
   }, [rulerActive, onRulerActiveChange]);
+  React.useEffect(() => {
+    onZoneActiveChange(zoneActive);
+  }, [zoneActive, onZoneActiveChange]);
 
   // Go-to-coordinates form
   const [latInput, setLatInput] = React.useState('');
@@ -370,6 +390,11 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
         <polygon points="3 11 22 2 13 21 11 13 3 11" />
       </svg>
     ),
+    zone: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 22 8.5 18 21 6 21 2 8.5" />
+      </svg>
+    ),
   };
 
   const labels: Record<ToolId, string> = {
@@ -377,9 +402,10 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
     goto: t('chart.goto'),
     sun: t('chart.sun_moon'),
     cts: t('chart.cts'),
+    zone: t('chart.zone_tool'),
   };
 
-  const order: ToolId[] = ['ruler', 'goto', 'sun', 'cts'];
+  const order: ToolId[] = ['ruler', 'goto', 'sun', 'cts', 'zone'];
 
   return (
     <>
@@ -479,6 +505,44 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
                             : t('chart.ruler_hint_next')}
                         </div>
                       ))}
+
+                    {id === 'zone' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: 1.4 }}>
+                          {zonePointCount === 0
+                            ? t('chart.zone_hint_first')
+                            : zonePointCount < 3
+                              ? t('chart.zone_hint_more')
+                              : t('chart.zone_hint_finish', { count: zonePointCount })}
+                        </div>
+                        <button
+                          onClick={onZoneFinish}
+                          disabled={zonePointCount < 3}
+                          style={{ ...primaryButtonStyle, opacity: zonePointCount < 3 ? 0.5 : 1 }}
+                        >
+                          {t('chart.zone_finish')}
+                        </button>
+                        <div style={{ display: 'flex', gap: '6px' }}>
+                          <button
+                            onClick={onZoneUndo}
+                            disabled={zonePointCount === 0}
+                            style={{ ...secondaryButtonStyle, marginTop: 0, flex: 1, opacity: zonePointCount === 0 ? 0.5 : 1 }}
+                          >
+                            {t('chart.zone_undo')}
+                          </button>
+                          <button
+                            onClick={onZoneClear}
+                            disabled={zonePointCount === 0}
+                            style={{ ...secondaryButtonStyle, marginTop: 0, flex: 1, opacity: zonePointCount === 0 ? 0.5 : 1 }}
+                          >
+                            {t('chart.zone_clear')}
+                          </button>
+                        </div>
+                        <button onClick={onZoneImport} style={{ ...secondaryButtonStyle, marginTop: 0 }}>
+                          {t('chart.zone_import')}
+                        </button>
+                      </div>
+                    )}
 
                     {id === 'goto' && (
                       <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -604,9 +668,9 @@ export const ToolsPanel: React.FC<ToolsPanelProps> = ({
         </div>
       </div>
 
-      {/* Click outside to close — suppressed while the ruler is open so taps
-          reach the map instead of closing the panel. */}
-      {!rulerActive && (
+      {/* Click outside to close — suppressed while a map-tap tool (ruler/zone)
+          is open so taps reach the map instead of closing the panel. */}
+      {!mapTapActive && (
         <div
           onClick={(e) => {
             if (e.detail === 1) onClose();

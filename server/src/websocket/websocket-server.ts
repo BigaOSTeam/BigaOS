@@ -1368,7 +1368,7 @@ export class WebSocketServer {
    */
   public broadcastDownloadProgress(progress: {
     fileId: string;
-    status: 'downloading' | 'extracting' | 'indexing' | 'completed' | 'error' | 'idle';
+    status: 'downloading' | 'extracting' | 'converting' | 'indexing' | 'completed' | 'error' | 'idle';
     progress: number;
     bytesDownloaded: number;
     totalBytes: number;

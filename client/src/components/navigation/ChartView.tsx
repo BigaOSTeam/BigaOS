@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { MapContainer, Marker, Polyline, Circle, useMap } from 'react-leaflet';
 import { BufferedTileLayer } from './chart/BufferedTileLayer';
+import { ZonesLayer, ZoneCollection, ZoneFeature, ZoneType } from './chart/ZonesLayer';
+import { ZoneDialog } from './chart/ZoneDialog';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { GeoPosition } from '../../types';
@@ -163,6 +165,10 @@ export const ChartView = React.memo<ChartViewProps>(({
   // Ruler tool: tap two points on the chart to measure the distance.
   const [rulerActive, setRulerActive] = useState(false);
   const [rulerPoints, setRulerPoints] = useState<{ lat: number; lon: number }[]>([]);
+  // Zone authoring: tap to place polygon vertices, then name + type it.
+  const [zoneActive, setZoneActive] = useState(false);
+  const [zonePoints, setZonePoints] = useState<{ lat: number; lon: number }[]>([]);
+  const [zoneDialog, setZoneDialog] = useState<null | 'save' | 'import'>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -183,6 +189,11 @@ export const ChartView = React.memo<ChartViewProps>(({
 
   // Marker state — boat-wide so every screen sees the same set.
   const [customMarkers, setCustomMarkers] = useBoatSetting<CustomMarker[]>('chartMarkers', []);
+  // User-authored zones — boat-wide, rendered by the "Zones" overlay.
+  const [zones, setZones] = useBoatSetting<ZoneCollection>('chartZones', {
+    type: 'FeatureCollection',
+    features: [],
+  });
   const [contextMenu, setContextMenu] = useState<{
     lat: number;
     lon: number;
@@ -1076,8 +1087,8 @@ export const ChartView = React.memo<ChartViewProps>(({
   }, [chartControl]);
 
   const handleLongPress = (lat: number, lon: number, x: number, y: number) => {
-    // Don't show context menu during anchor placement or ruler mode
-    if (placingAnchor || rulerActive) return;
+    // Don't show context menu during anchor placement, ruler, or zone drawing
+    if (placingAnchor || rulerActive || zoneActive) return;
     setContextMenu({ lat, lon, x, y });
   };
 
@@ -1093,11 +1104,49 @@ export const ChartView = React.memo<ChartViewProps>(({
     if (!active) setRulerPoints([]);
   }, []);
 
-  // "Go to coordinates" tool: recentre the chart on a typed lat/lon.
+  // Zone tool: each tap appends a polygon vertex; finish opens the save dialog.
+  const handleZoneClick = useCallback((lat: number, lon: number) => {
+    setZonePoints((prev) => [...prev, { lat, lon }]);
+  }, []);
+  const handleZoneActiveChange = useCallback((active: boolean) => {
+    setZoneActive(active);
+    if (!active) setZonePoints([]);
+  }, []);
+  const handleZoneUndo = useCallback(() => setZonePoints((prev) => prev.slice(0, -1)), []);
+  const handleZoneClear = useCallback(() => setZonePoints([]), []);
+  const handleZoneFinish = useCallback(() => {
+    if (zonePoints.length >= 3) setZoneDialog('save');
+  }, [zonePoints.length]);
+  const handleZoneImport = useCallback(() => setZoneDialog('import'), []);
+
+  const saveDrawnZone = useCallback((name: string, zoneType: ZoneType) => {
+    const ring = zonePoints.map((p) => [p.lon, p.lat] as [number, number]);
+    if (ring.length >= 3) ring.push(ring[0]); // close the ring
+    const feature: ZoneFeature = {
+      type: 'Feature',
+      properties: { id: `z${Date.now().toString(36)}${Math.floor(Math.random() * 1e4).toString(36)}`, name, zoneType },
+      geometry: { type: 'Polygon', coordinates: [ring] },
+    };
+    setZones({ type: 'FeatureCollection', features: [...(zones.features ?? []), feature] });
+    setZonePoints([]);
+    setZoneDialog(null);
+  }, [zonePoints, zones, setZones]);
+
+  const importZones = useCallback((features: ZoneFeature[]) => {
+    setZones({ type: 'FeatureCollection', features: [...(zones.features ?? []), ...features] });
+    setZoneDialog(null);
+  }, [zones, setZones]);
+
+  const deleteZone = useCallback((id: string) => {
+    setZones({ type: 'FeatureCollection', features: (zones.features ?? []).filter((f) => f.properties.id !== id) });
+  }, [zones, setZones]);
+
+  // "Go to coordinates" tool: jump the chart to a typed lat/lon. Instant (no
+  // fly animation) so tiles load straight at the destination.
   const handleGoToCoordinates = useCallback((lat: number, lon: number) => {
     const map = mapRef.current;
     if (!map) return;
-    map.flyTo([lat, lon], Math.max(map.getZoom() ?? 13, 12));
+    map.setView([lat, lon], Math.max(map.getZoom() ?? 13, 12), { animate: false });
   }, []);
 
   // Per-leg distance + bearing, each leg's midpoint, and the cumulative total —
@@ -1131,6 +1180,8 @@ export const ChartView = React.memo<ChartViewProps>(({
     if (!toolsPanelOpen) {
       setRulerActive(false);
       setRulerPoints([]);
+      setZoneActive(false);
+      setZonePoints([]);
     }
   }, [toolsPanelOpen]);
 
@@ -1148,7 +1199,8 @@ export const ChartView = React.memo<ChartViewProps>(({
     const lon = parseFloat(result.lon);
     if (mapRef.current) {
       setWeatherOverlayHidden(true);
-      mapRef.current.flyTo([lat, lon], 14);
+      // Instant jump (no fly animation) so tiles load straight at the target.
+      mapRef.current.setView([lat, lon], 14, { animate: false });
       setAutoCenter(false);
     }
     setSearchOpen(false);
@@ -1159,7 +1211,7 @@ export const ChartView = React.memo<ChartViewProps>(({
   const handleMarkerSearchClick = (marker: CustomMarker) => {
     if (mapRef.current) {
       setWeatherOverlayHidden(true);
-      mapRef.current.flyTo([marker.lat, marker.lon], 16);
+      mapRef.current.setView([marker.lat, marker.lon], 16, { animate: false });
       setAutoCenter(false);
     }
     setSearchOpen(false);
@@ -1322,6 +1374,9 @@ export const ChartView = React.memo<ChartViewProps>(({
               />
             );
           }
+          if (ov.kind === 'zones') {
+            return <ZonesLayer key={`overlay-${ov.id}`} zones={zones} onDelete={deleteZone} />;
+          }
           return (
             <BufferedTileLayer
               key={`overlay-${ov.id}`}
@@ -1478,8 +1533,8 @@ export const ChartView = React.memo<ChartViewProps>(({
           icon={boatIcon}
           eventHandlers={{
             click: (e) => {
-              // Don't show context menu during anchor placement or ruler mode
-              if (placingAnchor || rulerActive) return;
+              // Don't show context menu during anchor placement, ruler, or zone mode
+              if (placingAnchor || rulerActive || zoneActive) return;
               const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
               if (containerPoint) {
                 setBoatContextMenu({
@@ -1499,8 +1554,8 @@ export const ChartView = React.memo<ChartViewProps>(({
             icon={markerIcons[marker.id]}
             eventHandlers={{
               click: (e) => {
-                // Don't show context menu during anchor placement or ruler mode
-                if (placingAnchor || rulerActive) return;
+                // Don't show context menu during anchor placement, ruler, or zone mode
+                if (placingAnchor || rulerActive || zoneActive) return;
                 const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
                 if (containerPoint) {
                   setMarkerContextMenu({
@@ -1622,6 +1677,27 @@ export const ChartView = React.memo<ChartViewProps>(({
           />
         ))}
 
+        {/* Zone tool: in-progress polygon outline + vertex dots while drawing */}
+        {zoneActive && zonePoints.length >= 1 && (
+          <>
+            {zonePoints.length >= 2 && (
+              <>
+                <Polyline
+                  positions={zonePoints.map((p) => [p.lat, p.lon] as [number, number])}
+                  pathOptions={{ color: '#ffffff', weight: 5, opacity: 0.8 }}
+                />
+                <Polyline
+                  positions={zonePoints.map((p) => [p.lat, p.lon] as [number, number])}
+                  pathOptions={{ color: '#ab47bc', weight: 3, dashArray: '6, 5', opacity: 0.95 }}
+                />
+              </>
+            )}
+            {zonePoints.map((p, i) => (
+              <Marker key={`zone-pt-${i}`} position={[p.lat, p.lon]} icon={createRulerPointIcon()} interactive={false} />
+            ))}
+          </>
+        )}
+
         <MapController
           position={position}
           autoCenter={autoCenter}
@@ -1631,6 +1707,7 @@ export const ChartView = React.memo<ChartViewProps>(({
         <ZoomTracker onZoomChange={setMapZoom} onCenterChange={handleMapCenterChange} />
         <LongPressHandler onLongPress={handleLongPress} />
         <RulerClickHandler active={rulerActive} onMapClick={handleRulerClick} />
+        <RulerClickHandler active={zoneActive} onMapClick={handleZoneClick} />
 
         {/* Water debug overlay */}
         {debugMode !== 'off' && (
@@ -2589,10 +2666,26 @@ export const ChartView = React.memo<ChartViewProps>(({
           rulerLegs={rulerMeasurement?.legs ?? []}
           onRulerActiveChange={handleRulerActiveChange}
           onClearRuler={() => setRulerPoints([])}
+          zonePointCount={zonePoints.length}
+          onZoneActiveChange={handleZoneActiveChange}
+          onZoneUndo={handleZoneUndo}
+          onZoneClear={handleZoneClear}
+          onZoneFinish={handleZoneFinish}
+          onZoneImport={handleZoneImport}
           onGoToCoordinates={handleGoToCoordinates}
           boatLat={position.latitude}
           boatLon={position.longitude}
           onClose={() => setToolsPanelOpen(false)}
+        />
+      )}
+
+      {/* Zone save / import dialog */}
+      {zoneDialog && (
+        <ZoneDialog
+          mode={zoneDialog}
+          onSave={saveDrawnZone}
+          onImport={importZones}
+          onClose={() => setZoneDialog(null)}
         />
       )}
 
