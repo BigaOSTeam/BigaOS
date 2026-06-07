@@ -586,6 +586,21 @@ body {
   background: var(--color-primary-light);
 }
 
+/* Chevron buttons that page through the overflowing controls.
+   Cosmetic only — sizing/hover/short-screen height come from the base class. */
+.chart-sidebar-btn.nav-arrow {
+  color: var(--color-text-secondary);
+  opacity: 0.75;
+}
+
+/* Ruler tool: show a precise crosshair over the map instead of the grab/drag
+   cursor while the user is placing measurement points. */
+.leaflet-container.ruler-cursor,
+.leaflet-container.ruler-cursor .leaflet-grab,
+.leaflet-container.ruler-cursor .leaflet-interactive {
+  cursor: crosshair !important;
+}
+
 /* Man Overboard button — always red so it reads as an emergency control */
 .chart-sidebar-btn.mob {
   background: #ef5350;

@@ -242,6 +242,54 @@ export const createCrosshairIcon = (): L.DivIcon => {
 };
 
 /**
+ * Ruler tool endpoint — a small amber dot. Non-interactive so taps fall
+ * through to the map (the chart handles ruler clicks).
+ */
+export const createRulerPointIcon = (): L.DivIcon => {
+  return L.divIcon({
+    html: `<div style="
+      width: 14px;
+      height: 14px;
+      background: #1976d2;
+      border: 2px solid #fff;
+      border-radius: 50%;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.5);
+    "></div>`,
+    className: 'ruler-point',
+    iconSize: [14, 14],
+    iconAnchor: [7, 7],
+  });
+};
+
+/**
+ * Ruler tool distance label — a small pill centred on the line's midpoint.
+ * iconSize/anchor are zero and the inner div self-centres via translate, so the
+ * pill stays centred on the point regardless of its (text-dependent) width.
+ */
+export const createRulerLabelIcon = (text: string): L.DivIcon => {
+  const html = `
+    <div style="
+      transform: translate(-50%, -50%);
+      display: inline-block;
+      background: ${darkTheme.colors.bgSecondary};
+      border: 1px solid #1976d2;
+      border-radius: 4px;
+      padding: 3px 7px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: bold;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    ">${text}</div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+};
+
+/**
  * Create a finish flag icon for navigation destination
  */
 export const createFinishFlagIcon = (): L.DivIcon => {

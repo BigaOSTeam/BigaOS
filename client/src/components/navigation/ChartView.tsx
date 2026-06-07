@@ -42,8 +42,11 @@ import {
   createAnchorIcon,
   createCrosshairIcon,
   createMOBIcon,
+  createRulerPointIcon,
+  createRulerLabelIcon,
   MapController,
   LongPressHandler,
+  RulerClickHandler,
   ContextMenu,
   AnchorPlacementController,
   ZoomTracker,
@@ -54,6 +57,7 @@ import {
   DepthSettingsPanel,
   SearchPanel,
   LayersPanel,
+  ToolsPanel,
   DepthContourLayer,
   HeritageLayer,
   AutopilotPanel,
@@ -151,6 +155,10 @@ export const ChartView = React.memo<ChartViewProps>(({
   const useSatellite = baseMapId === 'satellite';
   const [searchOpen, setSearchOpen] = useState(false);
   const [layersPanelOpen, setLayersPanelOpen] = useState(false);
+  const [toolsPanelOpen, setToolsPanelOpen] = useState(false);
+  // Ruler tool: tap two points on the chart to measure the distance.
+  const [rulerActive, setRulerActive] = useState(false);
+  const [rulerPoints, setRulerPoints] = useState<{ lat: number; lon: number }[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
   const [searchLoading, setSearchLoading] = useState(false);
@@ -1063,10 +1071,72 @@ export const ChartView = React.memo<ChartViewProps>(({
   }, [chartControl]);
 
   const handleLongPress = (lat: number, lon: number, x: number, y: number) => {
-    // Don't show context menu during anchor placement mode
-    if (placingAnchor) return;
+    // Don't show context menu during anchor placement or ruler mode
+    if (placingAnchor || rulerActive) return;
     setContextMenu({ lat, lon, x, y });
   };
+
+  // Ruler tool: each tap appends a point, building a multi-leg path. Clear
+  // (or toggling the tool off) starts over.
+  const handleRulerClick = useCallback((lat: number, lon: number) => {
+    setRulerPoints((prev) => [...prev, { lat, lon }]);
+  }, []);
+
+  // Arm/disarm the ruler from the Tools panel; leaving it clears the path.
+  const handleRulerActiveChange = useCallback((active: boolean) => {
+    setRulerActive(active);
+    if (!active) setRulerPoints([]);
+  }, []);
+
+  // "Go to coordinates" tool: recentre the chart on a typed lat/lon.
+  const handleGoToCoordinates = useCallback((lat: number, lon: number) => {
+    const map = mapRef.current;
+    if (!map) return;
+    map.flyTo([lat, lon], Math.max(map.getZoom() ?? 13, 12));
+  }, []);
+
+  // Per-leg distance + bearing, each leg's midpoint, and the cumulative total —
+  // all formatted in the user's distance unit.
+  const rulerMeasurement = useMemo(() => {
+    if (rulerPoints.length < 2) return null;
+    const unitLabel = distanceConversions[distanceUnit].label;
+    const fmt = (nm: number) => {
+      const c = convertDistance(nm);
+      return `${c.toFixed(c < 10 ? 2 : 1)} ${unitLabel}`;
+    };
+    let totalNm = 0;
+    const legs = rulerPoints.slice(1).map((b, i) => {
+      const a = rulerPoints[i];
+      const legNm = calculateDistanceNm(a.lat, a.lon, b.lat, b.lon);
+      totalNm += legNm;
+      const deg =
+        ((Math.round(radToDeg(calculateBearing(a.lat, a.lon, b.lat, b.lon))) % 360) + 360) % 360;
+      return {
+        distanceText: fmt(legNm),
+        bearingText: `${String(deg).padStart(3, '0')}°`,
+        mid: { lat: (a.lat + b.lat) / 2, lon: (a.lon + b.lon) / 2 },
+      };
+    });
+    return { legs, totalText: fmt(totalNm) };
+  }, [rulerPoints, convertDistance, distanceUnit]);
+
+  // Closing the Tools panel exits the ruler and clears the measurement, so the
+  // tool never stays armed in the background (e.g. when another panel opens).
+  useEffect(() => {
+    if (!toolsPanelOpen) {
+      setRulerActive(false);
+      setRulerPoints([]);
+    }
+  }, [toolsPanelOpen]);
+
+  // Swap the map's grab/drag cursor for a precise crosshair while the ruler is
+  // armed, so it reads as "click to place a point".
+  useEffect(() => {
+    const container = mapRef.current?.getContainer();
+    if (!container) return;
+    container.classList.toggle('ruler-cursor', rulerActive);
+    return () => container.classList.remove('ruler-cursor');
+  }, [rulerActive]);
 
   const handleSearchResultClick = (result: SearchResult) => {
     const lat = parseFloat(result.lat);
@@ -1403,8 +1473,8 @@ export const ChartView = React.memo<ChartViewProps>(({
           icon={boatIcon}
           eventHandlers={{
             click: (e) => {
-              // Don't show context menu during anchor placement mode
-              if (placingAnchor) return;
+              // Don't show context menu during anchor placement or ruler mode
+              if (placingAnchor || rulerActive) return;
               const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
               if (containerPoint) {
                 setBoatContextMenu({
@@ -1424,8 +1494,8 @@ export const ChartView = React.memo<ChartViewProps>(({
             icon={markerIcons[marker.id]}
             eventHandlers={{
               click: (e) => {
-                // Don't show context menu during anchor placement mode
-                if (placingAnchor) return;
+                // Don't show context menu during anchor placement or ruler mode
+                if (placingAnchor || rulerActive) return;
                 const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
                 if (containerPoint) {
                   setMarkerContextMenu({
@@ -1517,6 +1587,36 @@ export const ChartView = React.memo<ChartViewProps>(({
           />
         )}
 
+        {/* Ruler tool: dashed multi-leg path, vertex dots, per-leg distance labels */}
+        {rulerPoints.length >= 2 && (
+          <>
+            <Polyline
+              positions={rulerPoints.map((p) => [p.lat, p.lon] as [number, number])}
+              pathOptions={{ color: '#ffffff', weight: 5, opacity: 0.8 }}
+            />
+            <Polyline
+              positions={rulerPoints.map((p) => [p.lat, p.lon] as [number, number])}
+              pathOptions={{ color: '#1976d2', weight: 3, dashArray: '8, 6', opacity: 0.95 }}
+            />
+          </>
+        )}
+        {rulerPoints.map((p, i) => (
+          <Marker
+            key={`ruler-pt-${i}`}
+            position={[p.lat, p.lon]}
+            icon={createRulerPointIcon()}
+            interactive={false}
+          />
+        ))}
+        {rulerMeasurement?.legs.map((leg, i) => (
+          <Marker
+            key={`ruler-leg-${i}`}
+            position={[leg.mid.lat, leg.mid.lon]}
+            icon={createRulerLabelIcon(leg.distanceText)}
+            interactive={false}
+          />
+        ))}
+
         <MapController
           position={position}
           autoCenter={autoCenter}
@@ -1525,6 +1625,7 @@ export const ChartView = React.memo<ChartViewProps>(({
         />
         <ZoomTracker onZoomChange={setMapZoom} onCenterChange={handleMapCenterChange} />
         <LongPressHandler onLongPress={handleLongPress} />
+        <RulerClickHandler active={rulerActive} onMapClick={handleRulerClick} />
 
         {/* Water debug overlay */}
         {debugMode !== 'off' && (
@@ -1891,6 +1992,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           depthSettingsOpen={depthSettingsOpen}
           searchOpen={searchOpen}
           layersPanelOpen={layersPanelOpen}
+          toolsPanelOpen={toolsPanelOpen}
           autoCenter={autoCenter}
           bearingToTarget={
             navigationTarget && routeWaypoints.length >= 2
@@ -1926,6 +2028,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             setAutopilotOpen(false);
             setWeatherPanelOpen(false);
             setLayersPanelOpen(false);
+            setToolsPanelOpen(false);
           }}
           onSearchClick={() => {
             setSearchOpen(!searchOpen);
@@ -1933,6 +2036,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             setAutopilotOpen(false);
             setWeatherPanelOpen(false);
             setLayersPanelOpen(false);
+            setToolsPanelOpen(false);
           }}
           onLayersClick={() => {
             setLayersPanelOpen(!layersPanelOpen);
@@ -1940,6 +2044,15 @@ export const ChartView = React.memo<ChartViewProps>(({
             setSearchOpen(false);
             setAutopilotOpen(false);
             setWeatherPanelOpen(false);
+            setToolsPanelOpen(false);
+          }}
+          onToolsClick={() => {
+            setToolsPanelOpen(!toolsPanelOpen);
+            setDepthSettingsOpen(false);
+            setSearchOpen(false);
+            setAutopilotOpen(false);
+            setWeatherPanelOpen(false);
+            setLayersPanelOpen(false);
           }}
           onRecenter={handleRecenter}
           onMOBPressStart={handleMOBPressStart}
@@ -1950,6 +2063,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             setSearchOpen(false);
             setWeatherPanelOpen(false);
             setLayersPanelOpen(false);
+            setToolsPanelOpen(false);
           }}
           onDebugToggle={() => setDebugMode(debugMode === 'off' ? 'grid' : 'off')}
           onWeatherClick={() => {
@@ -1958,6 +2072,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             setSearchOpen(false);
             setAutopilotOpen(false);
             setLayersPanelOpen(false);
+            setToolsPanelOpen(false);
           }}
         />
       )}
@@ -2454,6 +2569,23 @@ export const ChartView = React.memo<ChartViewProps>(({
           sidebarWidth={sidebarWidth}
           sidebarPosition={sidebarPosition}
           onClose={() => setLayersPanelOpen(false)}
+        />
+      )}
+
+      {/* Tools Panel (ruler, ...) */}
+      {toolsPanelOpen && (
+        <ToolsPanel
+          sidebarWidth={sidebarWidth}
+          sidebarPosition={sidebarPosition}
+          rulerPointCount={rulerPoints.length}
+          rulerTotalText={rulerMeasurement?.totalText ?? null}
+          rulerLegs={rulerMeasurement?.legs ?? []}
+          onRulerActiveChange={handleRulerActiveChange}
+          onClearRuler={() => setRulerPoints([])}
+          onGoToCoordinates={handleGoToCoordinates}
+          boatLat={position.latitude}
+          boatLon={position.longitude}
+          onClose={() => setToolsPanelOpen(false)}
         />
       )}
 

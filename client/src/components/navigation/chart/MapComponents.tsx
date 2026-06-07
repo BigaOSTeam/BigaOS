@@ -305,6 +305,37 @@ export const LongPressHandler: React.FC<LongPressHandlerProps> = ({
   return null;
 };
 
+interface RulerClickHandlerProps {
+  active: boolean;
+  onMapClick: (lat: number, lon: number) => void;
+}
+
+/**
+ * While `active`, captures single map clicks/taps and forwards the lat/lon so
+ * the chart can place ruler points. Mirrors LongPressHandler's on/off
+ * lifecycle; when inactive no listener is attached, so normal map interaction
+ * (pan, marker taps, long-press menu) is untouched.
+ */
+export const RulerClickHandler: React.FC<RulerClickHandlerProps> = ({
+  active,
+  onMapClick,
+}) => {
+  const map = useMap();
+
+  useEffect(() => {
+    if (!active) return;
+    const handleClick = (e: L.LeafletMouseEvent) => {
+      onMapClick(e.latlng.lat, e.latlng.lng);
+    };
+    map.on('click', handleClick);
+    return () => {
+      map.off('click', handleClick);
+    };
+  }, [map, active, onMapClick]);
+
+  return null;
+};
+
 export interface ContextMenuOption {
   label: string;
   icon: React.ReactNode;

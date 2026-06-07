@@ -1,11 +1,12 @@
 import React from 'react';
 import { SearchResult } from '../../../services/geocoding';
 import { CustomMarker, markerIcons } from './map-icons';
-import { useSettings, windConversions, depthConversions, temperatureConversions, SidebarPosition } from '../../../context/SettingsContext';
+import { useSettings, windConversions, depthConversions, temperatureConversions, speedConversions, SidebarPosition } from '../../../context/SettingsContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useTileSources, useChartLayers } from '../../../context/TileSourcesContext';
 import { radToDeg, degToRad, TWO_PI } from '../../../utils/angle';
+import { getSunTimes, getMoonPhase } from '../../../utils/astronomy';
 import { TIDE_WINDOW_HOURS, type TideForecast } from './WeatherOverlay';
 
 // Helper to compute panel positioning based on sidebar position
@@ -157,6 +158,465 @@ export const DepthSettingsPanel: React.FC<DepthSettingsPanelProps> = ({
           zIndex: 999,
         }}
       />
+    </>
+  );
+};
+
+interface RulerLeg {
+  /** Leg distance, pre-formatted in the user's unit. */
+  distanceText: string;
+  /** Leg bearing as a 3-digit degree string, e.g. "045°". */
+  bearingText: string;
+}
+
+type ToolId = 'ruler' | 'goto' | 'sun' | 'cts';
+
+interface ToolsPanelProps {
+  sidebarWidth: number;
+  sidebarPosition?: SidebarPosition;
+  // Ruler — measurement state lives in ChartView, driven by map taps.
+  rulerPointCount: number;
+  rulerTotalText: string | null;
+  rulerLegs: RulerLeg[];
+  /** Fired when the ruler becomes the open tool (true) or is left (false). */
+  onRulerActiveChange: (active: boolean) => void;
+  onClearRuler: () => void;
+  // Go to coordinates
+  onGoToCoordinates: (lat: number, lon: number) => void;
+  // Sun & moon — boat position to compute against
+  boatLat: number;
+  boatLon: number;
+  onClose: () => void;
+}
+
+const MOON_PHASE_KEYS = [
+  'chart.moon_new',
+  'chart.moon_waxing_crescent',
+  'chart.moon_first_quarter',
+  'chart.moon_waxing_gibbous',
+  'chart.moon_full',
+  'chart.moon_waning_gibbous',
+  'chart.moon_last_quarter',
+  'chart.moon_waning_crescent',
+];
+
+/**
+ * Side panel listing chart tools as an accordion: ruler (tap points to measure),
+ * go-to coordinates, a sun & moon almanac, and a course-to-steer calculator.
+ * Only one tool is expanded at a time.
+ *
+ * When the ruler is the open tool the click-outside overlay is suppressed so
+ * taps reach the map; the parent is notified via onRulerActiveChange so it can
+ * capture clicks and draw the measurement.
+ */
+export const ToolsPanel: React.FC<ToolsPanelProps> = ({
+  sidebarWidth,
+  sidebarPosition = 'left',
+  rulerPointCount,
+  rulerTotalText,
+  rulerLegs,
+  onRulerActiveChange,
+  onClearRuler,
+  onGoToCoordinates,
+  boatLat,
+  boatLon,
+  onClose,
+}) => {
+  const { t, language } = useLanguage();
+  const { theme } = useTheme();
+  const { timeFormat, speedUnit } = useSettings();
+  const panelWidth = 240;
+
+  const [activeTool, setActiveTool] = React.useState<ToolId | null>(null);
+  const rulerActive = activeTool === 'ruler';
+
+  // Let the chart arm/disarm map taps as the ruler tool is opened/left.
+  React.useEffect(() => {
+    onRulerActiveChange(rulerActive);
+  }, [rulerActive, onRulerActiveChange]);
+
+  // Go-to-coordinates form
+  const [latInput, setLatInput] = React.useState('');
+  const [lonInput, setLonInput] = React.useState('');
+  const [gotoError, setGotoError] = React.useState(false);
+
+  // Course-to-steer form
+  const [ctsTrack, setCtsTrack] = React.useState('');
+  const [ctsBoat, setCtsBoat] = React.useState('');
+  const [ctsSet, setCtsSet] = React.useState('');
+  const [ctsDrift, setCtsDrift] = React.useState('');
+
+  const speedLabel = speedConversions[speedUnit].label;
+  const parseNum = (s: string): number => parseFloat(s.trim().replace(',', '.'));
+
+  const fmtTime = (d: Date | null): string =>
+    d
+      ? d.toLocaleTimeString(language, {
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: timeFormat === '12h',
+        })
+      : '—';
+
+  const sun = React.useMemo(
+    () => getSunTimes(new Date(), boatLat, boatLon),
+    [boatLat, boatLon]
+  );
+  const moon = React.useMemo(() => getMoonPhase(new Date()), []);
+
+  // Vector triangle: heading to steer + speed over ground for a desired track
+  // given boat speed and the current's set/drift.
+  const cts = React.useMemo(() => {
+    const trackDeg = parseNum(ctsTrack);
+    const boatSpeed = parseNum(ctsBoat);
+    const setDeg = parseNum(ctsSet);
+    const drift = parseNum(ctsDrift);
+    if (![trackDeg, boatSpeed, setDeg, drift].every(Number.isFinite) || boatSpeed <= 0) {
+      return null;
+    }
+    const rel = (setDeg - trackDeg) * (Math.PI / 180);
+    const cross = drift * Math.sin(rel);
+    const along = drift * Math.cos(rel);
+    const sinCorr = -cross / boatSpeed;
+    if (Math.abs(sinCorr) > 1) return { tooStrong: true as const };
+    const corr = Math.asin(sinCorr);
+    const heading = (((trackDeg + corr * (180 / Math.PI)) % 360) + 360) % 360;
+    const sog = boatSpeed * Math.cos(corr) + along;
+    return {
+      tooStrong: false as const,
+      headingText: `${String(Math.round(heading) % 360).padStart(3, '0')}°`,
+      sogText: `${sog.toFixed(1)} ${speedLabel}`,
+    };
+  }, [ctsTrack, ctsBoat, ctsSet, ctsDrift, speedLabel]);
+
+  const handleGo = () => {
+    const lat = parseNum(latInput);
+    const lon = parseNum(lonInput);
+    if (
+      !Number.isFinite(lat) ||
+      !Number.isFinite(lon) ||
+      lat < -90 ||
+      lat > 90 ||
+      lon < -180 ||
+      lon > 180
+    ) {
+      setGotoError(true);
+      return;
+    }
+    setGotoError(false);
+    onGoToCoordinates(lat, lon);
+  };
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '0.5rem',
+    background: theme.colors.bgCardActive,
+    border: `1px solid ${theme.colors.border}`,
+    borderRadius: '4px',
+    color: theme.colors.textPrimary,
+    fontSize: '0.9rem',
+  };
+  const primaryButtonStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '0.6rem',
+    background: 'rgba(25, 118, 210, 0.5)',
+    border: 'none',
+    borderRadius: '6px',
+    color: theme.colors.textPrimary,
+    cursor: 'pointer',
+    fontSize: '0.9rem',
+  };
+  const secondaryButtonStyle: React.CSSProperties = {
+    ...primaryButtonStyle,
+    background: theme.colors.bgCardActive,
+    marginTop: '0.6rem',
+  };
+  const rowStyle: React.CSSProperties = {
+    display: 'flex',
+    justifyContent: 'space-between',
+    fontSize: '0.85rem',
+    padding: '2px 0',
+  };
+  const fieldLabelStyle: React.CSSProperties = {
+    fontSize: '0.7rem',
+    opacity: 0.6,
+    marginBottom: '0.15rem',
+  };
+
+  const icons: Record<ToolId, React.ReactNode> = {
+    ruler: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.41 2.41 0 0 1 0-3.4l2.6-2.6a2.41 2.41 0 0 1 3.4 0Z" />
+        <path d="m14.5 12.5 2-2" />
+        <path d="m11.5 9.5 2-2" />
+        <path d="m8.5 6.5 2-2" />
+        <path d="m17.5 15.5 2-2" />
+      </svg>
+    ),
+    goto: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    ),
+    sun: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="4" />
+        <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M6.3 17.7l-1.4 1.4M19.1 4.9l-1.4 1.4" />
+      </svg>
+    ),
+    cts: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="3 11 22 2 13 21 11 13 3 11" />
+      </svg>
+    ),
+  };
+
+  const labels: Record<ToolId, string> = {
+    ruler: t('chart.ruler'),
+    goto: t('chart.goto'),
+    sun: t('chart.sun_moon'),
+    cts: t('chart.cts'),
+  };
+
+  const order: ToolId[] = ['ruler', 'goto', 'sun', 'cts'];
+
+  return (
+    <>
+      <div
+        style={{
+          position: 'absolute',
+          ...getPanelPositionStyle(sidebarWidth, sidebarPosition),
+          width: `min(${panelWidth}px, calc(100vw - ${sidebarWidth + 16}px))`,
+          maxHeight: 'calc(100% - 32px)',
+          overflowY: 'auto',
+          background: theme.colors.bgTertiary,
+          border: `1px solid ${theme.colors.borderHover}`,
+          borderRadius: '6px',
+          padding: '1rem',
+          zIndex: 1001,
+          boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
+        }}
+      >
+        <div style={{ fontSize: '0.85rem', opacity: 0.6, marginBottom: '0.75rem' }}>
+          {t('chart.tools')}
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          {order.map((id) => {
+            const open = activeTool === id;
+            return (
+              <div key={id}>
+                <button
+                  onClick={() => setActiveTool(open ? null : id)}
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '0.6rem',
+                    padding: '0.7rem 0.75rem',
+                    background: open
+                      ? 'rgba(25, 118, 210, 0.5)'
+                      : theme.colors.bgCardActive,
+                    border: 'none',
+                    borderRadius: '6px',
+                    color: theme.colors.textPrimary,
+                    cursor: 'pointer',
+                    fontSize: '1rem',
+                    textAlign: 'left',
+                  }}
+                >
+                  {icons[id]}
+                  <span>{labels[id]}</span>
+                </button>
+
+                {open && (
+                  <div style={{ padding: '0.6rem 0.25rem 0.25rem' }}>
+                    {id === 'ruler' &&
+                      (rulerTotalText ? (
+                        <>
+                          <div
+                            style={{
+                              fontSize: '0.7rem',
+                              opacity: 0.6,
+                              marginBottom: '0.2rem',
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                            }}
+                          >
+                            {t('chart.ruler_total')}
+                          </div>
+                          <div style={{ fontSize: '1.6rem', fontWeight: 'bold', color: theme.colors.info }}>
+                            {rulerTotalText}
+                          </div>
+                          {rulerLegs.length === 1 ? (
+                            <div style={{ fontSize: '0.85rem', opacity: 0.8, marginTop: '0.2rem' }}>
+                              {t('chart.bearing')} {rulerLegs[0].bearingText}
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: '0.5rem', display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              {rulerLegs.map((leg, i) => (
+                                <div key={i} style={rowStyle}>
+                                  <span style={{ opacity: 0.8 }}>
+                                    {i + 1}. {leg.distanceText}
+                                  </span>
+                                  <span style={{ opacity: 0.8 }}>{leg.bearingText}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          <button onClick={onClearRuler} style={secondaryButtonStyle}>
+                            {t('chart.ruler_clear')}
+                          </button>
+                          <div style={{ fontSize: '0.75rem', opacity: 0.5, marginTop: '0.4rem', textAlign: 'center' }}>
+                            {t('chart.ruler_hint_more')}
+                          </div>
+                        </>
+                      ) : (
+                        <div style={{ fontSize: '0.85rem', opacity: 0.7, lineHeight: 1.4 }}>
+                          {rulerPointCount === 0
+                            ? t('chart.ruler_hint_first')
+                            : t('chart.ruler_hint_next')}
+                        </div>
+                      ))}
+
+                    {id === 'goto' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div>
+                          <div style={fieldLabelStyle}>{t('chart.goto_lat')}</div>
+                          <input
+                            value={latInput}
+                            inputMode="decimal"
+                            placeholder="47.8000"
+                            onChange={(e) => {
+                              setLatInput(e.target.value);
+                              setGotoError(false);
+                            }}
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <div style={fieldLabelStyle}>{t('chart.goto_lon')}</div>
+                          <input
+                            value={lonInput}
+                            inputMode="decimal"
+                            placeholder="12.4000"
+                            onChange={(e) => {
+                              setLonInput(e.target.value);
+                              setGotoError(false);
+                            }}
+                            style={inputStyle}
+                          />
+                        </div>
+                        {gotoError && (
+                          <div style={{ color: theme.colors.error, fontSize: '0.75rem' }}>
+                            {t('chart.goto_invalid')}
+                          </div>
+                        )}
+                        <button onClick={handleGo} style={primaryButtonStyle}>
+                          {t('chart.goto_go')}
+                        </button>
+                      </div>
+                    )}
+
+                    {id === 'sun' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        {sun.alwaysUp ? (
+                          <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>{t('chart.sun_always_up')}</div>
+                        ) : sun.alwaysDown ? (
+                          <div style={{ fontSize: '0.85rem', opacity: 0.8 }}>{t('chart.sun_always_down')}</div>
+                        ) : (
+                          <>
+                            <div style={rowStyle}>
+                              <span style={{ opacity: 0.7 }}>{t('chart.sun_dawn')}</span>
+                              <span>{fmtTime(sun.dawn)}</span>
+                            </div>
+                            <div style={rowStyle}>
+                              <span style={{ opacity: 0.7 }}>{t('chart.sun_sunrise')}</span>
+                              <span>{fmtTime(sun.sunrise)}</span>
+                            </div>
+                            <div style={rowStyle}>
+                              <span style={{ opacity: 0.7 }}>{t('chart.sun_sunset')}</span>
+                              <span>{fmtTime(sun.sunset)}</span>
+                            </div>
+                            <div style={rowStyle}>
+                              <span style={{ opacity: 0.7 }}>{t('chart.sun_dusk')}</span>
+                              <span>{fmtTime(sun.dusk)}</span>
+                            </div>
+                          </>
+                        )}
+                        <div style={{ borderTop: `1px solid ${theme.colors.border}`, margin: '6px 0' }} />
+                        <div style={rowStyle}>
+                          <span style={{ opacity: 0.7 }}>{t(MOON_PHASE_KEYS[moon.phaseIndex])}</span>
+                          <span>
+                            {Math.round(moon.illumination * 100)}% {t('chart.moon_illumination')}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+
+                    {id === 'cts' && (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                        <div>
+                          <div style={fieldLabelStyle}>{t('chart.cts_track')} (°)</div>
+                          <input value={ctsTrack} inputMode="decimal" onChange={(e) => setCtsTrack(e.target.value)} style={inputStyle} />
+                        </div>
+                        <div>
+                          <div style={fieldLabelStyle}>
+                            {t('chart.cts_boat_speed')} ({speedLabel})
+                          </div>
+                          <input value={ctsBoat} inputMode="decimal" onChange={(e) => setCtsBoat(e.target.value)} style={inputStyle} />
+                        </div>
+                        <div>
+                          <div style={fieldLabelStyle}>{t('chart.cts_set')} (°)</div>
+                          <input value={ctsSet} inputMode="decimal" onChange={(e) => setCtsSet(e.target.value)} style={inputStyle} />
+                        </div>
+                        <div>
+                          <div style={fieldLabelStyle}>
+                            {t('chart.cts_drift')} ({speedLabel})
+                          </div>
+                          <input value={ctsDrift} inputMode="decimal" onChange={(e) => setCtsDrift(e.target.value)} style={inputStyle} />
+                        </div>
+                        {cts &&
+                          (cts.tooStrong ? (
+                            <div style={{ color: theme.colors.warning, fontSize: '0.8rem' }}>
+                              {t('chart.cts_too_strong')}
+                            </div>
+                          ) : (
+                            <div style={{ marginTop: '0.2rem' }}>
+                              <div style={rowStyle}>
+                                <span style={{ opacity: 0.7 }}>{t('chart.cts_heading')}</span>
+                                <span style={{ fontWeight: 'bold', color: theme.colors.info }}>{cts.headingText}</span>
+                              </div>
+                              <div style={rowStyle}>
+                                <span style={{ opacity: 0.7 }}>{t('chart.cts_sog')}</span>
+                                <span style={{ fontWeight: 'bold' }}>{cts.sogText}</span>
+                              </div>
+                            </div>
+                          ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Click outside to close — suppressed while the ruler is open so taps
+          reach the map instead of closing the panel. */}
+      {!rulerActive && (
+        <div
+          onClick={(e) => {
+            if (e.detail === 1) onClose();
+          }}
+          style={{
+            ...getOverlayStyle(sidebarWidth, sidebarPosition),
+            zIndex: 999,
+          }}
+        />
+      )}
     </>
   );
 };

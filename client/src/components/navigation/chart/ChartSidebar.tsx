@@ -9,6 +9,7 @@ import {
 } from '../../../context/SettingsContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
+import { ScrollableControlColumn } from './ScrollableControlColumn';
 
 type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp' | 'tide';
 
@@ -43,6 +44,8 @@ interface ChartSidebarProps {
   onCompassClick: () => void;
   onDebugToggle?: () => void;
   onWeatherClick?: () => void;
+  toolsPanelOpen?: boolean;
+  onToolsClick?: () => void;
   sidebarWidth?: number;
   sidebarPosition?: SidebarPosition;
 }
@@ -78,6 +81,8 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   onCompassClick,
   onDebugToggle: _onDebugToggle,
   onWeatherClick,
+  toolsPanelOpen,
+  onToolsClick,
   sidebarWidth: sidebarWidthProp,
   sidebarPosition = 'left',
 }) => {
@@ -282,14 +287,68 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         </>
       )}
 
-      {/* Spacer */}
-      <div style={{ flex: 1 }} />
+      {/* Bottom action buttons — windowed/paginated when they don't all fit;
+          MOB stays pinned at the bottom and is never scrolled away. */}
+      <ScrollableControlColumn
+        separator={separator}
+        items={[
+          // Search
+          <button
+            key="search"
+            onClick={onSearchClick}
+            className={`chart-sidebar-btn with-label ${searchOpen ? 'active' : ''}`}
+            style={{
+              borderTop: separator,
+            }}
+            title={t('search.search_locations')}
+          >
+            <svg
+              width="24"
+              height="24"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke={searchOpen ? '#4fc3f7' : 'currentColor'}
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
+              <circle cx="11" cy="11" r="8" />
+              <line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <span style={{ opacity: 0.7 }}>{t('chart.search')}</span>
+          </button>,
 
-      {/* Bottom action buttons */}
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        {/* Forecast overlay toggle */}
-          {onWeatherClick && (
+          // Tools — opens a side panel with chart tools (ruler, ...)
+          onToolsClick ? (
             <button
+              key="tools"
+              onClick={onToolsClick}
+              className={`chart-sidebar-btn with-label ${toolsPanelOpen ? 'active' : ''}`}
+              style={{
+                borderTop: separator,
+              }}
+              title={t('chart.tools')}
+            >
+              <svg
+                width="24"
+                height="24"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke={toolsPanelOpen ? '#4fc3f7' : 'currentColor'}
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+              </svg>
+              <span style={{ opacity: 0.7 }}>{t('chart.tools')}</span>
+            </button>
+          ) : null,
+
+          // Forecast
+          onWeatherClick ? (
+            <button
+              key="forecast"
               onClick={onWeatherClick}
               className={`chart-sidebar-btn with-label ${weatherPanelOpen || weatherOverlayEnabled ? 'active' : ''}`}
               style={{
@@ -349,36 +408,11 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               </svg>
               <span style={{ opacity: 0.7 }}>{t('chart.forecast')}</span>
             </button>
-          )}
+          ) : null,
 
-          {/* Search button */}
+          // Layers — opens a panel to pick the base map and toggle overlays
           <button
-            onClick={onSearchClick}
-            className={`chart-sidebar-btn with-label ${searchOpen ? 'active' : ''}`}
-            style={{
-              borderTop: separator,
-            }}
-            title={t('search.search_locations')}
-          >
-            <svg
-              width="24"
-              height="24"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke={searchOpen ? '#4fc3f7' : 'currentColor'}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <circle cx="11" cy="11" r="8" />
-              <line x1="21" y1="21" x2="16.65" y2="16.65" />
-            </svg>
-            <span style={{ opacity: 0.7 }}>{t('chart.search')}</span>
-          </button>
-
-          {/* Layers button — opens a panel to pick the base map and toggle
-              overlays (sea chart, depth, ...). */}
-          <button
+            key="layers"
             onClick={onLayersClick}
             className={`chart-sidebar-btn with-label ${layersPanelOpen ? 'active' : ''}`}
             style={{
@@ -402,10 +436,11 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
               <polyline points="2 12 12 17 22 12" />
             </svg>
             <span style={{ opacity: 0.7 }}>{t('chart.layers')}</span>
-          </button>
+          </button>,
 
-          {/* Recenter button */}
+          // Recenter
           <button
+            key="recenter"
             onClick={onRecenter}
             className={`chart-sidebar-btn ${autoCenter ? 'active' : ''}`}
             style={{
@@ -435,12 +470,14 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
                 fill={autoCenter ? '#4fc3f7' : 'currentColor'}
               />
             </svg>
-          </button>
-
-          {/* Man Overboard button — press and hold 1.5s to activate.
-              Pointer events are forwarded to ChartView, which owns the hold
-              timer and the centered ring overlay. */}
+          </button>,
+        ].filter(Boolean)}
+        footer={
+          /* Man Overboard button — press and hold 1.5s to activate.
+             Pointer events are forwarded to ChartView, which owns the hold
+             timer and the centered ring overlay. */
           <button
+            key="mob"
             className="chart-sidebar-btn with-label mob"
             style={{ borderTop: separator }}
             title={t('chart.mob_title')}
@@ -464,7 +501,8 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
             </svg>
             <span>{t('chart.mob')}</span>
           </button>
-      </div>
+        }
+      />
     </div>
   );
 };

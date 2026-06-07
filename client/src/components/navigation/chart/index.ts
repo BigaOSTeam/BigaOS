@@ -12,11 +12,13 @@ export {
   createAnchorIcon,
   createCrosshairIcon,
   createMOBIcon,
+  createRulerPointIcon,
+  createRulerLabelIcon,
 } from './map-icons';
 export type { CustomMarker } from './map-icons';
 
 // Map components
-export { MapController, LongPressHandler, ContextMenu, Compass, AnchorPlacementController, ZoomTracker } from './MapComponents';
+export { MapController, LongPressHandler, RulerClickHandler, ContextMenu, Compass, AnchorPlacementController, ZoomTracker } from './MapComponents';
 export type { ContextMenuOption } from './MapComponents';
 
 // Dialogs
@@ -25,9 +27,10 @@ export { VesselDetailsDialog } from './VesselDetailsDialog';
 
 // Sidebar
 export { ChartSidebar } from './ChartSidebar';
+export { ScrollableControlColumn } from './ScrollableControlColumn';
 
 // Panels
-export { DepthSettingsPanel, SearchPanel, AutopilotPanel, WeatherPanel, LayersPanel } from './ChartPanels';
+export { DepthSettingsPanel, SearchPanel, AutopilotPanel, WeatherPanel, LayersPanel, ToolsPanel } from './ChartPanels';
 
 // Depth contour overlay
 export { DepthContourLayer, DEPTH_MIN_ZOOM } from './DepthContourLayer';
