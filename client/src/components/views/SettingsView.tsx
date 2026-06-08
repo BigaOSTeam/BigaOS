@@ -335,6 +335,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const navigationFiles = dataFiles.filter(f => f.category === 'navigation');
   const depthFiles = dataFiles.filter(f => f.category === 'depth');
   const heritageFiles = dataFiles.filter(f => f.category === 'heritage');
+  const seabedFiles = dataFiles.filter(f => f.category === 'seabed');
 
   const settings = useSettings();
 
@@ -909,11 +910,12 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         ([
           { key: 'navigation', title: t('downloads.group_navigation'), files: navigationFiles },
           { key: 'depth', title: t('downloads.group_depth'), files: depthFiles },
+          { key: 'seabed', title: t('downloads.group_seabed'), files: seabedFiles },
           { key: 'heritage', title: t('downloads.group_heritage'), files: heritageFiles },
         ] as const).filter((group) => group.files.length > 0).map((group) => (
           <div key={group.key} style={{ marginBottom: theme.space.lg }}>
             <SSection>{group.title}</SSection>
-            {(group.key === 'depth' || group.key === 'heritage') && (
+            {(group.key === 'depth' || group.key === 'heritage' || group.key === 'seabed') && (
               <div style={{
                 color: theme.colors.textMuted,
                 fontSize: theme.fontSize.xs,

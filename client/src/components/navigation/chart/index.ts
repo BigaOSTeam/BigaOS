@@ -38,6 +38,9 @@ export { DepthContourLayer, DEPTH_MIN_ZOOM } from './DepthContourLayer';
 // Heritage ("Worth a Look") overlay — wrecks + UNESCO sites
 export { HeritageLayer, HERITAGE_MIN_ZOOM } from './HeritageLayer';
 
+// Seabed composition (anchoring) overlay — EMODnet substrate + Posidonia polygons
+export { SeabedLayer, SEABED_MIN_ZOOM } from './SeabedLayer';
+
 // Debug overlay
 export { WaterDebugOverlay, DebugInfoPanel, useWaterDebugGrid } from './WaterDebugOverlay';
 export type { DebugMode } from './WaterDebugOverlay';

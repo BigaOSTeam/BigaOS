@@ -13,6 +13,7 @@ import { dbWorker } from './services/database-worker.service';
 import { waterDetectionService } from './services/water-detection.service';
 import { depthTileService } from './services/depth-tile.service';
 import { heritageService } from './services/heritage.service';
+import { seabedService } from './services/seabed.service';
 import { routeWorkerService } from './services/route-worker.service';
 import { DataController } from './services/data.controller';
 import { initializeLanguages } from './i18n/lang';
@@ -68,6 +69,11 @@ async function startServer() {
   // Load downloaded heritage points (async, non-blocking) for the "Worth a Look" overlay
   heritageService.initialize().catch(error => {
     console.error('Failed to initialize heritage service:', error);
+  });
+
+  // Load downloaded seabed-composition polygons (async, non-blocking) for the anchoring overlay
+  seabedService.initialize().catch(error => {
+    console.error('Failed to initialize seabed service:', error);
   });
 
   // Initialize route worker (async, non-blocking) - runs pathfinding in separate thread

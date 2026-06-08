@@ -7,6 +7,7 @@
  *   - 'navigation' — OSM Water Layer (feeds water detection + routing).
  *   - 'depth'      — EMODnet / GEBCO bathymetry packs (feed depth contours).
  *   - 'heritage'   — EMODnet cultural-heritage points (feeds the "Worth a Look" overlay).
+ *   - 'seabed'     — EMODnet seabed substrate + Posidonia polygons (feeds the anchoring overlay).
  *
  * Bound to the `/data/*` routes; extends the generic DataManagementController
  * with download → extract → reload wiring. (Export name kept as
@@ -21,6 +22,7 @@ import { routeWorkerService } from '../services/route-worker.service';
 import { depthTileService } from '../services/depth-tile.service';
 import { depthContourService } from '../services/depth-contour.service';
 import { heritageService } from '../services/heritage.service';
+import { seabedService } from '../services/seabed.service';
 
 // OSM Water Layer — oceans, lakes, rivers (90 m). Drives water detection + routing.
 const NAVIGATION_DATA_FILES: DataFileConfig[] = [
@@ -134,7 +136,24 @@ const HERITAGE_DATA_FILES: DataFileConfig[] = [
   }
 ];
 
-const ALL_DATA_FILES: DataFileConfig[] = [...NAVIGATION_DATA_FILES, ...DEPTH_DATA_FILES, ...HERITAGE_DATA_FILES];
+// Seabed-composition polygons for the anchoring overlay: EMODnet seabed substrate
+// (EUSeaMap, Folk classes) + Posidonia beds, baked into slim GeoJSON by
+// scripts/prepare-seabed.py. Extracts into seabed-data/<pack>/; the seabed service
+// scans that tree. (The hosted pack is produced/uploaded as a data-ops step; until
+// then the overlay works online-first via the live EMODnet WFS fallback.)
+const SEABED_REL = 'https://github.com/BigaOSTeam/BigaOS-data/releases/download/seabed-data-v1';
+const SEABED_DATA_FILES: DataFileConfig[] = [
+  {
+    id: 'seabed-emodnet',
+    name: 'Seabed Composition',
+    description: 'EMODnet seabed substrate (Folk classes) + Posidonia beds — anchoring holding ground',
+    category: 'seabed',
+    defaultUrl: `${SEABED_REL}/seabed-emodnet.tar.gz`,
+    localPath: 'seabed-data/emodnet'
+  }
+];
+
+const ALL_DATA_FILES: DataFileConfig[] = [...NAVIGATION_DATA_FILES, ...DEPTH_DATA_FILES, ...HERITAGE_DATA_FILES, ...SEABED_DATA_FILES];
 
 class NavigationDataController extends DataManagementController {
   constructor() {
@@ -155,6 +174,9 @@ class NavigationDataController extends DataManagementController {
     } else if (category === 'heritage') {
       console.log('Heritage data changed, reloading heritage features...');
       await heritageService.reload();
+    } else if (category === 'seabed') {
+      console.log('Seabed data changed, reloading seabed composition...');
+      await seabedService.reload();
     }
   }
 

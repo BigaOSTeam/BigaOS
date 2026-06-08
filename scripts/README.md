@@ -278,3 +278,54 @@ is downloaded.
 
 Rendered in the chart attribution (`server/src/utils/tile-sources.ts`).
 **NOT FOR NAVIGATION** — heritage positions can be approximate.
+
+---
+
+# BigaOS Seabed Composition (anchoring) data — regeneration runbook
+
+Bakes EMODnet seabed substrate + Posidonia into slim, pre-classified GeoJSON
+**tiles** for the anchoring overlay. Offline-first: a downloaded pack serves
+instantly, with a live EMODnet Seabed Habitats WFS fallback so it works out of the
+box (see `server/src/services/seabed.service.ts`).
+
+Pack: `seabed-emodnet.tar.gz` on the GitHub release
+**`BigaOSTeam/BigaOS-data` → `seabed-data-v1`**. Tar root is `emodnet/` (stripped on
+extract); the server reads tiles from `server/src/data/seabed-data/emodnet/<region>/`.
+
+## Sources (EMODnet Seabed Habitats WFS — `https://ows.emodnet-seabedhabitats.eu/geoserver/emodnet_open/wfs`)
+
+| Layer | Theme | Notes |
+|---|---|---|
+| `emodnet_open:eusm2025_subs_full` | Seabed substrate (EUSeaMap 2025, Folk classes) | fetched as `propertyName=substrate,geom_800` — the pre-simplified geometry column; the full `geom` is enormous |
+| `emodnet_open:art17_hab_1120`     | Posidonia beds (Art-17) | small geometries; protected Mediterranean seagrass |
+
+`prepare-seabed.py` tiles each configured sea region (`REGIONS`) into `TILE_DEG`
+cells, GetFeatures each cell's bbox, then clips + simplifies + classifies locally.
+The substrate is coloured by its **real Folk class**; **holding** quality
+(good/moderate/poor) and ecological sensitivity are advisory interpretations.
+Pure standard library — no GDAL/conda needed.
+
+## Regenerate + publish
+
+```powershell
+# Slow one-time batch — EMODnet's WFS is throttled and substrate polygons are large.
+# Narrow REGIONS / raise TILE_DEG in the script to sample a subset first.
+python scripts\prepare-seabed.py tmp\seabed
+
+gh release create seabed-data-v1 -R BigaOSTeam/BigaOS-data tmp\seabed\seabed-emodnet.tar.gz `
+  --title "Seabed composition v1" --notes "EMODnet seabed substrate + Posidonia (anchoring overlay)"
+# ...or refresh:
+gh release upload seabed-data-v1 -R BigaOSTeam/BigaOS-data tmp\seabed\seabed-emodnet.tar.gz --clobber
+```
+
+The Downloads tab and the seabed service pick the pack up automatically. The
+`classify_substrate` logic plus the clip/simplify in `prepare-seabed.py` and
+`seabed.service.ts` MUST stay in sync so local and online render identically.
+
+## Licensing / attribution (keep on-chart)
+
+- **EMODnet Seabed Habitats** — EUSeaMap substrate & Posidonia beds — free to use
+  with EMODnet attribution.
+
+Rendered in the chart attribution (`server/src/utils/tile-sources.ts`).
+**NOT FOR NAVIGATION** — broad-scale / predictive data; holding quality is advisory.

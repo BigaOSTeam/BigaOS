@@ -114,7 +114,7 @@ export interface DataFileInfo {
   id: string;
   name: string;
   description: string;
-  category: 'navigation' | 'depth' | 'heritage' | 'other';
+  category: 'navigation' | 'depth' | 'heritage' | 'seabed' | 'other';
   defaultUrl: string;
   url: string;
   localPath: string;
@@ -198,7 +198,7 @@ export const regionalAPI = {
 
 // Tile source registry
 export type TileSourceRole = 'base' | 'overlay';
-export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles' | 'zones';
+export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'seabed' | 'mbtiles' | 'zones';
 
 /**
  * Public view of a server tile source (from GET /tiles/sources). The chart UI
@@ -416,6 +416,50 @@ export const heritageAPI = {
     signal?: AbortSignal
   ) =>
     api.get<HeritageFeatures>('/heritage/features', { params: bbox, signal, timeout: 30000 }),
+};
+
+// Seabed composition (anchoring) polygons: EMODnet seabed substrate (Folk classes)
+// + Posidonia beds, as a GeoJSON Polygon/MultiPolygon FeatureCollection.
+// Coordinates are [lon, lat]. The fill colour comes from `substrateKey`; `holding`
+// is the advisory anchoring interpretation (good/moderate/poor); `substrate` is the
+// verbatim EMODnet label shown on tap.
+export type SeabedHolding = 'good' | 'moderate' | 'poor' | 'unknown';
+export interface SeabedFeature {
+  type: 'Feature';
+  properties: {
+    kind: 'substrate' | 'seagrass';
+    substrate?: string; // verbatim EMODnet label
+    substrateKey: string; // palette key
+    holding: SeabedHolding;
+    sensitive?: boolean; // seagrass / worm reef — ecologically sensitive
+    protected?: boolean; // Posidonia — often legally protected (informational)
+    country?: string;
+    status?: string; // conservation status (seagrass)
+  };
+  geometry: {
+    type: 'Polygon' | 'MultiPolygon';
+    coordinates: number[][][] | number[][][][];
+  };
+}
+export interface SeabedFeatures {
+  type: 'FeatureCollection';
+  features: SeabedFeature[];
+  // 'local' = downloaded pack (offline), 'online' = live EMODnet WFS fallback
+  // (suggest downloading), 'none' = no data / fetch failed.
+  source?: 'local' | 'online' | 'none';
+}
+
+export const seabedAPI = {
+  /**
+   * Fetch seabed-composition polygons for a bbox. Offline-first: a downloaded pack
+   * is instant; the live EMODnet WFS fallback is clipped/simplified server-side but
+   * still adds a round-trip. Callers pass an AbortSignal to cancel on map move.
+   */
+  getFeatures: (
+    bbox: { west: number; south: number; east: number; north: number },
+    signal?: AbortSignal
+  ) =>
+    api.get<SeabedFeatures>('/seabed/features', { params: bbox, signal, timeout: 40000 }),
 };
 
 // Map status: connectivity + device storage (no offline tile downloads).
