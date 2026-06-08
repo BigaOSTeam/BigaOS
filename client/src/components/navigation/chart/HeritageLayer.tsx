@@ -136,6 +136,9 @@ export const HERITAGE_MIN_ZOOM = 8;
 const HERITAGE_MAX_SPAN_DEG = 4.5;
 const SNAP_DEG = 0.5; // must match the server's SNAP_DEG
 const LOADING_NOTIFY_DELAY_MS = 350;
+// Auto-dismiss the "loading online — tap to download" nudge after a few seconds so
+// it doesn't linger on screen (it re-shows when a new online region loads).
+const ONLINE_NOTE_TTL_MS = 10000;
 
 function snapKey(b: L.LatLngBounds): string {
   const q = SNAP_DEG;
@@ -199,12 +202,27 @@ export const HeritageLayer = ({ labels, onRequestDownload, followGps }: Heritage
     // ONE status note, updated in place: morphs loading → online as the request
     // resolves. Tappable (→ Downloads) when serving from the online fallback.
     let statusId: string | null = null;
+    let statusTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearStatusTimer = () => {
+      if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    };
     const setStatus = (message: string, withDownload: boolean) => {
       const onClick = withDownload ? download : undefined;
       if (statusId) updateNotification(statusId, { message, onClick });
       else statusId = pushNotification({ message, severity: 'info', tone: 'none', onClick });
+      clearStatusTimer();
+      // The online "tap to download" nudge auto-dismisses after a few seconds (and
+      // resets statusId so it re-shows on the next online region). The plain
+      // "loading…" note has no timer — it clears itself when the load resolves.
+      if (withDownload) {
+        statusTimer = setTimeout(() => {
+          if (statusId) { clearNotification(statusId); statusId = null; }
+          statusTimer = null;
+        }, ONLINE_NOTE_TTL_MS);
+      }
     };
     const clearStatus = () => {
+      clearStatusTimer();
       if (statusId) { clearNotification(statusId); statusId = null; }
     };
 

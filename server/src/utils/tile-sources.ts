@@ -23,13 +23,17 @@ export type TileSourceRole = 'base' | 'overlay';
 // `heritage` — like `contours`, a vector overlay (not tiles): the client fetches
 //   GeoJSON Points from `/heritage/features` and renders its own markers (EMODnet
 //   shipwrecks + UNESCO coastal World Heritage sites). Has no `url`.
+// `seabed` — like `heritage`, a vector overlay (not tiles): the client fetches
+//   GeoJSON polygons from `/seabed/features` and fills them by substrate class
+//   (EMODnet seabed substrate + Posidonia) for an anchoring "holding ground" view.
+//   Has no `url`.
 // `mbtiles` — reserved for user-imported chart packs (NV Verlag etc.); the
 //   server will need to serve tiles out of a local SQLite file before this is
 //   wired up. Keeping the discriminator now means the public shape is stable.
 // `zones` — user-authored regulatory/area overlays (no-go, nature, anchorage,
 //   speed). Like `contours`/`heritage` it's a vector overlay the client renders
 //   itself; the polygons live in the `chartZones` boat setting (no server data).
-export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'mbtiles' | 'zones';
+export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'seabed' | 'mbtiles' | 'zones';
 
 export interface TileSource {
   id: string;
@@ -138,6 +142,23 @@ export const TILE_SOURCES: readonly TileSource[] = [
     notForNavigation: true,
   },
   {
+    // Seabed composition (anchoring) — EMODnet seabed substrate (EUSeaMap, Folk
+    // classes) + Posidonia beds, rendered as translucent polygons coloured by
+    // substrate type. Like depth/heritage this is a vector overlay (not bitmap
+    // tiles): the client fetches GeoJSON polygons from `/seabed/features` and fills
+    // them itself, showing holding ground at a glance for anchoring. Offline-first
+    // from a downloaded pack (Downloads tab), with a live EMODnet Seabed Habitats
+    // WFS fallback so it works out of the box. Placed AFTER `depth` so the two
+    // bottom-related overlays sit together in the Layers panel.
+    id: 'seabed',
+    labelKey: 'tile_source.seabed',
+    role: 'overlay',
+    kind: 'seabed',
+    attribution:
+      '© <a href="https://emodnet.ec.europa.eu/">EMODnet</a> Seabed Habitats — EUSeaMap substrate & Posidonia beds',
+    defaultEnabled: false,
+  },
+  {
     // "Worth a Look" — points of interest near the boat: EMODnet shipwrecks +
     // UNESCO coastal World Heritage sites. Like depth, this is a vector overlay
     // (not bitmap tiles): the client fetches GeoJSON Points from
@@ -164,7 +185,6 @@ export const TILE_SOURCES: readonly TileSource[] = [
     kind: 'zones',
     attribution: 'User-authored — not an official source',
     defaultEnabled: false,
-    notForNavigation: true,
   },
 ];
 

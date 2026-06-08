@@ -7,6 +7,7 @@ import { navigationDataController } from '../controllers/navigation-data.control
 import { tilesController } from '../controllers/tiles.controller';
 import { depthController } from '../controllers/depth.controller';
 import { heritageController } from '../controllers/heritage.controller';
+import { seabedController } from '../controllers/seabed.controller';
 import { regionalImportController } from '../controllers/regional-import.controller';
 import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
@@ -130,6 +131,10 @@ router.get('/depth/coverage', fileOpsLimiter, depthController.getCoverage.bind(d
 // "Worth a Look" points of interest — EMODnet shipwrecks + UNESCO coastal World
 // Heritage sites, offline-first (downloaded pack) with a live EMODnet WFS fallback.
 router.get('/heritage/features', fileOpsLimiter, heritageController.getFeatures.bind(heritageController));
+
+// Seabed composition (anchoring) — EMODnet substrate + Posidonia polygons,
+// offline-first (downloaded pack) with a live EMODnet Seabed Habitats WFS fallback.
+router.get('/seabed/features', fileOpsLimiter, seabedController.getFeatures.bind(seabedController));
 
 // Regional importer — user-added lake depth (modeled from an OSM outline + max
 // depth), generated on-device and folded into the Depth overlay.

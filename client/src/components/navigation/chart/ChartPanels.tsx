@@ -697,6 +697,13 @@ interface LayersPanelProps {
  * Reads/writes the chart layer selection directly via the tile-source
  * contexts, so it needs no data props.
  */
+// Optional one-line descriptor shown under an overlay's toggle. Zones are drawn by
+// the user (no data feed), so we flag that — otherwise enabling an empty Zones
+// overlay looks broken (nothing appears until you draw one via Tools → Zone).
+const OVERLAY_HINTS: Record<string, string> = {
+  zones: 'chart.zones_layer_hint',
+};
+
 export const LayersPanel: React.FC<LayersPanelProps> = ({
   sidebarWidth,
   sidebarPosition = 'left',
@@ -806,6 +813,11 @@ export const LayersPanel: React.FC<LayersPanelProps> = ({
                       {ov.notForNavigation && (
                         <span style={{ fontSize: '0.6rem', color: theme.colors.warning, opacity: 0.9 }}>
                           {t('chart.not_for_navigation')}
+                        </span>
+                      )}
+                      {OVERLAY_HINTS[ov.id] && (
+                        <span style={{ fontSize: '0.6rem', color: theme.colors.textMuted, opacity: 0.9 }}>
+                          {t(OVERLAY_HINTS[ov.id])}
                         </span>
                       )}
                     </span>

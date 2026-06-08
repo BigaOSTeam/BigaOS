@@ -70,6 +70,11 @@ Desktop.ini
 *.temp
 .temp/
 .tmp/
+tmp/
+
+# Python caches (data-prep scripts)
+__pycache__/
+*.pyc
 
 # Claude Code files (project-specific)
 claude-code/

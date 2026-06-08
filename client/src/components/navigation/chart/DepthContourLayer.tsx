@@ -35,6 +35,9 @@ const LABEL_SPACING_PX = 130;
 const LABEL_START_PX = 40;
 const MAX_LABELS = 500;
 const LOADING_NOTIFY_DELAY_MS = 350;
+// Auto-dismiss the "tap to download" nudges (online / no-data) after a few seconds
+// so they don't linger on screen (they re-show when a new relevant region loads).
+const ONLINE_NOTE_TTL_MS = 10000;
 
 // Blue ramp: shallow = light, deep = dark. Used for both line and labels.
 function depthColor(d: number): string {
@@ -363,12 +366,27 @@ export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLay
     // loading → online / no-data as the request resolves, so the user only ever
     // sees a single notification. Tappable (→ Downloads) when withDownload.
     let statusId: string | null = null;
+    let statusTimer: ReturnType<typeof setTimeout> | null = null;
+    const clearStatusTimer = () => {
+      if (statusTimer) { clearTimeout(statusTimer); statusTimer = null; }
+    };
     const setStatus = (message: string, withDownload: boolean) => {
       const onClick = withDownload ? download : undefined;
       if (statusId) updateNotification(statusId, { message, onClick });
       else statusId = pushNotification({ message, severity: 'info', tone: 'none', onClick });
+      clearStatusTimer();
+      // The "tap to download" nudges (online / no-data) auto-dismiss after a few
+      // seconds (and reset statusId so they re-show on the next relevant region).
+      // The plain "loading…" note has no timer — it clears when the load resolves.
+      if (withDownload) {
+        statusTimer = setTimeout(() => {
+          if (statusId) { clearNotification(statusId); statusId = null; }
+          statusTimer = null;
+        }, ONLINE_NOTE_TTL_MS);
+      }
     };
     const clearStatus = () => {
+      clearStatusTimer();
       if (statusId) { clearNotification(statusId); statusId = null; }
     };
 

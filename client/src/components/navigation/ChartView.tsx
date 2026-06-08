@@ -62,6 +62,7 @@ import {
   ToolsPanel,
   DepthContourLayer,
   HeritageLayer,
+  SeabedLayer,
   AutopilotPanel,
   WaterDebugOverlay,
   DebugInfoPanel,
@@ -1370,6 +1371,21 @@ export const ChartView = React.memo<ChartViewProps>(({
                   zoomHint: t('heritage.zoom_hint'),
                 }}
                 followGps={autoCenter}
+                onRequestDownload={() => navigate('settings', { settings: { tab: 'downloads' } })}
+              />
+            );
+          }
+          if (ov.kind === 'seabed') {
+            return (
+              <SeabedLayer
+                key={`overlay-${ov.id}`}
+                labels={{
+                  loading: t('seabed.loading'),
+                  online: t('seabed.online_note'),
+                  zoomHint: t('seabed.zoom_hint'),
+                }}
+                sidebarPosition={sidebarPosition}
+                interactive={!rulerActive && !zoneActive && !placingAnchor}
                 onRequestDownload={() => navigate('settings', { settings: { tab: 'downloads' } })}
               />
             );
