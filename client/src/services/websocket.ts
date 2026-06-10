@@ -11,6 +11,7 @@ class WebSocketService {
   private listeners: Map<string, Set<Function>> = new Map();
   private serverReachable: boolean = true;
   private unreachableTimer: ReturnType<typeof setTimeout> | null = null;
+  private unreachableTimerArmedAt = 0;
   private visibilityHandler: (() => void) | null = null;
 
   connect(clientId?: string) {
@@ -96,12 +97,27 @@ class WebSocketService {
     // Already known unreachable, or already pending — nothing to do.
     if (!this.serverReachable || this.unreachableTimer) return;
 
+    this.armUnreachableTimer();
+  }
+
+  private armUnreachableTimer() {
+    this.unreachableTimerArmedAt = Date.now();
     this.unreachableTimer = setTimeout(() => {
       this.unreachableTimer = null;
-      if (!this.socket?.connected) {
-        this.serverReachable = false;
-        this.notifyReachability(false);
+      if (this.socket?.connected) return;
+
+      // If the timer fired far later than scheduled, the page was suspended
+      // (app backgrounded / tab throttled) and the debounce window never
+      // really ran. Kick a reconnect and give it a fresh window instead of
+      // flashing the banner on every app resume.
+      if (Date.now() - this.unreachableTimerArmedAt > UNREACHABLE_DEBOUNCE_MS * 2) {
+        this.socket?.connect();
+        this.armUnreachableTimer();
+        return;
       }
+
+      this.serverReachable = false;
+      this.notifyReachability(false);
     }, UNREACHABLE_DEBOUNCE_MS);
   }
 

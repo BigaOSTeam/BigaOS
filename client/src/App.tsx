@@ -291,9 +291,19 @@ function AppContent() {
     // Initial APK update check (Capacitor only).
     checkApkUpdate().then(setApkUpdate).catch(() => {});
 
+    // Re-check when the app returns to the foreground — the server may have
+    // cached a new APK while we were away. No-op on web clients.
+    const apkVisibilityHandler = () => {
+      if (document.visibilityState === 'visible') {
+        checkApkUpdate().then(setApkUpdate).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', apkVisibilityHandler);
+
     fetchInitialData();
 
     return () => {
+      document.removeEventListener('visibilitychange', apkVisibilityHandler);
       if (reloadPollRef.current) {
         clearInterval(reloadPollRef.current);
         reloadPollRef.current = null;
