@@ -320,6 +320,8 @@ phoneNotif.channel_critical=Kritische Alarme
 phoneNotif.channel_critical_desc=Ankeralarm, Tiefenalarm und andere kritische Alarme
 phoneNotif.channel_warning=Warnungen
 phoneNotif.channel_warning_desc=Nicht kritische Alarme
+phoneNotif.channel_silent=Stumme Alarme
+phoneNotif.channel_silent_desc=Alarme mit abgeschaltetem Ton
 
 # ==================== Alarm-Datenquellen ====================
 alert.ds.wind_speed=Windgeschwindigkeit (Sensor)

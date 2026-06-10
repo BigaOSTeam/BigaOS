@@ -14,6 +14,11 @@ import { isNativeApp } from '../utils/serverConfig';
 // names are re-applied on every init so they follow the app language.
 const CHANNEL_CRITICAL = 'bigaos_critical';
 const CHANNEL_WARNING = 'bigaos_warning';
+const CHANNEL_SILENT = 'bigaos_silent';
+
+// Which channel a notification posts on. 'silent' is for alerts whose tone
+// is set to 'none' — visible in the shade but no sound or vibration.
+export type NotificationKind = 'critical' | 'warning' | 'silent';
 
 const ENABLED_STORAGE_KEY = 'bigaos-phone-notifications';
 // Fired on window when the user flips the settings toggle, so the bridge
@@ -66,6 +71,14 @@ export async function initNativeNotifications(
       visibility: 1,
       vibration: true,
     });
+    await LocalNotifications.createChannel({
+      id: CHANNEL_SILENT,
+      name: t('phoneNotif.channel_silent'),
+      description: t('phoneNotif.channel_silent_desc'),
+      importance: 2,
+      visibility: 1,
+      vibration: false,
+    });
 
     return status.display === 'granted';
   } catch (err) {
@@ -88,8 +101,14 @@ export interface NativeAlertNotification {
   id: string;
   title: string;
   body: string;
-  critical: boolean;
+  kind: NotificationKind;
 }
+
+const CHANNEL_FOR_KIND: Record<NotificationKind, string> = {
+  critical: CHANNEL_CRITICAL,
+  warning: CHANNEL_WARNING,
+  silent: CHANNEL_SILENT,
+};
 
 /**
  * Show (or replace) a system notification. Re-posting with the same id
@@ -105,7 +124,7 @@ export async function showNativeNotification(n: NativeAlertNotification): Promis
           id: notificationNumericId(n.id),
           title: n.title,
           body: n.body,
-          channelId: n.critical ? CHANNEL_CRITICAL : CHANNEL_WARNING,
+          channelId: CHANNEL_FOR_KIND[n.kind],
           autoCancel: true,
         },
       ],

@@ -2,10 +2,9 @@
  * NativeNotificationBridge - mirrors alerts into Android system notifications.
  *
  * Renders nothing. On the native APK it:
- * - posts a system notification for every triggered server alert
- *   (warning/critical), and removes it when the alert clears
- * - re-alerts every 20s for active critical alarms while the app is
- *   backgrounded, so a dragging anchor keeps making noise
+ * - posts ONE system notification per triggered server alert
+ *   (warning/critical) and removes it when the alert clears — message
+ *   updates from the server never re-post, so it doesn't nag
  * - arms the AnchorWatch foreground service while the anchor alarm is
  *   active anywhere on the boat, keeping the socket alive through
  *   screen-off and Doze
@@ -16,7 +15,6 @@
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { App as CapacitorApp } from '@capacitor/app';
 import { useAlerts, Notification } from '../../context/AlertContext';
 import { useSettings } from '../../context/SettingsContext';
 import { useLanguage } from '../../i18n/LanguageContext';
@@ -29,22 +27,16 @@ import {
   cancelAllNativeNotifications,
   areNativeNotificationsEnabled,
   NATIVE_NOTIFICATIONS_TOGGLE_EVENT,
+  NotificationKind,
 } from '../../services/nativeNotifications';
 import { setAnchorWatchKeepAlive } from '../../services/anchorWatch';
 
-const RE_ALERT_INTERVAL_MS = 20000;
 const CONNECTION_LOST_ID = 'native_connection_lost';
 const WATCH_LOST_ID = 'native_anchor_watch_lost';
 // After a reconnect the server re-sends the anchor state almost immediately;
 // if nothing arrives within this window the watch is considered gone
 // (e.g. the server rebooted and lost it).
 const ANCHOR_RESYNC_GRACE_MS = 7000;
-
-interface ShownNotification {
-  title: string;
-  message: string;
-  critical: boolean;
-}
 
 export const NativeNotificationBridge: React.FC = () => {
   const { notifications } = useAlerts();
@@ -53,9 +45,8 @@ export const NativeNotificationBridge: React.FC = () => {
   const [enabled, setEnabled] = useState(areNativeNotificationsEnabled());
   const [anchorWatchArmed, setAnchorWatchArmed] = useState(false);
 
-  // What is currently shown in the Android shade, by alert id
-  const shownRef = useRef<Map<string, ShownNotification>>(new Map());
-  const appInBackgroundRef = useRef(false);
+  // What is currently shown in the Android shade: alert id -> channel kind
+  const shownRef = useRef<Map<string, NotificationKind>>(new Map());
   const anchorWatchArmedRef = useRef(false);
   anchorWatchArmedRef.current = anchorWatchArmed;
   const tRef = useRef(t);
@@ -81,17 +72,6 @@ export const NativeNotificationBridge: React.FC = () => {
     const handler = () => setEnabled(areNativeNotificationsEnabled());
     window.addEventListener(NATIVE_NOTIFICATIONS_TOGGLE_EVENT, handler);
     return () => window.removeEventListener(NATIVE_NOTIFICATIONS_TOGGLE_EVENT, handler);
-  }, []);
-
-  // Track foreground/background so re-alerting only nags when nobody is looking
-  useEffect(() => {
-    if (!isNativeApp()) return;
-    const listener = CapacitorApp.addListener('appStateChange', ({ isActive }) => {
-      appInBackgroundRef.current = !isActive;
-    });
-    return () => {
-      void listener.then((l) => l.remove());
-    };
   }, []);
 
   // Anchor watch state, synced from the server (it may have been armed from
@@ -127,7 +107,7 @@ export const NativeNotificationBridge: React.FC = () => {
               id: WATCH_LOST_ID,
               title: tRef.current('phoneNotif.title_critical'),
               body: tRef.current('phoneNotif.watch_lost'),
-              critical: true,
+              kind: 'critical',
             });
           }
           setAnchorWatchArmed(false);
@@ -162,7 +142,7 @@ export const NativeNotificationBridge: React.FC = () => {
           id: CONNECTION_LOST_ID,
           title: tRef.current('phoneNotif.title_critical'),
           body: tRef.current('phoneNotif.connection_lost'),
-          critical: true,
+          kind: 'critical',
         });
       } else {
         void cancelNativeNotification(CONNECTION_LOST_ID);
@@ -200,14 +180,20 @@ export const NativeNotificationBridge: React.FC = () => {
 
     visible.forEach((n) => {
       visibleIds.add(n.id);
-      const prev = shown.get(n.id);
-      const critical = n.severity === 'critical';
-      // Post when new; re-post when the message changed (e.g. anchor
-      // over-distance grows) — replacing re-plays the channel sound
-      if (!prev || prev.message !== n.message || prev.critical !== critical) {
-        const title = notificationTitle(n, tRef.current);
-        shown.set(n.id, { title, message: n.message, critical });
-        void showNativeNotification({ id: n.id, title, body: n.message, critical });
+      const kind: NotificationKind =
+        n.tone === 'none' ? 'silent' : n.severity === 'critical' ? 'critical' : 'warning';
+      // Post exactly once per alert (re-post only on a severity/tone change).
+      // Message-only updates arrive on every sensor tick (anchor
+      // over-distance, measured values) — re-posting those would make the
+      // notification ding and reappear every couple of seconds.
+      if (shown.get(n.id) !== kind) {
+        shown.set(n.id, kind);
+        void showNativeNotification({
+          id: n.id,
+          title: notificationTitle(n, tRef.current),
+          body: n.message,
+          kind,
+        });
       }
     });
 
@@ -218,26 +204,6 @@ export const NativeNotificationBridge: React.FC = () => {
       }
     });
   }, [notifications, alertSettings.globalEnabled, enabled]);
-
-  // Background re-alert loop for critical alarms
-  useEffect(() => {
-    if (!isNativeApp() || !enabled) return;
-
-    const interval = setInterval(() => {
-      if (!appInBackgroundRef.current) return;
-      shownRef.current.forEach((info, id) => {
-        if (!info.critical) return;
-        void showNativeNotification({
-          id,
-          title: info.title,
-          body: info.message,
-          critical: true,
-        });
-      });
-    }, RE_ALERT_INTERVAL_MS);
-
-    return () => clearInterval(interval);
-  }, [enabled]);
 
   return null;
 };
