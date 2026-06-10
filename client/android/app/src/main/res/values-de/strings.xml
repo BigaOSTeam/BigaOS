@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="anchor_watch_channel_name">Ankerwache</string>
+    <string name="anchor_watch_title">Ankerwache aktiv</string>
+    <string name="anchor_watch_text">Verbindung zum Boot wird gehalten</string>
+</resources>

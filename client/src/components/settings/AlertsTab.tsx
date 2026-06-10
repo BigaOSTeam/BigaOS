@@ -13,6 +13,11 @@ import {
 } from '../../types/alerts';
 import { SButton, SCard, SToggle } from '../ui/SettingsUI';
 import { AlertEditDialog } from './AlertEditDialog';
+import { isNativeApp } from '../../utils/serverConfig';
+import {
+  areNativeNotificationsEnabled,
+  setNativeNotificationsEnabled,
+} from '../../services/nativeNotifications';
 
 export const AlertsTab: React.FC = () => {
   const { theme } = useTheme();
@@ -27,6 +32,13 @@ export const AlertsTab: React.FC = () => {
   const { t } = useLanguage();
   const [editingAlert, setEditingAlert] = useState<AlertDefinition | null>(null);
   const [isCreating, setIsCreating] = useState(false);
+  // Per-device flag (Android APK only) — stored locally, not synced
+  const [phoneNotifications, setPhoneNotifications] = useState(areNativeNotificationsEnabled());
+
+  const handlePhoneNotificationsChange = (value: boolean) => {
+    setPhoneNotifications(value);
+    setNativeNotificationsEnabled(value);
+  };
 
   const formatCondition = (alert: AlertDefinition) => {
     const sourceLabel = getDataSourceLabel(alert.dataSource, t);
@@ -176,6 +188,43 @@ export const AlertsTab: React.FC = () => {
           onChange={setGlobalEnabled}
         />
       </SCard>
+
+      {/* Phone notifications (native APK only, per-device) */}
+      {isNativeApp() && (
+        <SCard
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: theme.space.xl,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontWeight: theme.fontWeight.semibold,
+                color: theme.colors.textPrimary,
+                fontSize: theme.fontSize.md,
+                marginBottom: theme.space.xs,
+              }}
+            >
+              {t('alerts.phone_notifications')}
+            </div>
+            <div
+              style={{
+                fontSize: theme.fontSize.sm,
+                color: theme.colors.textMuted,
+              }}
+            >
+              {t('alerts.phone_notifications_desc')}
+            </div>
+          </div>
+          <SToggle
+            checked={phoneNotifications}
+            onChange={handlePhoneNotificationsChange}
+          />
+        </SCard>
+      )}
 
       {/* Alerts List */}
       <div style={{ marginBottom: theme.space.lg }}>

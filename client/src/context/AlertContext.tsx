@@ -21,6 +21,8 @@ import type { AlertDefinition, TriggeredAlert, AlertSettings, AlertSeverity } fr
 export interface Notification {
   id: string;
   message: string;
+  // Short heading (alert name) — used by native system notifications
+  title?: string;
   severity: AlertSeverity;
   triggeredAt: Date;
   // For server alerts, this links back to the definition
@@ -92,6 +94,7 @@ export const AlertProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         return {
           id: `server_${alert.alertId}`,
           message: alert.message,
+          title: definition?.name || alert.alertName,
           severity: definition?.severity || alert.severity || 'warning',
           triggeredAt: new Date(alert.triggeredAt),
           alertId: alert.alertId,

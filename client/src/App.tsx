@@ -31,7 +31,7 @@ import { ButtonOverlay } from './components/ButtonOverlay';
 import { TankProvider } from './context/TankContext';
 import { TutorialProvider } from './context/TutorialContext';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
-import { AlertContainer } from './components/alerts';
+import { AlertContainer, NativeNotificationBridge } from './components/alerts';
 import { VirtualKeyboard } from './components/ui/VirtualKeyboard';
 import { LanguageProvider, useLanguage } from './i18n/LanguageContext';
 import { ThemeProvider, useTheme } from './context/ThemeContext';
@@ -808,6 +808,7 @@ function App() {
                 <TutorialProvider>
                   <AppContent />
                   <AlertContainer />
+                  <NativeNotificationBridge />
                   <VirtualKeyboard />
                   <UiActionListener />
                   <ButtonOverlay />

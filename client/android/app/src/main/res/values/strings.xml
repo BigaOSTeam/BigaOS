@@ -4,4 +4,7 @@
     <string name="title_activity_main">BigaOS</string>
     <string name="package_name">BigaOSTeam.bigaos</string>
     <string name="custom_url_scheme">BigaOSTeam.bigaos</string>
+    <string name="anchor_watch_channel_name">Anchor watch</string>
+    <string name="anchor_watch_title">Anchor watch active</string>
+    <string name="anchor_watch_text">Keeping the connection to the boat alive</string>
 </resources>

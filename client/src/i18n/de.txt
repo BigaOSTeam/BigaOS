@@ -308,6 +308,18 @@ alerts.create=Erstellen
 alerts.minutes=Minuten
 alerts.snooze=Schlummern
 alerts.dismiss=Verwerfen
+alerts.phone_notifications=Benachrichtigungen auf diesem Gerät
+alerts.phone_notifications_desc=Alarme als Systembenachrichtigungen auf diesem Gerät anzeigen
+
+# ==================== Telefon-Benachrichtigungen (Android-APK) ====================
+phoneNotif.title_critical=Kritischer Alarm
+phoneNotif.title_warning=Warnung
+phoneNotif.connection_lost=Verbindung zum Boot verloren – Alarme erreichen dieses Gerät nicht mehr
+phoneNotif.watch_lost=Die Ankerwache ist auf dem Boot nicht mehr aktiv – bitte Ankeralarm prüfen
+phoneNotif.channel_critical=Kritische Alarme
+phoneNotif.channel_critical_desc=Ankeralarm, Tiefenalarm und andere kritische Alarme
+phoneNotif.channel_warning=Warnungen
+phoneNotif.channel_warning_desc=Nicht kritische Alarme
 
 # ==================== Alarm-Datenquellen ====================
 alert.ds.wind_speed=Windgeschwindigkeit (Sensor)

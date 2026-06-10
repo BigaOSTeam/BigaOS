@@ -308,6 +308,18 @@ alerts.create=Create
 alerts.minutes=minutes
 alerts.snooze=Snooze
 alerts.dismiss=Dismiss
+alerts.phone_notifications=Phone notifications
+alerts.phone_notifications_desc=Show alerts as system notifications on this device
+
+# ==================== Phone Notifications (Android APK) ====================
+phoneNotif.title_critical=Critical alarm
+phoneNotif.title_warning=Warning
+phoneNotif.connection_lost=Connection to the boat lost — alerts cannot reach this device
+phoneNotif.watch_lost=Anchor watch is no longer active on the boat — check the anchor alarm
+phoneNotif.channel_critical=Critical alarms
+phoneNotif.channel_critical_desc=Anchor alarm, depth alarm and other critical alerts
+phoneNotif.channel_warning=Warnings
+phoneNotif.channel_warning_desc=Non-critical alerts
 
 # ==================== Alert Data Sources ====================
 alert.ds.wind_speed=Wind Speed (Sensor)

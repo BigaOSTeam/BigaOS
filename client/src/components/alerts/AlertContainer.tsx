@@ -109,10 +109,12 @@ export const AlertContainer: React.FC = () => {
     };
   }, []);
 
-  // Filter notifications: show all when global enabled, only special alarms when disabled
+  // Filter notifications: show all when global enabled, only special alarms when disabled.
+  // Server notifications carry the raw alert id in alertId (their id is
+  // prefixed with "server_"), so check alertId first.
   const visibleNotifications = alertSettings.globalEnabled
     ? notifications
-    : notifications.filter((n) => n.id.startsWith('special_'));
+    : notifications.filter((n) => (n.alertId || n.id).startsWith('special_'));
 
   if (visibleNotifications.length === 0) return null;
 
