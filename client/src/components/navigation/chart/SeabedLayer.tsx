@@ -7,6 +7,7 @@ import { seabedAPI, SeabedFeature, SeabedHolding } from '../../../services/api';
 import { useAlerts } from '../../../context/AlertContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
+import { useLayerLoading } from './LayerLoadingContext';
 
 /**
  * Seabed Composition (anchoring) overlay — EMODnet seabed substrate (EUSeaMap Folk
@@ -583,6 +584,7 @@ interface SeabedLayerProps {
 export const SeabedLayer = ({ labels, onRequestDownload, sidebarPosition = 'left', interactive = true }: SeabedLayerProps) => {
   const map = useMap();
   const { pushNotification, clearNotification, updateNotification } = useAlerts();
+  const setLayerLoading = useLayerLoading();
   const { t, language } = useLanguage();
   const { theme } = useTheme();
 
@@ -658,6 +660,11 @@ export const SeabedLayer = ({ labels, onRequestDownload, sidebarPosition = 'left
       if (statusId) { clearNotification(statusId); statusId = null; }
     };
 
+    // Loading goes through the shared per-chart channel so multiple active
+    // layers show one combined note instead of stacking near-identical ones.
+    const showLoading = () => setLayerLoading('seabed', labelsRef.current.loading);
+    const clearLoading = () => setLayerLoading('seabed', null);
+
     let zoomHintId: string | null = null;
     const showZoomHint = () => {
       if (!zoomHintId) zoomHintId = pushNotification({ message: labelsRef.current.zoomHint, severity: 'info', tone: 'none' });
@@ -678,6 +685,7 @@ export const SeabedLayer = ({ labels, onRequestDownload, sidebarPosition = 'left
         lastKey = null;
         inflightKey = null;
         clearStatus();
+        clearLoading();
         showZoomHint();
         return;
       }
@@ -695,7 +703,7 @@ export const SeabedLayer = ({ labels, onRequestDownload, sidebarPosition = 'left
       const bbox = { west: b.getWest(), south: b.getSouth(), east: b.getEast(), north: b.getNorth() };
 
       const notifyTimer = setTimeout(() => {
-        if (!disposed && myAbort === abort && !statusId) setStatus(labelsRef.current.loading, false);
+        if (!disposed && myAbort === abort && !statusId) showLoading();
       }, LOADING_NOTIFY_DELAY_MS);
 
       try {
@@ -704,6 +712,7 @@ export const SeabedLayer = ({ labels, onRequestDownload, sidebarPosition = 'left
         clearTimeout(notifyTimer);
         if (myAbort !== abort) return; // superseded
         inflightKey = null;
+        clearLoading();
         const feats = res.data.features ?? [];
         setFeatures(feats);
         const source = res.data.source ?? 'local';
@@ -731,10 +740,11 @@ export const SeabedLayer = ({ labels, onRequestDownload, sidebarPosition = 'left
       map.off('zoomend', refresh);
       abort?.abort();
       clearStatus();
+      clearLoading();
       hideZoomHint();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, pushNotification, clearNotification, updateNotification]);
+  }, [map, pushNotification, clearNotification, updateNotification, setLayerLoading]);
 
   // ---- dynamic legend (glyph + name + holding, only classes in view) --------
   const inViewKeys = useMemo(() => {

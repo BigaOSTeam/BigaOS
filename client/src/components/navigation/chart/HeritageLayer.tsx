@@ -9,6 +9,7 @@ import { useLanguage } from '../../../i18n/LanguageContext';
 import { useTheme } from '../../../context/ThemeContext';
 import { useSettings, depthConversions } from '../../../context/SettingsContext';
 import { createWreckIcon, createHeritageSiteIcon } from './map-icons';
+import { useLayerLoading } from './LayerLoadingContext';
 
 const KIND_COLOR = { wreck: '#0d8b8b', site: '#c8860a' } as const;
 
@@ -167,6 +168,7 @@ interface HeritageLayerProps {
 export const HeritageLayer = ({ labels, onRequestDownload, followGps }: HeritageLayerProps) => {
   const map = useMap();
   const { pushNotification, clearNotification, updateNotification } = useAlerts();
+  const setLayerLoading = useLayerLoading();
   const { t, language } = useLanguage();
   const { theme } = useTheme();
   const { convertDepth, depthUnit } = useSettings();
@@ -226,6 +228,11 @@ export const HeritageLayer = ({ labels, onRequestDownload, followGps }: Heritage
       if (statusId) { clearNotification(statusId); statusId = null; }
     };
 
+    // Loading goes through the shared per-chart channel so multiple active
+    // layers show one combined note instead of stacking near-identical ones.
+    const showLoading = () => setLayerLoading('heritage', labelsRef.current.loading);
+    const clearLoading = () => setLayerLoading('heritage', null);
+
     let zoomHintId: string | null = null;
     const showZoomHint = () => {
       if (!zoomHintId) zoomHintId = pushNotification({ message: labelsRef.current.zoomHint, severity: 'info', tone: 'none' });
@@ -246,6 +253,7 @@ export const HeritageLayer = ({ labels, onRequestDownload, followGps }: Heritage
         lastKey = null;
         inflightKey = null;
         clearStatus();
+        clearLoading();
         showZoomHint();
         return;
       }
@@ -267,7 +275,7 @@ export const HeritageLayer = ({ labels, onRequestDownload, followGps }: Heritage
       // Brief loading note only if the fetch isn't near-instant (downloaded pack
       // is instant; the online fallback is small but adds a round-trip).
       const notifyTimer = setTimeout(() => {
-        if (!disposed && myAbort === abort && !statusId) setStatus(labelsRef.current.loading, false);
+        if (!disposed && myAbort === abort && !statusId) showLoading();
       }, LOADING_NOTIFY_DELAY_MS);
 
       try {
@@ -276,6 +284,7 @@ export const HeritageLayer = ({ labels, onRequestDownload, followGps }: Heritage
         clearTimeout(notifyTimer);
         if (myAbort !== abort) return; // superseded
         inflightKey = null;
+        clearLoading();
         const feats = res.data.features ?? [];
         setFeatures(feats);
         const source = res.data.source ?? 'local';
@@ -310,10 +319,11 @@ export const HeritageLayer = ({ labels, onRequestDownload, followGps }: Heritage
       map.off('zoomend', refresh);
       abort?.abort();
       clearStatus();
+      clearLoading();
       hideZoomHint();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [map, pushNotification, clearNotification, updateNotification]);
+  }, [map, pushNotification, clearNotification, updateNotification, setLayerLoading]);
 
   const depthLabel = depthConversions[depthUnit]?.label ?? 'm';
 

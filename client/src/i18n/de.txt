@@ -475,6 +475,7 @@ chart.hdg=HDG
 chart.stw=FdW
 chart.depth=Tiefe
 chart.gnss_lost=Kein GNSS-Signal
+chart.loading_layers=Kartenebenen werden geladen...
 chart.forecast=Vorhersage
 chart.search=Suche
 chart.back_to_dashboard=Zurück zum Dashboard

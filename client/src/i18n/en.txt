@@ -475,6 +475,7 @@ chart.hdg=HDG
 chart.stw=STW
 chart.depth=Depth
 chart.gnss_lost=GNSS lost
+chart.loading_layers=Loading chart layers...
 chart.forecast=Forecast
 chart.search=Search
 chart.back_to_dashboard=Back to Dashboard

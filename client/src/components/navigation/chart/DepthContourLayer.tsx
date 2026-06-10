@@ -4,6 +4,7 @@ import L from 'leaflet';
 import axios from 'axios';
 import { depthAPI, DepthContours } from '../../../services/api';
 import { useAlerts } from '../../../context/AlertContext';
+import { useLayerLoading } from './LayerLoadingContext';
 
 /**
  * Depth contour overlay.
@@ -343,6 +344,7 @@ interface DepthContourLayerProps {
 export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLayerProps) => {
   const map = useMap();
   const { pushNotification, clearNotification, updateNotification } = useAlerts();
+  const setLayerLoading = useLayerLoading();
 
   // Keep the latest labels / callback in refs so the layer effect doesn't tear
   // down and re-add the canvas layer when they change identity each render.
@@ -390,6 +392,11 @@ export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLay
       if (statusId) { clearNotification(statusId); statusId = null; }
     };
 
+    // Loading goes through the shared per-chart channel so multiple active
+    // layers show one combined note instead of stacking near-identical ones.
+    const showLoading = () => setLayerLoading('depth', labelsRef.current.loading);
+    const clearLoading = () => setLayerLoading('depth', null);
+
     // "Zoom in for depth contours" — same info-notification styling.
     let zoomHintId: string | null = null;
     const showZoomHint = () => {
@@ -414,6 +421,7 @@ export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLay
         lastKey = null;
         inflightKey = null;
         clearStatus();
+        clearLoading();
         showZoomHint();
         return;
       }
@@ -452,7 +460,7 @@ export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLay
         setStatus(labelsRef.current.online, true);
       } else {
         notifyTimer = setTimeout(() => {
-          if (!disposed && myAbort === abort && !statusId) setStatus(labelsRef.current.loading, false);
+          if (!disposed && myAbort === abort && !statusId) showLoading();
         }, LOADING_NOTIFY_DELAY_MS);
       }
 
@@ -461,6 +469,7 @@ export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLay
         if (disposed) return;
         if (notifyTimer) clearTimeout(notifyTimer);
         if (myAbort === abort) inflightKey = null;
+        clearLoading();
         layer.setData(res.data);
         const source = res.data.source ?? 'local';
         if (source === 'none') {
@@ -501,10 +510,11 @@ export const DepthContourLayer = ({ labels, onRequestDownload }: DepthContourLay
       map.off('zoomend', refresh);
       abort?.abort();
       clearStatus();
+      clearLoading();
       hideZoomHint();
       map.removeLayer(layer);
     };
-  }, [map, pushNotification, clearNotification, updateNotification]);
+  }, [map, pushNotification, clearNotification, updateNotification, setLayerLoading]);
 
   return null;
 };

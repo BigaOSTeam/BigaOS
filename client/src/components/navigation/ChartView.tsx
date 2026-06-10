@@ -73,6 +73,7 @@ import {
   WeatherPanel,
   useWeatherOverlay,
   useTideForecast,
+  LayerLoadingProvider,
 } from './chart';
 
 // Component to refresh tiles when connectivity changes from offline to online
@@ -1357,7 +1358,9 @@ export const ChartView = React.memo<ChartViewProps>(({
         />
         {/* Enabled overlays, stacked above the base in registry order.
             Contour overlays (depth) are vector layers fetched as GeoJSON; all
-            others are remote tile layers. */}
+            others are remote tile layers. The provider merges the layers'
+            "loading" notes into one notification instead of one per layer. */}
+        <LayerLoadingProvider>
         {overlayList.map((ov, idx) => {
           if (!overlayEnabled[ov.id]) return null;
           if (ov.kind === 'contours') {
@@ -1419,6 +1422,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             />
           );
         })}
+        </LayerLoadingProvider>
 
         {/* Auto-refresh tiles when coming back online */}
         <ConnectivityRefresher />

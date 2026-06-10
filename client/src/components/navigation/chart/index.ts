@@ -20,6 +20,7 @@ export type { CustomMarker } from './map-icons';
 
 // Map components
 export { MapController, LongPressHandler, RulerClickHandler, ContextMenu, Compass, AnchorPlacementController, ZoomTracker } from './MapComponents';
+export { LayerLoadingProvider } from './LayerLoadingContext';
 export type { ContextMenuOption } from './MapComponents';
 
 // Dialogs
