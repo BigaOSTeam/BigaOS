@@ -310,6 +310,8 @@ alerts.snooze=Snooze
 alerts.dismiss=Dismiss
 alerts.phone_notifications=Phone notifications
 alerts.phone_notifications_desc=Show alerts as system notifications on this device
+alerts.background_alerts=Background alerts
+alerts.background_alerts_desc=Keep the connection to the boat alive so alerts arrive while the app is closed. Increases battery use.
 
 # ==================== Phone Notifications (Android APK) ====================
 phoneNotif.title_critical=Critical alarm

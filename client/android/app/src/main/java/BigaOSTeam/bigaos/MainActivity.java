@@ -11,7 +11,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         // Custom plugins must be registered before super.onCreate
-        registerPlugin(AnchorWatchPlugin.class);
+        registerPlugin(KeepAlivePlugin.class);
         super.onCreate(savedInstanceState);
 
         // Android 15 (API 35) forces edge-to-edge — WindowCompat

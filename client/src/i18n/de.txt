@@ -310,6 +310,8 @@ alerts.snooze=Schlummern
 alerts.dismiss=Verwerfen
 alerts.phone_notifications=Benachrichtigungen auf diesem Gerät
 alerts.phone_notifications_desc=Alarme als Systembenachrichtigungen auf diesem Gerät anzeigen
+alerts.background_alerts=Alarme im Hintergrund
+alerts.background_alerts_desc=Hält die Verbindung zum Boot, damit Alarme auch bei geschlossener App ankommen. Erhöht den Akkuverbrauch.
 
 # ==================== Telefon-Benachrichtigungen (Android-APK) ====================
 phoneNotif.title_critical=Kritischer Alarm

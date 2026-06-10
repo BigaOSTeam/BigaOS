@@ -5,8 +5,9 @@
  * - posts ONE system notification per triggered server alert
  *   (warning/critical) and removes it when the alert clears — message
  *   updates from the server never re-post, so it doesn't nag
- * - arms the AnchorWatch foreground service while the anchor alarm is
- *   active anywhere on the boat, keeping the socket alive through
+ * - runs the KeepAlive foreground service while the anchor alarm is
+ *   active anywhere on the boat, or permanently when the per-device
+ *   background-alerts setting is on, keeping the socket alive through
  *   screen-off and Doze
  * - raises its own critical notification if the boat connection drops
  *   while the anchor watch is armed
@@ -29,7 +30,11 @@ import {
   NATIVE_NOTIFICATIONS_TOGGLE_EVENT,
   NotificationKind,
 } from '../../services/nativeNotifications';
-import { setAnchorWatchKeepAlive } from '../../services/anchorWatch';
+import {
+  updateKeepAlive,
+  areBackgroundAlertsEnabled,
+  BACKGROUND_ALERTS_TOGGLE_EVENT,
+} from '../../services/keepAlive';
 
 const CONNECTION_LOST_ID = 'native_connection_lost';
 const WATCH_LOST_ID = 'native_anchor_watch_lost';
@@ -43,6 +48,7 @@ export const NativeNotificationBridge: React.FC = () => {
   const { alertSettings } = useSettings();
   const { t } = useLanguage();
   const [enabled, setEnabled] = useState(areNativeNotificationsEnabled());
+  const [backgroundAlerts, setBackgroundAlerts] = useState(areBackgroundAlertsEnabled());
   const [anchorWatchArmed, setAnchorWatchArmed] = useState(false);
 
   // What is currently shown in the Android shade: alert id -> channel kind
@@ -66,12 +72,17 @@ export const NativeNotificationBridge: React.FC = () => {
     void initNativeNotifications(t);
   }, [t]);
 
-  // Per-device settings toggle (AlertsTab writes localStorage + fires this)
+  // Per-device settings toggles (AlertsTab writes localStorage + fires these)
   useEffect(() => {
     if (!isNativeApp()) return;
-    const handler = () => setEnabled(areNativeNotificationsEnabled());
-    window.addEventListener(NATIVE_NOTIFICATIONS_TOGGLE_EVENT, handler);
-    return () => window.removeEventListener(NATIVE_NOTIFICATIONS_TOGGLE_EVENT, handler);
+    const notifHandler = () => setEnabled(areNativeNotificationsEnabled());
+    const bgHandler = () => setBackgroundAlerts(areBackgroundAlertsEnabled());
+    window.addEventListener(NATIVE_NOTIFICATIONS_TOGGLE_EVENT, notifHandler);
+    window.addEventListener(BACKGROUND_ALERTS_TOGGLE_EVENT, bgHandler);
+    return () => {
+      window.removeEventListener(NATIVE_NOTIFICATIONS_TOGGLE_EVENT, notifHandler);
+      window.removeEventListener(BACKGROUND_ALERTS_TOGGLE_EVENT, bgHandler);
+    };
   }, []);
 
   // Anchor watch state, synced from the server (it may have been armed from
@@ -126,11 +137,14 @@ export const NativeNotificationBridge: React.FC = () => {
     };
   }, []);
 
-  // Drive the foreground service from anchor state + toggle
+  // Drive the foreground service from anchor state + toggles
   useEffect(() => {
     if (!isNativeApp()) return;
-    setAnchorWatchKeepAlive(anchorWatchArmed && enabled);
-  }, [anchorWatchArmed, enabled]);
+    updateKeepAlive({
+      anchorArmed: anchorWatchArmed && enabled,
+      backgroundAlerts: backgroundAlerts && enabled,
+    });
+  }, [anchorWatchArmed, backgroundAlerts, enabled]);
 
   // Connection-lost warning while the watch is armed
   useEffect(() => {

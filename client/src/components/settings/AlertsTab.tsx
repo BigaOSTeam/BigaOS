@@ -18,6 +18,10 @@ import {
   areNativeNotificationsEnabled,
   setNativeNotificationsEnabled,
 } from '../../services/nativeNotifications';
+import {
+  areBackgroundAlertsEnabled,
+  setBackgroundAlertsEnabled,
+} from '../../services/keepAlive';
 
 export const AlertsTab: React.FC = () => {
   const { theme } = useTheme();
@@ -32,12 +36,18 @@ export const AlertsTab: React.FC = () => {
   const { t } = useLanguage();
   const [editingAlert, setEditingAlert] = useState<AlertDefinition | null>(null);
   const [isCreating, setIsCreating] = useState(false);
-  // Per-device flag (Android APK only) — stored locally, not synced
+  // Per-device flags (Android APK only) — stored locally, not synced
   const [phoneNotifications, setPhoneNotifications] = useState(areNativeNotificationsEnabled());
+  const [backgroundAlerts, setBackgroundAlerts] = useState(areBackgroundAlertsEnabled());
 
   const handlePhoneNotificationsChange = (value: boolean) => {
     setPhoneNotifications(value);
     setNativeNotificationsEnabled(value);
+  };
+
+  const handleBackgroundAlertsChange = (value: boolean) => {
+    setBackgroundAlerts(value);
+    setBackgroundAlertsEnabled(value);
   };
 
   const formatCondition = (alert: AlertDefinition) => {
@@ -222,6 +232,43 @@ export const AlertsTab: React.FC = () => {
           <SToggle
             checked={phoneNotifications}
             onChange={handlePhoneNotificationsChange}
+          />
+        </SCard>
+      )}
+
+      {/* Background alerts (native APK only, per-device) */}
+      {isNativeApp() && phoneNotifications && (
+        <SCard
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: theme.space.xl,
+          }}
+        >
+          <div>
+            <div
+              style={{
+                fontWeight: theme.fontWeight.semibold,
+                color: theme.colors.textPrimary,
+                fontSize: theme.fontSize.md,
+                marginBottom: theme.space.xs,
+              }}
+            >
+              {t('alerts.background_alerts')}
+            </div>
+            <div
+              style={{
+                fontSize: theme.fontSize.sm,
+                color: theme.colors.textMuted,
+              }}
+            >
+              {t('alerts.background_alerts_desc')}
+            </div>
+          </div>
+          <SToggle
+            checked={backgroundAlerts}
+            onChange={handleBackgroundAlertsChange}
           />
         </SCard>
       )}

@@ -21,11 +21,20 @@
             </intent-filter>
         </activity>
 
-        <!-- Keeps the socket to the boat alive while the anchor alarm is armed -->
+        <!-- Keeps the socket to the boat alive while the anchor alarm is
+             armed or background alerts are enabled -->
         <service
-            android:name=".AnchorWatchService"
+            android:name=".KeepAliveService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- Prompts to reopen BigaOS after a reboot when background alerts
+             were enabled (the connection cannot restart itself) -->
+        <receiver android:name=".BootReceiver" android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+            </intent-filter>
+        </receiver>
 
         <provider
             android:name="androidx.core.content.FileProvider"
@@ -48,6 +57,10 @@
          connectedDevice foreground-service type on Android 14+) -->
     <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
     <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Doze ignores wakelocks without this exemption; requested only when
+         the user enables background alerts -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <uses-feature android:name="android.hardware.camera" android:required="false" />
 </manifest>

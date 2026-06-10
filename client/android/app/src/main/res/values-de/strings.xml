@@ -1,6 +1,11 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="anchor_watch_channel_name">Ankerwache</string>
+    <string name="keepalive_channel_name">Hintergrundverbindung</string>
     <string name="anchor_watch_title">Ankerwache aktiv</string>
     <string name="anchor_watch_text">Verbindung zum Boot wird gehalten</string>
+    <string name="alerts_watch_title">BigaOS aktiv</string>
+    <string name="alerts_watch_text">Alarme vom Boot werden empfangen</string>
+    <string name="critical_channel_name">Kritische Alarme</string>
+    <string name="reopen_title">BigaOS wurde geschlossen</string>
+    <string name="reopen_text">Antippen zum Öffnen – bei geschlossener App kommen keine Alarme an</string>
 </resources>

@@ -4,7 +4,12 @@
     <string name="title_activity_main">BigaOS</string>
     <string name="package_name">BigaOSTeam.bigaos</string>
     <string name="custom_url_scheme">BigaOSTeam.bigaos</string>
-    <string name="anchor_watch_channel_name">Anchor watch</string>
+    <string name="keepalive_channel_name">Background connection</string>
     <string name="anchor_watch_title">Anchor watch active</string>
     <string name="anchor_watch_text">Keeping the connection to the boat alive</string>
+    <string name="alerts_watch_title">BigaOS active</string>
+    <string name="alerts_watch_text">Receiving alerts from the boat</string>
+    <string name="critical_channel_name">Critical alarms</string>
+    <string name="reopen_title">BigaOS was closed</string>
+    <string name="reopen_text">Tap to reopen — alerts are not received while the app is closed</string>
 </resources>
