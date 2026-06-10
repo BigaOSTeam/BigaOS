@@ -1628,8 +1628,9 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
           {tabs.map(sidebarTab)}
           {helpSidebarEntry}
         </div>
-        {/* Home + version at bottom */}
-        <div style={{ borderTop: `1px solid ${theme.colors.border}`, padding: theme.space.sm }}>
+        {/* Home + version at bottom. Geometry mirrors the tab buttons above
+            (same left border reserve + padding) so the icons line up. */}
+        <div style={{ borderTop: `1px solid ${theme.colors.border}`, padding: `${theme.space.sm} 0` }}>
           <button
             onClick={onClose}
             style={{
@@ -1639,6 +1640,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
               padding: `${theme.space.sm} ${theme.space.md}`,
               background: 'transparent',
               border: 'none',
+              borderLeft: '3px solid transparent',
               color: theme.colors.textMuted,
               cursor: 'pointer',
               width: '100%',
