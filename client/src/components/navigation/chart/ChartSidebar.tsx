@@ -15,12 +15,12 @@ import { radToDeg } from '../../../utils/angle';
 type WeatherDisplayMode = 'wind' | 'waves' | 'swell' | 'current' | 'water-temp' | 'tide';
 
 interface ChartSidebarProps {
-  heading: number;
-  cog: number;
-  convertedSpeed: number;
-  convertedStw: number;
+  heading: number | null;
+  cog: number | null;
+  convertedSpeed: number | null;
+  convertedStw: number | null;
   speedUnit: SpeedUnit;
-  convertedDepth: number;
+  convertedDepth: number | null;
   depthUnit: DepthUnit;
   depthColor: string;
   depthAlarm: number | null;
@@ -97,8 +97,9 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
   const separator = `1px solid ${theme.colors.border}`;
   const isCompact = window.innerHeight <= 500;
   // COG arrives in radians (NMEA2000 convention); show it as a 3-digit course.
-  const cogDeg = Number.isFinite(cog) ? (((Math.round(radToDeg(cog)) % 360) + 360) % 360) : 0;
-  const cogText = `${cogDeg}°`;
+  const cogText = cog !== null && Number.isFinite(cog)
+    ? `${((Math.round(radToDeg(cog)) % 360) + 360) % 360}°`
+    : '—';
 
   return (
     <div
@@ -213,7 +214,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           {t('chart.sog')}
         </div>
         <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold' }}>
-          {convertedSpeed.toFixed(1)}
+          {convertedSpeed !== null ? convertedSpeed.toFixed(1) : '—'}
           <span style={{ fontSize: '0.6em', opacity: 0.6, fontWeight: 'normal', marginLeft: '0.2rem' }}>
             {speedConversions[speedUnit].label}
           </span>
@@ -222,7 +223,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           <span style={{ opacity: 0.55, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
             {t('chart.stw')}
           </span>{' '}
-          <span style={{ fontWeight: 600 }}>{convertedStw.toFixed(1)}</span>
+          <span style={{ fontWeight: 600 }}>{convertedStw !== null ? convertedStw.toFixed(1) : '—'}</span>
           <span style={{ opacity: 0.55, fontSize: '0.8em' }}> {speedConversions[speedUnit].label}</span>
         </div>
       </div>
@@ -270,7 +271,7 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
           )}
         </div>
         <div style={{ fontSize: 'clamp(1.1rem, 2.5vh, 1.6rem)', fontWeight: 'bold', color: depthColor }}>
-          {convertedDepth.toFixed(1)}
+          {convertedDepth !== null ? convertedDepth.toFixed(1) : '—'}
         </div>
         <div style={{ fontSize: 'clamp(0.55rem, 1.2vh, 0.8rem)', opacity: 0.6 }}>
           {depthConversions[depthUnit].label}

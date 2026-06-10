@@ -4,7 +4,7 @@ import { useLanguage } from '../../../i18n/LanguageContext';
 import { radToDeg } from '../../../utils/angle';
 
 interface RollItemProps {
-  roll: number; // radians
+  roll: number | null; // radians (null = no data)
 }
 
 const getRollColor = (deg: number): string => {
@@ -17,8 +17,8 @@ const getRollColor = (deg: number): string => {
 export const RollItem = React.memo<RollItemProps>(({ roll }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const deg = radToDeg(roll);
-  const color = getRollColor(deg);
+  const deg = roll !== null ? radToDeg(roll) : null;
+  const color = deg !== null ? getRollColor(deg) : theme.colors.textMuted;
   return (
     <div style={{
       display: 'flex',
@@ -46,7 +46,7 @@ export const RollItem = React.memo<RollItemProps>(({ roll }) => {
           <path d="M-20 30 Q-10 28 0 30 T20 30 T40 30 T60 30 T80 30 T100 30 T120 30 T140 30 L140 65 L-20 65 Z" fill="#4FC3F7" opacity="0.08" />
 
           {/* Boat group - rotates around waterline center */}
-          <g transform={`rotate(${deg}, 60, 30) scale(0.9) translate(6.67, 6)`}>
+          <g transform={`rotate(${deg ?? 0}, 60, 30) scale(0.9) translate(6.67, 6)`}>
             {/* Hull - simple stern view */}
             <path
               d="M30 12 C30 19 32 30 48 38 Q54 41 55 45 Q55 48 57 48 L63 48 Q65 48 65 45 Q66 41 72 38 C88 30 90 19 90 12 Z"
@@ -71,7 +71,7 @@ export const RollItem = React.memo<RollItemProps>(({ roll }) => {
         color,
         lineHeight: 1,
       }}>
-        {Math.abs(deg).toFixed(1)}°
+        {deg !== null ? `${Math.abs(deg).toFixed(1)}°` : '—'}
       </div>
     </div>
   );

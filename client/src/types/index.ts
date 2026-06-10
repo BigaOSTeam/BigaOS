@@ -18,55 +18,61 @@ export interface WeatherSensorData {
   lastUpdated: string;
 }
 
+// All sensor readings are `number | null`: null = the sensor is absent or its
+// data is stale ("no data"), which the UI renders as — instead of a fabricated
+// value. Position is the exception (kept numeric; see server note).
 export interface NavigationData {
   position: GeoPosition;
-  courseOverGround: number;
-  speedOverGround: number;
-  speedThroughWater: number;
-  heading: number;
+  // True when position is a held last-good fix and the GNSS signal has been
+  // gone past the server's threshold (boat frozen on chart)
+  gnssLost?: boolean;
+  courseOverGround: number | null;
+  speedOverGround: number | null;
+  speedThroughWater: number | null;
+  heading: number | null;
   attitude: AttitudeData;
 }
 
 export interface AttitudeData {
-  roll: number;
-  pitch: number;
-  yaw: number;
+  roll: number | null;
+  pitch: number | null;
+  yaw: number | null;
 }
 
 export interface EnvironmentData {
   depth: {
-    belowTransducer: number;
+    belowTransducer: number | null;
   };
   wind: {
-    speedApparent: number;
-    angleApparent: number;
-    speedTrue: number;
-    angleTrue: number;
+    speedApparent: number | null;
+    angleApparent: number | null;
+    speedTrue: number | null;
+    angleTrue: number | null;
   };
   temperature: {
-    engineRoom: number;
-    cabin: number;
-    batteryCompartment: number;
-    outside: number;
+    engineRoom: number | null;
+    cabin: number | null;
+    batteryCompartment: number | null;
+    outside: number | null;
   };
 }
 
 export interface ElectricalData {
   battery: {
-    voltage: number;
-    current: number;
-    temperature: number;
-    stateOfCharge: number;
-    timeRemaining: number;
-    power: number;
+    voltage: number | null;
+    current: number | null;
+    temperature: number | null;
+    stateOfCharge: number | null;
+    timeRemaining: number | null;
+    power: number | null;
   };
 }
 
 export interface PropulsionData {
   motor: {
-    state: 'running' | 'stopped';
-    temperature: number;
-    throttle: number;
+    state: 'running' | 'stopped' | null;
+    temperature: number | null;
+    throttle: number | null;
   };
 }
 

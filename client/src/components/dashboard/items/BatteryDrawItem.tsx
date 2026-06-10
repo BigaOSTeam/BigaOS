@@ -3,13 +3,13 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface BatteryDrawItemProps {
-  current: number;
-  power: number;
-  temperature: number;
-  timeRemaining: number;
+  current: number | null;
+  power: number | null;
+  temperature: number | null;
+  timeRemaining: number | null;
 }
 
-const formatTimeRemaining = (seconds: number): string => {
+const formatTimeRemaining = (seconds: number | null): string => {
   if (!seconds || seconds <= 0) return '--';
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -52,7 +52,7 @@ export const BatteryDrawItem = React.memo<BatteryDrawItemProps>(({
         color: theme.colors.dataSpeed,
         lineHeight: 1,
       }}>
-        {Math.abs(current) < 0.05 ? '' : current > 0 ? '+' : ''}{Math.abs(current) < 0.05 ? '0.0' : current.toFixed(1)}A
+        {current === null ? '—' : `${Math.abs(current) < 0.05 ? '' : current > 0 ? '+' : ''}${Math.abs(current) < 0.05 ? '0.0' : current.toFixed(1)}A`}
       </div>
       <div style={{
         display: 'flex',
@@ -60,11 +60,11 @@ export const BatteryDrawItem = React.memo<BatteryDrawItemProps>(({
         fontSize: 'clamp(9px, 9cqmin, 36px)',
         color: theme.colors.textMuted,
       }}>
-        <span style={{ color: theme.colors.dataWind }}>{Math.abs(power).toFixed(0)}W</span>
+        <span style={{ color: theme.colors.dataWind }}>{power !== null ? `${Math.abs(power).toFixed(0)}W` : '—'}</span>
         <span style={{ opacity: 0.4 }}>|</span>
         <span style={{ color: theme.colors.dataHeading }}>{formatTimeRemaining(timeRemaining)}</span>
         <span style={{ opacity: 0.4 }}>|</span>
-        <span style={{ color: '#ff7043' }}>{temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}</span>
+        <span style={{ color: '#ff7043' }}>{temperature === null || temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}</span>
       </div>
     </div>
   );

@@ -20,10 +20,12 @@ export interface GeoPosition {
   timestamp: Date;
 }
 
+// All readings are `number | null`: null = sensor absent or stale ("no data"),
+// surfaced as — on the UI rather than a fabricated value.
 export interface AttitudeData {
-  roll: number; // radians (heel angle, positive = starboard down)
-  pitch: number; // radians (positive = bow up)
-  yaw: number; // radians
+  roll: number | null; // radians (heel angle, positive = starboard down)
+  pitch: number | null; // radians (positive = bow up)
+  yaw: number | null; // radians
 }
 
 // ============================================================================
@@ -32,47 +34,50 @@ export interface AttitudeData {
 
 export interface StandardNavigationData {
   position: GeoPosition;
-  courseOverGround: number; // radians (0-2π)
-  speedOverGround: number; // m/s (standard unit)
-  speedThroughWater: number; // m/s (standard unit) — 0 if no log/paddlewheel sensor
-  heading: number; // radians (0-2π) — true heading if GPS available, else magnetic
+  // True when the position is a held last-good fix older than the GNSS-lost
+  // threshold (signal gone, boat frozen on chart). Absent/false = fix is live.
+  gnssLost?: boolean;
+  courseOverGround: number | null; // radians (0-2π)
+  speedOverGround: number | null; // m/s (standard unit)
+  speedThroughWater: number | null; // m/s (standard unit)
+  heading: number | null; // radians (0-2π) — true heading if GPS available, else magnetic
   attitude: AttitudeData;
 }
 
 export interface StandardEnvironmentData {
   depth: {
-    belowTransducer: number; // meters
+    belowTransducer: number | null; // meters
   };
   wind: {
-    speedApparent: number; // m/s (standard unit)
-    angleApparent: number; // radians (0-2π, relative to bow)
-    speedTrue: number; // m/s (standard unit)
-    angleTrue: number; // radians (0-2π, relative to bow)
+    speedApparent: number | null; // m/s (standard unit)
+    angleApparent: number | null; // radians (0-2π, relative to bow)
+    speedTrue: number | null; // m/s (standard unit)
+    angleTrue: number | null; // radians (0-2π, relative to bow)
   };
   temperature: {
-    engineRoom: number; // Kelvin
-    cabin: number; // Kelvin
-    batteryCompartment: number; // Kelvin
-    outside: number; // Kelvin
+    engineRoom: number | null; // Kelvin
+    cabin: number | null; // Kelvin
+    batteryCompartment: number | null; // Kelvin
+    outside: number | null; // Kelvin
   };
 }
 
 export interface StandardElectricalData {
   battery: {
-    voltage: number; // Volts (no conversion needed)
-    current: number; // Amps (no conversion needed)
-    temperature: number; // Kelvin
-    stateOfCharge: number; // Percentage (0-100)
-    timeRemaining: number; // Seconds (0 = unknown)
-    power: number; // Watts (positive = charging, negative = discharging)
+    voltage: number | null; // Volts (no conversion needed)
+    current: number | null; // Amps (no conversion needed)
+    temperature: number | null; // Kelvin
+    stateOfCharge: number | null; // Percentage (0-100)
+    timeRemaining: number | null; // Seconds (null = unknown)
+    power: number | null; // Watts (positive = charging, negative = discharging)
   };
 }
 
 export interface StandardPropulsionData {
   motor: {
-    state: 'running' | 'stopped';
-    temperature: number; // Kelvin
-    throttle: number; // Percentage (0-100)
+    state: 'running' | 'stopped' | null;
+    temperature: number | null; // Kelvin
+    throttle: number | null; // Percentage (0-100)
   };
 }
 
@@ -162,44 +167,45 @@ export interface DisplaySensorData {
   timestamp: string;
   navigation: {
     position: GeoPosition;
-    courseOverGround: number; // radians
-    speedOverGround: number; // user's speed unit (kt, km/h, etc.)
-    speedThroughWater: number; // user's speed unit
-    heading: number; // radians
+    gnssLost?: boolean;
+    courseOverGround: number | null; // radians
+    speedOverGround: number | null; // user's speed unit (kt, km/h, etc.)
+    speedThroughWater: number | null; // user's speed unit
+    heading: number | null; // radians
     attitude: AttitudeData;
   };
   environment: {
     depth: {
-      belowTransducer: number; // user's depth unit (m, ft, etc.)
+      belowTransducer: number | null; // user's depth unit (m, ft, etc.)
     };
     wind: {
-      speedApparent: number; // user's wind unit
-      angleApparent: number; // radians
-      speedTrue: number; // user's wind unit
-      angleTrue: number; // radians
+      speedApparent: number | null; // user's wind unit
+      angleApparent: number | null; // radians
+      speedTrue: number | null; // user's wind unit
+      angleTrue: number | null; // radians
     };
     temperature: {
-      engineRoom: number; // user's temperature unit
-      cabin: number;
-      batteryCompartment: number;
-      outside: number;
+      engineRoom: number | null; // user's temperature unit
+      cabin: number | null;
+      batteryCompartment: number | null;
+      outside: number | null;
     };
   };
   electrical: {
     battery: {
-      voltage: number; // Volts
-      current: number; // Amps
-      temperature: number; // user's temperature unit
-      stateOfCharge: number; // Percentage
-      timeRemaining: number; // Seconds (0 = unknown)
-      power: number; // Watts
+      voltage: number | null; // Volts
+      current: number | null; // Amps
+      temperature: number | null; // user's temperature unit
+      stateOfCharge: number | null; // Percentage
+      timeRemaining: number | null; // Seconds (null = unknown)
+      power: number | null; // Watts
     };
   };
   propulsion: {
     motor: {
-      state: 'running' | 'stopped';
-      temperature: number; // user's temperature unit
-      throttle: number; // Percentage
+      state: 'running' | 'stopped' | null;
+      temperature: number | null; // user's temperature unit
+      throttle: number | null; // Percentage
     };
   };
   /** Map of tankId -> tank reading (level/volume/capacity). */

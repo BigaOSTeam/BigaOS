@@ -488,12 +488,14 @@ export class PluginManager extends EventEmitter {
       const packageJsonPath = path.join(pluginDir, 'package.json');
       if (fs.existsSync(packageJsonPath)) {
         console.log(`[PluginManager] Running npm install for ${registryEntry.id}...`);
-        const { execSync } = require('child_process');
+        // async so a minutes-long install doesn't block the event loop
+        // (sensor broadcasts and alarm evaluation keep running)
+        const { exec } = require('child_process');
+        const execAsync = require('util').promisify(exec);
         try {
-          execSync('npm install --production', {
+          await execAsync('npm install --production', {
             cwd: pluginDir,
             timeout: 120000, // 2 minutes
-            stdio: 'pipe',
           });
           console.log(`[PluginManager] npm install completed for ${registryEntry.id}`);
         } catch (npmErr: any) {
@@ -512,14 +514,14 @@ export class PluginManager extends EventEmitter {
       const setupScript = path.join(pluginDir, 'setup.sh');
       if (fs.existsSync(setupScript)) {
         console.log(`[PluginManager] Running setup.sh for ${registryEntry.id}...`);
-        const { execFileSync } = require('child_process');
+        const { execFile } = require('child_process');
+        const execFileAsync = require('util').promisify(execFile);
         try {
           // argv form (no shell): setupScript can never escape into a shell command
-          const output = execFileSync('sudo', ['bash', setupScript], {
+          const { stdout: output } = await execFileAsync('sudo', ['bash', setupScript], {
             cwd: pluginDir,
             timeout: 120000,
-            stdio: 'pipe',
-          }).toString();
+          });
           console.log(`[PluginManager] setup.sh output for ${registryEntry.id}:\n${output}`);
           if (output.includes('REBOOT_REQUIRED')) {
             setupMessage = 'Reboot required to apply hardware changes';
@@ -602,14 +604,14 @@ export class PluginManager extends EventEmitter {
     const uninstallScript = path.join(pluginDir, 'uninstall.sh');
     if (fs.existsSync(uninstallScript)) {
       console.log(`[PluginManager] Running uninstall.sh for ${pluginId}...`);
-      const { execFileSync } = require('child_process');
+      const { execFile } = require('child_process');
+      const execFileAsync = require('util').promisify(execFile);
       try {
         // argv form (no shell): uninstallScript can never escape into a shell command
-        const output = execFileSync('sudo', ['bash', uninstallScript], {
+        const { stdout: output } = await execFileAsync('sudo', ['bash', uninstallScript], {
           cwd: pluginDir,
           timeout: 60000,
-          stdio: 'pipe',
-        }).toString();
+        });
         console.log(`[PluginManager] uninstall.sh output for ${pluginId}:\n${output}`);
       } catch (err: any) {
         const stderr = err.stderr?.toString() || err.message;

@@ -4,7 +4,7 @@ import { useLanguage } from '../../../i18n/LanguageContext';
 import { radToDeg } from '../../../utils/angle';
 
 interface HeadingItemProps {
-  heading: number;
+  heading: number | null;
 }
 
 export const HeadingItem = React.memo<HeadingItemProps>(({ heading }) => {
@@ -40,9 +40,9 @@ export const HeadingItem = React.memo<HeadingItemProps>(({ heading }) => {
         lineHeight: 1,
         marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
-        {(Math.round(radToDeg(heading)) % 360)}°
+        {heading !== null ? `${Math.round(radToDeg(heading)) % 360}°` : '—'}
       </div>
-      <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{getCardinalDirection(radToDeg(heading))}</div>
+      <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{heading !== null ? getCardinalDirection(radToDeg(heading)) : ''}</div>
     </div>
   );
 });

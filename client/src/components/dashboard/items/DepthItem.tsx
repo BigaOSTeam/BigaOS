@@ -4,7 +4,7 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface DepthItemProps {
-  depth: number;
+  depth: number | null;
 }
 
 export const DepthItem = React.memo<DepthItemProps>(({ depth }) => {
@@ -12,10 +12,12 @@ export const DepthItem = React.memo<DepthItemProps>(({ depth }) => {
   const { t } = useLanguage();
   const { depthUnit, depthAlarm, isDepthAlarmTriggered, convertDepth } = useSettings();
 
-  const convertedDepth = convertDepth(depth);
+  const hasDepth = depth !== null && Number.isFinite(depth);
+  const convertedDepth = hasDepth ? convertDepth(depth) : null;
 
-  const getDepthColor = (d: number): string => {
+  const getDepthColor = (d: number | null): string => {
     if (isDepthAlarmTriggered) return theme.colors.error;
+    if (d === null) return theme.colors.textMuted;
     if (d < 3) return theme.colors.error;
     if (d < 5) return theme.colors.warning;
     return theme.colors.dataDepth;
@@ -62,11 +64,11 @@ export const DepthItem = React.memo<DepthItemProps>(({ depth }) => {
       <div style={{
         fontSize: 'clamp(14px, 25cqmin, 120px)',
         fontWeight: theme.fontWeight.bold,
-        color: getDepthColor(depth),
+        color: getDepthColor(hasDepth ? depth : null),
         lineHeight: 1,
         marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
-        {convertedDepth.toFixed(1)}
+        {convertedDepth !== null ? convertedDepth.toFixed(1) : '—'}
       </div>
       <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>{depthConversions[depthUnit].label}</div>
     </div>

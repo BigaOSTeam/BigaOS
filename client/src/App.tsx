@@ -116,6 +116,7 @@ function AppContent() {
   const reloadPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shutdownCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shutdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onlineBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [apkUpdate, setApkUpdate] = useState<ApkUpdateState | null>(null);
   const { setCurrentDepth, setSidebarPosition } = useSettings();
   const { installingPlugins } = usePlugins();
@@ -168,7 +169,7 @@ function AppContent() {
       }
       setSensorData(payload);
       const depth = payload.environment?.depth?.belowTransducer;
-      if (typeof depth === 'number') {
+      if (typeof depth === 'number' && Number.isFinite(depth)) {
         setCurrentDepth(depth);
       }
     });
@@ -181,7 +182,11 @@ function AppContent() {
       if (wasOfflineRef.current === true && isOnline) {
         // Show "ONLINE" banner briefly
         setShowOnlineBanner(true);
-        setTimeout(() => setShowOnlineBanner(false), 3000);
+        if (onlineBannerTimerRef.current) clearTimeout(onlineBannerTimerRef.current);
+        onlineBannerTimerRef.current = setTimeout(() => {
+          onlineBannerTimerRef.current = null;
+          setShowOnlineBanner(false);
+        }, 3000);
       }
 
       wasOfflineRef.current = !isOnline;
@@ -301,6 +306,10 @@ function AppContent() {
         clearTimeout(shutdownTimeoutRef.current);
         shutdownTimeoutRef.current = null;
       }
+      if (onlineBannerTimerRef.current) {
+        clearTimeout(onlineBannerTimerRef.current);
+        onlineBannerTimerRef.current = null;
+      }
       wsService.disconnect();
     };
   }, [setCurrentDepth, setSidebarPosition]);
@@ -310,8 +319,9 @@ function AppContent() {
       const sensorResponse = await sensorAPI.getAllSensors();
       setSensorData(sensorResponse.data);
       // Update depth in settings context
-      if (sensorResponse.data.environment?.depth?.belowTransducer !== undefined) {
-        setCurrentDepth(sensorResponse.data.environment.depth.belowTransducer);
+      const initialDepth = sensorResponse.data.environment?.depth?.belowTransducer;
+      if (typeof initialDepth === 'number' && Number.isFinite(initialDepth)) {
+        setCurrentDepth(initialDepth);
       }
       setLoading(false);
     } catch (error) {

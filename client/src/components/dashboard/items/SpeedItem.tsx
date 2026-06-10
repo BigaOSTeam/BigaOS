@@ -4,14 +4,14 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface SpeedItemProps {
-  speed: number; // Speed in knots
+  speed: number | null; // Speed in knots (null = no data)
 }
 
 export const SpeedItem = React.memo<SpeedItemProps>(({ speed }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { speedUnit, convertSpeed } = useSettings();
-  const convertedSpeed = convertSpeed(speed);
+  const convertedSpeed = speed !== null ? convertSpeed(speed) : null;
 
   return (
     <div style={{
@@ -37,7 +37,7 @@ export const SpeedItem = React.memo<SpeedItemProps>(({ speed }) => {
         lineHeight: 1,
         marginTop: 'clamp(2px, 1cqmin, 8px)',
       }}>
-        {convertedSpeed.toFixed(1)}
+        {convertedSpeed !== null ? convertedSpeed.toFixed(1) : '—'}
       </div>
       <div style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.textMuted }}>
         {speedConversions[speedUnit].label}

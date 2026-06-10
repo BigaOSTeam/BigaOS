@@ -12,7 +12,7 @@ import {
 } from './shared';
 
 interface DepthViewProps {
-  depth: number; // Current depth in meters
+  depth: number | null; // Current depth in meters (null = no data)
   onClose: () => void;
 }
 
@@ -42,10 +42,12 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
   const [historyData, setHistoryData] = useState<TimeSeriesDataPoint[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  const convertedDepth = convertDepth(depth);
+  const hasDepth = depth !== null && Number.isFinite(depth);
+  const convertedDepth = hasDepth ? convertDepth(depth) : null;
 
-  const getDepthColor = (depthInMeters: number) => {
+  const getDepthColor = (depthInMeters: number | null) => {
     if (isDepthAlarmTriggered) return '#ef5350';
+    if (depthInMeters === null) return theme.colors.textMuted;
     if (depthInMeters < 2) return '#ef5350';
     if (depthInMeters < 5) return '#ffa726';
     if (depthInMeters < 10) return '#66bb6a';
@@ -115,9 +117,9 @@ export const DepthView: React.FC<DepthViewProps> = ({ depth, onClose }) => {
         animation: isDepthAlarmTriggered ? 'depth-alarm-pulse 1.5s ease-in-out infinite' : 'none',
       }}>
         <MainValueDisplay
-          value={convertedDepth.toFixed(1)}
+          value={convertedDepth !== null ? convertedDepth.toFixed(1) : '—'}
           unit={depthConversions[depthUnit].label}
-          color={getDepthColor(depth)}
+          color={getDepthColor(hasDepth ? depth : null)}
         />
       </div>
 

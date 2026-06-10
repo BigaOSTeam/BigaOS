@@ -140,7 +140,7 @@ class TilesController {
   /**
    * Proxy a tile request to remote server
    */
-  private proxyTile(url: string, res: Response): Promise<void> {
+  private proxyTile(url: string, res: Response, redirectsLeft: number = 5): Promise<void> {
     return new Promise((resolve, reject) => {
       let parsedUrl: URL;
       try {
@@ -160,7 +160,12 @@ class TilesController {
         if (response.statusCode === 301 || response.statusCode === 302) {
           const redirectUrl = response.headers.location;
           if (redirectUrl) {
-            this.proxyTile(redirectUrl, res).then(resolve).catch(reject);
+            if (redirectsLeft <= 0) {
+              response.resume();
+              reject(new Error('Too many redirects'));
+              return;
+            }
+            this.proxyTile(redirectUrl, res, redirectsLeft - 1).then(resolve).catch(reject);
             return;
           }
         }
@@ -204,13 +209,14 @@ class TilesController {
       };
 
       try {
-        const { execSync } = require('child_process');
+        const { exec } = require('child_process');
+        const execAsync = require('util').promisify(exec);
         const os = require('os');
 
         if (os.platform() === 'win32') {
           // Windows: use PowerShell to get disk space
           const drive = process.cwd().charAt(0).toUpperCase();
-          const psOutput = execSync(`powershell -Command "Get-PSDrive ${drive} | Select-Object Used,Free | ConvertTo-Json"`, { encoding: 'utf-8' });
+          const { stdout: psOutput } = await execAsync(`powershell -Command "Get-PSDrive ${drive} | Select-Object Used,Free | ConvertTo-Json"`);
           const driveInfo = JSON.parse(psOutput.trim());
           deviceStorage.used = driveInfo.Used || 0;
           deviceStorage.available = driveInfo.Free || 0;
@@ -223,7 +229,7 @@ class TilesController {
             : 0;
         } else {
           // Linux/Mac: use df command
-          const dfOutput = execSync('df -B1 .', { encoding: 'utf-8' });
+          const { stdout: dfOutput } = await execAsync('df -B1 .');
           const lines = dfOutput.trim().split('\n');
           if (lines.length >= 2) {
             const parts = lines[1].split(/\s+/);

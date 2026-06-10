@@ -10,6 +10,12 @@ const getAudioContext = (): AudioContext => {
     audioContext = new (window.AudioContext ||
       (window as any).webkitAudioContext)();
   }
+  // Browsers create the context suspended until a user gesture; a suspended
+  // context plays nothing, so alarms would silently fail. resume() succeeds
+  // when called during a gesture and is a harmless no-op otherwise.
+  if (audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {});
+  }
   return audioContext;
 };
 

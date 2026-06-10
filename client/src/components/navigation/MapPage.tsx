@@ -273,6 +273,7 @@ export const MapPage: React.FC<MapPageProps> = ({ onClose, onOpenSettings }) => 
         speed={speed}
         stw={stw}
         depth={sensorData.environment.depth.belowTransducer}
+        gnssLost={demoMode ? false : sensorData.navigation.gnssLost ?? false}
         onClose={onClose}
         onOpenSettings={onOpenSettings}
       />

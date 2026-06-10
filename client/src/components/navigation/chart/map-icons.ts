@@ -262,6 +262,33 @@ export const createRulerPointIcon = (): L.DivIcon => {
 };
 
 /**
+ * Small red label shown under the (dimmed) boat marker while the GNSS fix is
+ * lost and the boat is frozen at its last known position.
+ */
+export const createGnssLostLabelIcon = (text: string): L.DivIcon => {
+  const html = `
+    <div style="
+      transform: translate(-50%, 16px);
+      display: inline-block;
+      background: rgba(0, 0, 0, 0.65);
+      border: 1px solid #ef5350;
+      border-radius: 4px;
+      padding: 2px 6px;
+      color: #ef5350;
+      font-size: 11px;
+      font-weight: bold;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+    ">${text}</div>`;
+  return L.divIcon({
+    html,
+    className: '',
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+};
+
+/**
  * Ruler tool distance label — a small pill centred on the line's midpoint.
  * iconSize/anchor are zero and the inner div self-centres via translate, so the
  * pill stays centred on the point regardless of its (text-dependent) width.

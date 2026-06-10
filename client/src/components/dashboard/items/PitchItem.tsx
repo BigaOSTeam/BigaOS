@@ -4,7 +4,7 @@ import { useLanguage } from '../../../i18n/LanguageContext';
 import { radToDeg } from '../../../utils/angle';
 
 interface PitchItemProps {
-  pitch: number; // radians
+  pitch: number | null; // radians (null = no data)
 }
 
 const getPitchColor = (deg: number): string => {
@@ -17,8 +17,8 @@ const getPitchColor = (deg: number): string => {
 export const PitchItem = React.memo<PitchItemProps>(({ pitch }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
-  const deg = radToDeg(pitch);
-  const color = getPitchColor(deg);
+  const deg = pitch !== null ? radToDeg(pitch) : null;
+  const color = deg !== null ? getPitchColor(deg) : theme.colors.textMuted;
   return (
     <div style={{
       display: 'flex',
@@ -46,7 +46,7 @@ export const PitchItem = React.memo<PitchItemProps>(({ pitch }) => {
           <path d="M-20 30 Q-10 28 0 30 T20 30 T40 30 T60 30 T80 30 T100 30 T120 30 T140 30 L140 65 L-20 65 Z" fill="#4FC3F7" opacity="0.08" />
 
           {/* Boat group - rotates around waterline center */}
-          <g transform={`rotate(${-deg}, 60, 30)`}>
+          <g transform={`rotate(${deg !== null ? -deg : 0}, 60, 30)`}>
             {/* Rudder - rendered first so hull covers overlap */}
             <path
               d="M100 28 L104 42 L111 42 L108 28"
@@ -85,7 +85,7 @@ export const PitchItem = React.memo<PitchItemProps>(({ pitch }) => {
         color,
         lineHeight: 1,
       }}>
-        {Math.abs(deg).toFixed(1)}°
+        {deg !== null ? `${Math.abs(deg).toFixed(1)}°` : '—'}
       </div>
     </div>
   );

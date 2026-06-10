@@ -105,7 +105,10 @@ export function speedToStandard(value: number, fromUnit: SpeedUnit): number {
  * Convert from standard (m/s) to user's speed unit
  * Rounded to 2 decimal places for display
  */
-export function speedFromStandard(value: number, toUnit: SpeedUnit): number {
+export function speedFromStandard(value: number, toUnit: SpeedUnit): number;
+export function speedFromStandard(value: number | null, toUnit: SpeedUnit): number | null;
+export function speedFromStandard(value: number | null, toUnit: SpeedUnit): number | null {
+  if (value === null) return null;
   let result: number;
   switch (toUnit) {
     case 'kt':
@@ -149,7 +152,10 @@ export function temperatureToStandard(value: number, fromUnit: TemperatureUnit):
  * Convert from standard (Kelvin) to user's temperature unit
  * Rounded to 1 decimal place for display (temperatures don't need 2)
  */
-export function temperatureFromStandard(value: number, toUnit: TemperatureUnit): number {
+export function temperatureFromStandard(value: number, toUnit: TemperatureUnit): number;
+export function temperatureFromStandard(value: number | null, toUnit: TemperatureUnit): number | null;
+export function temperatureFromStandard(value: number | null, toUnit: TemperatureUnit): number | null {
+  if (value === null) return null;
   let result: number;
   switch (toUnit) {
     case '°C':
@@ -242,7 +248,10 @@ export function depthToStandard(value: number, fromUnit: DepthUnit): number {
  * Convert from standard (meters) to user's depth unit
  * Rounded to 2 decimal places for display
  */
-export function depthFromStandard(value: number, toUnit: DepthUnit): number {
+export function depthFromStandard(value: number, toUnit: DepthUnit): number;
+export function depthFromStandard(value: number | null, toUnit: DepthUnit): number | null;
+export function depthFromStandard(value: number | null, toUnit: DepthUnit): number | null {
+  if (value === null) return null;
   let result: number;
   switch (toUnit) {
     case 'm':

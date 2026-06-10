@@ -363,6 +363,7 @@ export class DataController extends EventEmitter {
       timestamp: data.timestamp,
       navigation: {
         position: data.navigation.position,
+        gnssLost: data.navigation.gnssLost,
         courseOverGround: data.navigation.courseOverGround,
         speedOverGround: speedFromStandard(data.navigation.speedOverGround, units.speedUnit),
         speedThroughWater: speedFromStandard(data.navigation.speedThroughWater, units.speedUnit),

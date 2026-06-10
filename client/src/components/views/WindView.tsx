@@ -8,10 +8,10 @@ import { radToDeg } from '../../utils/angle';
 import { ViewLayout, ResponsiveTimeframePicker } from './shared';
 
 interface WindViewProps {
-  speedApparent: number;
-  angleApparent: number;
-  speedTrue: number;
-  angleTrue: number;
+  speedApparent: number | null;
+  angleApparent: number | null;
+  speedTrue: number | null;
+  angleTrue: number | null;
   onClose: () => void;
 }
 
@@ -40,7 +40,7 @@ interface ChartConfig {
   yMaxValue?: number;
   lineColor: string;
   fillGradient: boolean;
-  currentValue: number;
+  currentValue: number | null;
   formatValue: (v: number) => string;
 }
 
@@ -93,18 +93,18 @@ export const WindView: React.FC<WindViewProps> = ({
     return { force: 12, description: t('beaufort.12') };
   };
 
-  const beaufort = beaufortScale(speedApparent);
+  const beaufort = speedApparent !== null ? beaufortScale(speedApparent) : null;
 
-  const convertedApparent = convertWind(speedApparent);
-  const convertedTrue = convertWind(speedTrue);
+  const convertedApparent = speedApparent !== null ? convertWind(speedApparent) : null;
+  const convertedTrue = speedTrue !== null ? convertWind(speedTrue) : null;
 
   const formatWindValue = (value: number) => {
     if (windUnit === 'bft') return value.toFixed(0);
     return value.toFixed(1);
   };
 
-  const apparentAngleDeg = radToDeg(angleApparent);
-  const trueAngleDeg = radToDeg(angleTrue);
+  const apparentAngleDeg = angleApparent !== null ? radToDeg(angleApparent) : null;
+  const trueAngleDeg = angleTrue !== null ? radToDeg(angleTrue) : null;
 
   // Colors for each chart/stat
   const colors = {
@@ -315,7 +315,7 @@ export const WindView: React.FC<WindViewProps> = ({
         />
 
         {/* Apparent wind arrow */}
-        <g transform={`rotate(${apparentAngleDeg} 175 175)`}>
+        <g transform={`rotate(${apparentAngleDeg ?? 0} 175 175)`} style={{ opacity: apparentAngleDeg !== null ? 1 : 0.15 }}>
           <line
             x1="175"
             y1="175"
@@ -332,7 +332,7 @@ export const WindView: React.FC<WindViewProps> = ({
         </g>
 
         {/* True wind arrow */}
-        <g transform={`rotate(${trueAngleDeg} 175 175)`}>
+        <g transform={`rotate(${trueAngleDeg ?? 0} 175 175)`} style={{ opacity: trueAngleDeg !== null ? 1 : 0.15 }}>
           <line
             x1="175"
             y1="175"
@@ -385,11 +385,11 @@ export const WindView: React.FC<WindViewProps> = ({
             lineHeight: 1.3,
           }}>
             <span style={{ fontWeight: theme.fontWeight.bold }}>
-              {t('wind.force')} {beaufort.force}
+              {t('wind.force')} {beaufort !== null ? beaufort.force : '—'}
             </span>
             {' — '}
             <span style={{ opacity: 0.7 }}>
-              {beaufort.description}
+              {beaufort?.description ?? ''}
             </span>
           </div>
         </div>
@@ -406,14 +406,14 @@ export const WindView: React.FC<WindViewProps> = ({
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('wind.apparent')} {t('wind.speed')}</div>
             <div style={{ ...statValueStyle, color: colors.apparentSpeed }}>
-              {formatWindValue(convertedApparent)}
+              {convertedApparent !== null ? formatWindValue(convertedApparent) : '—'}
               <span style={{ fontSize: '0.6em', opacity: 0.7 }}> {unitLabel}</span>
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('wind.true')} {t('wind.speed')}</div>
             <div style={{ ...statValueStyle, color: colors.trueSpeed }}>
-              {formatWindValue(convertedTrue)}
+              {convertedTrue !== null ? formatWindValue(convertedTrue) : '—'}
               <span style={{ fontSize: '0.6em', opacity: 0.7 }}> {unitLabel}</span>
             </div>
           </div>
@@ -424,25 +424,25 @@ export const WindView: React.FC<WindViewProps> = ({
               color: theme.colors.textSecondary,
               fontSize: 'clamp(0.85rem, 3vw, 1.2rem)',
             }}>
-              {getWindSector(apparentAngleDeg)}
+              {apparentAngleDeg !== null ? getWindSector(apparentAngleDeg) : '—'}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('wind.apparent')} {t('wind.angle')}</div>
             <div style={{ ...statValueStyle, color: colors.apparentAngle }}>
-              {apparentAngleDeg.toFixed(0)}°
+              {apparentAngleDeg !== null ? `${apparentAngleDeg.toFixed(0)}°` : '—'}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('wind.true')} {t('wind.angle')}</div>
             <div style={{ ...statValueStyle, color: colors.trueAngle }}>
-              {trueAngleDeg.toFixed(0)}°
+              {trueAngleDeg !== null ? `${trueAngleDeg.toFixed(0)}°` : '—'}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('wind.beaufort')}</div>
             <div style={{ ...statValueStyle, color: theme.colors.textPrimary }}>
-              {beaufort.force}
+              {beaufort !== null ? beaufort.force : '—'}
             </div>
           </div>
         </div>
@@ -527,7 +527,7 @@ export const WindView: React.FC<WindViewProps> = ({
                   flexShrink: 0,
                   marginLeft: '0.25rem',
                 }}>
-                  {chart.formatValue(chart.currentValue)}
+                  {chart.currentValue !== null ? chart.formatValue(chart.currentValue) : '—'}
                 </div>
               </div>
               {/* Chart */}

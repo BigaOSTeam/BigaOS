@@ -12,7 +12,7 @@ import {
 } from './shared';
 
 interface SpeedViewProps {
-  speed: number; // Current speed in knots
+  speed: number | null; // Current speed in knots (null = no data)
   onClose: () => void;
 }
 
@@ -33,7 +33,7 @@ export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
   const [timeframe, setTimeframe] = useState<TimeframeOption>('5m');
   const [isLoading, setIsLoading] = useState(true);
 
-  const convertedSpeed = convertSpeed(speed);
+  const convertedSpeed = speed !== null ? convertSpeed(speed) : null;
 
   // Fetch history data from server
   const fetchHistory = useCallback(async () => {
@@ -84,7 +84,7 @@ export const SpeedView: React.FC<SpeedViewProps> = ({ speed, onClose }) => {
   return (
     <ViewLayout title={t('speed.speed')} onClose={onClose}>
       <MainValueDisplay
-        value={convertedSpeed.toFixed(1)}
+        value={convertedSpeed !== null ? convertedSpeed.toFixed(1) : '—'}
         unit={speedConversions[speedUnit].label}
         color={theme.colors.dataSpeed}
       />

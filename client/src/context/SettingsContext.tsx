@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { wsService } from '../services/websocket';
 import type { WeatherSettings, AlertSettings } from '../types';
 import { DEFAULT_ALERT_SETTINGS } from '../types/alerts';
@@ -364,8 +364,8 @@ interface SettingsContextType {
   convertWeight: (weightInKg: number) => number;
   convertTemperature: (tempInCelsius: number) => number;
 
-  // Current depth for alarm checking
-  currentDepth: number;
+  // Current depth for alarm checking (kept in a ref internally; only the
+  // derived isDepthAlarmTriggered boolean is reactive)
   setCurrentDepth: (depth: number) => void;
 
   // Language
@@ -476,7 +476,8 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [vesselSettings, setVesselSettingsState] = useState<VesselSettings>(defaultSettings.vesselSettings);
   const [weatherSettings, setWeatherSettingsState] = useState<WeatherSettings>(defaultSettings.weatherSettings);
   const [alertSettings, setAlertSettingsState] = useState<AlertSettings>(defaultSettings.alertSettings);
-  const [currentDepth, setCurrentDepth] = useState<number>(10);
+  const currentDepthRef = useRef<number>(10);
+  const [isDepthAlarmTriggered, setIsDepthAlarmTriggered] = useState<boolean>(false);
   const [isSynced, setIsSynced] = useState<boolean>(false);
   const isApplyingServerSettings = React.useRef<boolean>(false);
 
@@ -783,8 +784,25 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     ? (depthUnit === 'ft' ? depthAlarm / depthConversions.ft.factor : depthAlarm)
     : null;
 
-  // Check if alarm is triggered
-  const isDepthAlarmTriggered = depthAlarmMeters !== null && currentDepth < depthAlarmMeters;
+  // Depth arrives at sensor tick rate; keep it in a ref and only update the
+  // derived boolean so settings consumers don't re-render on every tick.
+  const depthAlarmMetersRef = useRef<number | null>(depthAlarmMeters);
+  depthAlarmMetersRef.current = depthAlarmMeters;
+
+  const recomputeDepthAlarm = useCallback(() => {
+    const threshold = depthAlarmMetersRef.current;
+    const triggered = threshold !== null && currentDepthRef.current < threshold;
+    setIsDepthAlarmTriggered(prev => (prev === triggered ? prev : triggered));
+  }, []);
+
+  const setCurrentDepth = useCallback((depth: number) => {
+    currentDepthRef.current = depth;
+    recomputeDepthAlarm();
+  }, [recomputeDepthAlarm]);
+
+  useEffect(() => {
+    recomputeDepthAlarm();
+  }, [depthAlarmMeters, recomputeDepthAlarm]);
 
   // Conversion helpers
   const convertSpeed = useCallback((speedInKnots: number) => {
@@ -830,7 +848,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     return tempInCelsius;
   }, [temperatureUnit]);
 
-  const value: SettingsContextType = {
+  const value: SettingsContextType = useMemo(() => ({
     speedUnit,
     windUnit,
     depthUnit,
@@ -875,10 +893,21 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     convertDistance,
     convertWeight,
     convertTemperature,
-    currentDepth,
     setCurrentDepth,
     isSynced,
-  };
+  }), [
+    speedUnit, windUnit, depthUnit, distanceUnit, weightUnit, temperatureUnit,
+    timeFormat, dateFormat, setSpeedUnit, setWindUnit, setDepthUnit,
+    setDistanceUnit, setWeightUnit, setTemperatureUnit, setTimeFormat,
+    setDateFormat, mapTileUrls, setMapTileUrls, apiUrls, setApiUrls,
+    vesselSettings, setVesselSettings, weatherSettings, setWeatherSettings,
+    alertSettings, setAlertSettings, depthAlarm, depthAlarmMeters,
+    setDepthAlarm, soundAlarmEnabled, setSoundAlarmEnabled,
+    isDepthAlarmTriggered, language, setLanguage, sidebarPosition,
+    setSidebarPosition, themeMode, setThemeMode, convertSpeed, convertWind,
+    convertDepth, convertDistance, convertWeight, convertTemperature,
+    setCurrentDepth, isSynced,
+  ]);
 
   return (
     <SettingsContext.Provider value={value}>

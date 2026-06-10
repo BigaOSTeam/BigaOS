@@ -4,15 +4,15 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface WindItemProps {
-  speedApparent: number; // Speed in knots
-  angleApparent: number;
+  speedApparent: number | null; // Speed in knots (null = no data)
+  angleApparent: number | null;
 }
 
 export const WindItem = React.memo<WindItemProps>(({ speedApparent, angleApparent }) => {
   const { theme } = useTheme();
   const { t } = useLanguage();
   const { windUnit, convertWind } = useSettings();
-  const convertedSpeed = convertWind(speedApparent);
+  const convertedSpeed = speedApparent !== null ? convertWind(speedApparent) : null;
 
   const getWindDirection = (angle: number): string => {
     if (angle < 45 || angle > 315) return t('dashboard_item.head');
@@ -22,9 +22,11 @@ export const WindItem = React.memo<WindItemProps>(({ speedApparent, angleApparen
   };
 
   // For Beaufort, show as integer; for others show one decimal
-  const displayValue = windUnit === 'bft'
-    ? convertedSpeed.toFixed(0)
-    : convertedSpeed.toFixed(1);
+  const displayValue = convertedSpeed === null
+    ? '—'
+    : windUnit === 'bft'
+      ? convertedSpeed.toFixed(0)
+      : convertedSpeed.toFixed(1);
 
   return (
     <div style={{
@@ -67,8 +69,9 @@ export const WindItem = React.memo<WindItemProps>(({ speedApparent, angleApparen
           style={{
             width: 'clamp(12px, 10cqmin, 48px)',
             height: 'clamp(12px, 10cqmin, 48px)',
-            transform: `rotate(${angleApparent}deg)`,
+            transform: `rotate(${angleApparent ?? 0}deg)`,
             transition: `transform ${theme.transition.slow}`,
+            opacity: angleApparent !== null ? 1 : 0.2,
           }}
         >
           <path
@@ -77,7 +80,7 @@ export const WindItem = React.memo<WindItemProps>(({ speedApparent, angleApparen
           />
         </svg>
         <span style={{ fontSize: 'clamp(9px, 9cqmin, 36px)', color: theme.colors.dataWind }}>
-          {angleApparent.toFixed(0)}° {getWindDirection(angleApparent)}
+          {angleApparent !== null ? `${angleApparent.toFixed(0)}° ${getWindDirection(angleApparent)}` : '—'}
         </span>
       </div>
     </div>

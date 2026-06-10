@@ -25,11 +25,6 @@ export function normalizeRad(rad: number): number {
   return ((rad % TWO_PI) + TWO_PI) % TWO_PI;
 }
 
-/** Format an angle in radians as a degree string, e.g. "045°" */
-export function formatAngle(rad: number): string {
-  return `${Math.round(radToDeg(rad)) % 360}°`;
-}
-
 /** Get cardinal direction from angle in radians */
 export function getCardinalDirection(rad: number): string {
   const deg = ((radToDeg(rad) % 360) + 360) % 360;

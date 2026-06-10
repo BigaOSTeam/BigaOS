@@ -269,8 +269,13 @@ export class AlertService extends EventEmitter {
   /**
    * Evaluate depth alarm
    */
-  private evaluateDepthAlarm(currentDepth: number): void {
+  private evaluateDepthAlarm(currentDepth: number | null): void {
     if (this.depthAlarm.threshold === null) return;
+
+    // No depth data (sensor absent or stale): hold the current alarm state.
+    // An active shallow-water alarm must not silently clear because the
+    // transducer died, and fabricated data must never trigger a new one.
+    if (currentDepth === null || !Number.isFinite(currentDepth)) return;
 
     const isTriggered = currentDepth < this.depthAlarm.threshold;
     const wasTriggered = this.triggeredAlerts.has(AlertService.DEPTH_ALERT_ID);
@@ -331,6 +336,10 @@ export class AlertService extends EventEmitter {
   private evaluateAnchorAlarm(boatLat: number, boatLon: number): void {
     if (!this.anchorAlarm.active || !this.anchorAlarm.anchorPosition) return;
 
+    // No GPS fix (0,0 placeholder or invalid): hold the current alarm state.
+    // A dropout must not read as "boat is thousands of km from the anchor".
+    if (!Number.isFinite(boatLat) || !Number.isFinite(boatLon) || (boatLat === 0 && boatLon === 0)) return;
+
     // Calculate distance from anchor to boat (Haversine formula)
     const R = 6371000; // Earth radius in meters
     const lat1 = this.anchorAlarm.anchorPosition.lat * Math.PI / 180;
@@ -388,11 +397,13 @@ export class AlertService extends EventEmitter {
    * Evaluate all alerts against current sensor data
    */
   evaluateSensorData(data: StandardSensorData): void {
-    // Store boat position (needed for anchor alarm and magnetic declination)
-    this.lastBoatPosition = {
-      lat: data.navigation.position.latitude,
-      lon: data.navigation.position.longitude,
-    };
+    // Store boat position (needed for anchor alarm and magnetic declination).
+    // Only adopt real fixes — never the 0,0 "no fix" placeholder.
+    const lat = data.navigation.position.latitude;
+    const lon = data.navigation.position.longitude;
+    if (Number.isFinite(lat) && Number.isFinite(lon) && !(lat === 0 && lon === 0)) {
+      this.lastBoatPosition = { lat, lon };
+    }
 
     // Special alarms (depth, anchor) always run regardless of globalEnabled
     this.evaluateDepthAlarm(data.environment.depth.belowTransducer);

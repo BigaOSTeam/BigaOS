@@ -14,6 +14,7 @@ export {
   createMOBIcon,
   createRulerPointIcon,
   createRulerLabelIcon,
+  createGnssLostLabelIcon,
 } from './map-icons';
 export type { CustomMarker } from './map-icons';
 

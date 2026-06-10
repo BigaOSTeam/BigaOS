@@ -9,12 +9,12 @@ import {
 } from './shared';
 
 interface BatteryViewProps {
-  voltage: number;
-  current: number;
-  temperature: number;
-  stateOfCharge: number;
-  timeRemaining: number;
-  power: number;
+  voltage: number | null;
+  current: number | null;
+  temperature: number | null;
+  stateOfCharge: number | null;
+  timeRemaining: number | null;
+  power: number | null;
   batteryId?: string;
   onClose: () => void;
 }
@@ -44,12 +44,12 @@ interface ChartConfig {
   yMaxValue?: number;
   lineColor: string;
   fillGradient: boolean;
-  currentValue: number;
+  currentValue: number | null;
   formatValue: (v: number) => string;
   yLabelFormatter?: (v: number) => string;
 }
 
-const formatTimeRemaining = (seconds: number): string => {
+const formatTimeRemaining = (seconds: number | null): string => {
   if (!seconds || seconds <= 0) return '--';
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -230,9 +230,9 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
     setTimeframe(key as TimeframeOption);
   };
 
-  const batteryColor = getBatteryColor(stateOfCharge);
-  const statusColor = current > 0.5 ? theme.colors.success : current < -0.5 ? theme.colors.warning : theme.colors.textMuted;
-  const statusText = current > 0.5 ? t('battery.charging') : current < -0.5 ? t('battery.discharging') : t('battery.idle');
+  const batteryColor = stateOfCharge !== null ? getBatteryColor(stateOfCharge) : theme.colors.textMuted;
+  const statusColor = current === null ? theme.colors.textMuted : current > 0.5 ? theme.colors.success : current < -0.5 ? theme.colors.warning : theme.colors.textMuted;
+  const statusText = current === null ? '—' : current > 0.5 ? t('battery.charging') : current < -0.5 ? t('battery.discharging') : t('battery.idle');
 
   const statLabelStyle: React.CSSProperties = {
     fontSize: 'clamp(0.65rem, 2vw, 0.85rem)',
@@ -248,7 +248,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
   };
 
   const renderBatteryIcon = () => {
-    const fillHeight = Math.max(0, Math.min(100, stateOfCharge));
+    const fillHeight = Math.max(0, Math.min(100, stateOfCharge ?? 0));
     const bodyTop = 18;
     const bodyHeight = 62;
     const fillH = (fillHeight / 100) * (bodyHeight - 8);
@@ -277,7 +277,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
         <rect x="10" y={fillY} width="60" height={fillH} rx="3" fill={batteryColor} opacity="0.85" />
         {/* Percentage text */}
         <text x="40" y="52" fill="#fff" fontSize="16" fontWeight="bold" textAnchor="middle" dominantBaseline="middle">
-          {Math.round(stateOfCharge)}%
+          {stateOfCharge !== null ? `${Math.round(stateOfCharge)}%` : '—'}
         </text>
       </svg>
     );
@@ -318,25 +318,25 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.power')}</div>
             <div style={{ ...statValueStyle, color: theme.colors.dataWind }}>
-              {Math.abs(power).toFixed(0)}W
+              {power !== null ? `${Math.abs(power).toFixed(0)}W` : '—'}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.voltage')}</div>
             <div style={{ ...statValueStyle, color: theme.colors.dataWind }}>
-              {voltage.toFixed(2)}V
+              {voltage !== null ? `${voltage.toFixed(2)}V` : '—'}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.current')}</div>
             <div style={{ ...statValueStyle, color: theme.colors.dataSpeed }}>
-              {Math.abs(current) < 0.05 ? '' : current > 0 ? '+' : ''}{Math.abs(current) < 0.05 ? '0.0' : current.toFixed(1)}A
+              {current === null ? '—' : `${Math.abs(current) < 0.05 ? '' : current > 0 ? '+' : ''}${Math.abs(current) < 0.05 ? '0.0' : current.toFixed(1)}A`}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.temperature')}</div>
             <div style={{ ...statValueStyle, color: '#ff7043' }}>
-              {temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}
+              {temperature === null || temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}
             </div>
           </div>
           <div style={{ textAlign: 'center' }}>
@@ -348,7 +348,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
           <div style={{ textAlign: 'center' }}>
             <div style={statLabelStyle}>{t('battery.state_of_charge')}</div>
             <div style={{ ...statValueStyle, color: theme.colors.dataBattery }}>
-              {stateOfCharge.toFixed(0)}%
+              {stateOfCharge !== null ? `${stateOfCharge.toFixed(0)}%` : '—'}
             </div>
           </div>
         </div>
@@ -414,7 +414,7 @@ export const BatteryView: React.FC<BatteryViewProps> = ({
                   flexShrink: 0,
                   marginLeft: '0.25rem',
                 }}>
-                  {chart.formatValue(chart.currentValue)}
+                  {chart.currentValue !== null ? chart.formatValue(chart.currentValue) : '—'}
                 </div>
               </div>
               {/* Chart */}

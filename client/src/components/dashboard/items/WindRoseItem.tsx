@@ -4,9 +4,9 @@ import { useSettings, windConversions } from '../../../context/SettingsContext';
 import { radToDeg } from '../../../utils/angle';
 
 interface WindRoseItemProps {
-  speedApparent: number;
-  angleApparent: number;
-  angleTrue: number;
+  speedApparent: number | null;
+  angleApparent: number | null;
+  angleTrue: number | null;
 }
 
 export const WindRoseItem = React.memo<WindRoseItemProps>(({
@@ -17,11 +17,13 @@ export const WindRoseItem = React.memo<WindRoseItemProps>(({
   const { theme } = useTheme();
   const { windUnit, convertWind } = useSettings();
 
-  const apparentDeg = radToDeg(angleApparent);
-  const trueDeg = radToDeg(angleTrue);
-  const convertedApparent = convertWind(speedApparent);
+  const apparentDeg = angleApparent !== null ? radToDeg(angleApparent) : 0;
+  const trueDeg = angleTrue !== null ? radToDeg(angleTrue) : 0;
+  const convertedApparent = speedApparent !== null ? convertWind(speedApparent) : null;
   const unitLabel = windConversions[windUnit].label;
-  const displayValue = windUnit === 'bft' ? convertedApparent.toFixed(0) : convertedApparent.toFixed(1);
+  const displayValue = convertedApparent === null
+    ? '—'
+    : windUnit === 'bft' ? convertedApparent.toFixed(0) : convertedApparent.toFixed(1);
 
   return (
     <div style={{
@@ -101,7 +103,7 @@ export const WindRoseItem = React.memo<WindRoseItemProps>(({
         {/* Apparent wind arrow (solid, orange) */}
         <g
           transform={`rotate(${apparentDeg} 175 175)`}
-          style={{ transition: `transform ${theme.transition.slow}` }}
+          style={{ transition: `transform ${theme.transition.slow}`, opacity: angleApparent !== null ? 1 : 0.15 }}
         >
           <line
             x1="175"
@@ -121,7 +123,7 @@ export const WindRoseItem = React.memo<WindRoseItemProps>(({
         {/* True wind arrow (dashed, blue) */}
         <g
           transform={`rotate(${trueDeg} 175 175)`}
-          style={{ transition: `transform ${theme.transition.slow}` }}
+          style={{ transition: `transform ${theme.transition.slow}`, opacity: angleTrue !== null ? 1 : 0.15 }}
         >
           <line
             x1="175"

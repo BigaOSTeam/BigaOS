@@ -12,7 +12,7 @@ import {
 } from './shared';
 
 interface PitchViewProps {
-  pitch: number; // radians
+  pitch: number | null; // radians (null = no data)
   onClose: () => void;
 }
 
@@ -40,8 +40,8 @@ export const PitchView: React.FC<PitchViewProps> = ({ pitch, onClose }) => {
   const [timeframe, setTimeframe] = useState<TimeframeOption>('5m');
   const [isLoading, setIsLoading] = useState(true);
 
-  const deg = radToDeg(pitch);
-  const color = getPitchColor(deg);
+  const deg = pitch !== null ? radToDeg(pitch) : null;
+  const color = deg !== null ? getPitchColor(deg) : theme.colors.textMuted;
 
   const fetchHistory = useCallback(async () => {
     setIsLoading(true);
@@ -100,7 +100,7 @@ export const PitchView: React.FC<PitchViewProps> = ({ pitch, onClose }) => {
           {/* Water */}
           <path d="M-20 30 Q-10 28 0 30 T20 30 T40 30 T60 30 T80 30 T100 30 T120 30 T140 30" stroke="#4FC3F7" strokeWidth="1" opacity="0.4" fill="none" />
           <path d="M-20 30 Q-10 28 0 30 T20 30 T40 30 T60 30 T80 30 T100 30 T120 30 T140 30 L140 65 L-20 65 Z" fill="#4FC3F7" opacity="0.08" />
-          <g transform={`rotate(${-deg}, 60, 30)`}>
+          <g transform={`rotate(${deg !== null ? -deg : 0}, 60, 30)`}>
             {/* Rudder */}
             <path d="M100 28 L104 42 L111 42 L108 28" fill="#d0d0d0" stroke="#bbb" strokeWidth="0.5" />
             {/* Keel */}
@@ -124,7 +124,7 @@ export const PitchView: React.FC<PitchViewProps> = ({ pitch, onClose }) => {
       </div>
 
       <MainValueDisplay
-        value={`${Math.abs(deg).toFixed(1)}°`}
+        value={deg !== null ? `${Math.abs(deg).toFixed(1)}°` : '—'}
         unit=""
         color={color}
       />

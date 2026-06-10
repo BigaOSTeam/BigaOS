@@ -152,8 +152,10 @@ export class LogbookService extends EventEmitter {
     if (lat === 0 && lon === 0) return;
 
     const ts = Date.now();
-    const sog = isFinite(data.navigation.speedOverGround) ? data.navigation.speedOverGround : null;
-    const cog = isFinite(data.navigation.courseOverGround) ? data.navigation.courseOverGround : null;
+    const rawSog = data.navigation.speedOverGround;
+    const rawCog = data.navigation.courseOverGround;
+    const sog = typeof rawSog === 'number' && isFinite(rawSog) ? rawSog : null;
+    const cog = typeof rawCog === 'number' && isFinite(rawCog) ? rawCog : null;
 
     this.evaluateState(ts, sog, cog, lat, lon).catch((err) =>
       console.error('[Logbook] evaluateState failed:', err)

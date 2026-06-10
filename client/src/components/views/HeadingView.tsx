@@ -27,7 +27,7 @@ function unwrapHeadingData(data: TimeSeriesDataPoint[]): TimeSeriesDataPoint[] {
 }
 
 interface HeadingViewProps {
-  heading: number; // Current heading in radians
+  heading: number | null; // Current heading in radians (null = no data)
   onClose: () => void;
 }
 
@@ -90,7 +90,9 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
     return `${Math.round(deg)}°`;
   }, []);
 
-  const headingDeg = radToDeg(heading);
+  // For the compass strip, fall back to 0 (pointing N) when there's no data;
+  // the numeric readout below shows — so the absence is still clear.
+  const headingDeg = heading !== null ? radToDeg(heading) : 0;
 
   const compassPoints = [
     { deg: 0, label: 'N' },
@@ -225,7 +227,7 @@ export const HeadingView: React.FC<HeadingViewProps> = ({ heading, onClose }) =>
             color: theme.colors.dataHeading,
             lineHeight: 1,
           }}>
-            {Math.round(headingDeg) % 360}°
+            {heading !== null ? `${Math.round(headingDeg) % 360}°` : '—'}
           </div>
         </div>
 

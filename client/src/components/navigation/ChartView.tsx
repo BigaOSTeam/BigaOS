@@ -46,6 +46,7 @@ import {
   createMOBIcon,
   createRulerPointIcon,
   createRulerLabelIcon,
+  createGnssLostLabelIcon,
   MapController,
   LongPressHandler,
   RulerClickHandler,
@@ -127,11 +128,12 @@ const ConnectivityRefresher: React.FC = () => {
 
 interface ChartViewProps {
   position: GeoPosition;
-  heading: number;
-  cog: number;
-  speed: number;
-  stw: number;
-  depth: number;
+  heading: number | null;
+  cog: number | null;
+  speed: number | null;
+  stw: number | null;
+  depth: number | null;
+  gnssLost?: boolean;
   onClose?: () => void;
   onOpenSettings?: () => void;
   hideSidebar?: boolean;
@@ -144,6 +146,7 @@ export const ChartView = React.memo<ChartViewProps>(({
   speed,
   stw,
   depth,
+  gnssLost = false,
   onClose,
   onOpenSettings,
   hideSidebar = false,
@@ -231,7 +234,7 @@ export const ChartView = React.memo<ChartViewProps>(({
   const [placingAnchor, setPlacingAnchor] = useState(false);
   // Chain/depth state lifted from dialog for preview during placement
   const [anchorChainLength, setAnchorChainLength] = useState(30);
-  const [anchorDepth, setAnchorDepth] = useState(depth);
+  const [anchorDepth, setAnchorDepth] = useState(depth ?? 0);
 
   // Man Overboard (MOB) state. Shared across all clients (like the anchor
   // alarm); `mobHolding` drives the centered press-and-hold ring overlay.
@@ -338,9 +341,17 @@ export const ChartView = React.memo<ChartViewProps>(({
     sidebarPosition,
   } = useSettings();
 
-  const convertedSpeed = convertSpeed(speed);
-  const convertedStw = convertSpeed(stw);
-  const convertedDepth = convertDepth(depth);
+  const convertedSpeed = speed !== null ? convertSpeed(speed) : null;
+  const convertedStw = stw !== null ? convertSpeed(stw) : null;
+  // Map geometry (boat-icon rotation, autopilot ETA) needs a number; absent
+  // heading/speed coalesce to 0 here exactly as the server used to fabricate,
+  // so map behaviour is unchanged while the sidebar readouts show —.
+  const headingNum = heading ?? 0;
+  const hasDepth = depth !== null && Number.isFinite(depth);
+  // 0,0 means "no GPS fix yet since server start" (mid-session dropouts hold
+  // the last fix server-side). Without a fix: no boat marker, no auto-center.
+  const hasFix = !(position.latitude === 0 && position.longitude === 0);
+  const convertedDepth = hasDepth ? convertDepth(depth) : null;
   const isMobile = window.innerWidth <= 600;
   const sidebarWidth = hideSidebar ? 0 : (isMobile ? 64 : 100);
 
@@ -348,8 +359,9 @@ export const ChartView = React.memo<ChartViewProps>(({
 
   // Get depth color based on value
   const getDepthColor = useCallback(
-    (depthInMeters: number) => {
+    (depthInMeters: number | null) => {
       if (isDepthAlarmTriggered) return '#ef5350';
+      if (depthInMeters === null) return '#90a4ae';
       if (depthInMeters < 2) return '#ef5350';
       if (depthInMeters < 5) return '#ffa726';
       if (depthInMeters < 10) return '#66bb6a';
@@ -568,7 +580,7 @@ export const ChartView = React.memo<ChartViewProps>(({
     );
 
     // Calculate ETA in seconds (speed is in knots, distance in nm)
-    const speedKnots = speed; // speed prop is already in knots
+    const speedKnots = speed ?? 0; // speed prop is already in knots
     const etaSeconds = speedKnots > 0.1 ? (distanceToNextWp / speedKnots) * 3600 : Infinity;
 
     // Check if there's a waypoint after the next one (course change coming)
@@ -748,8 +760,10 @@ export const ChartView = React.memo<ChartViewProps>(({
   // Memoize boat icon to prevent recreation on every render
   // Round heading to nearest degree to reduce unnecessary updates
   const boatIcon = useMemo(() => {
-    return createBoatIcon(heading);
-  }, [Math.round(radToDeg(heading))]);
+    return createBoatIcon(headingNum);
+  }, [Math.round(radToDeg(headingNum))]);
+
+  const gnssLostLabelIcon = useMemo(() => createGnssLostLabelIcon(t('chart.gnss_lost')), [t]);
 
   // Invalidate map size on container resize or visibility change
   useEffect(() => {
@@ -1543,24 +1557,36 @@ export const ChartView = React.memo<ChartViewProps>(({
           </>
         )}
 
-        {/* Boat marker */}
-        <Marker
-          position={[position.latitude, position.longitude]}
-          icon={boatIcon}
-          eventHandlers={{
-            click: (e) => {
-              // Don't show context menu during anchor placement, ruler, or zone mode
-              if (placingAnchor || rulerActive || zoneActive) return;
-              const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
-              if (containerPoint) {
-                setBoatContextMenu({
-                  x: containerPoint.x,
-                  y: containerPoint.y,
-                });
-              }
-            },
-          }}
-        />
+        {/* Boat marker — dimmed with a red label while the GNSS fix is lost
+            (position is the server-held last good fix) */}
+        {hasFix && gnssLost && (
+          <Marker
+            position={[position.latitude, position.longitude]}
+            icon={gnssLostLabelIcon}
+            interactive={false}
+            zIndexOffset={900}
+          />
+        )}
+        {hasFix && (
+          <Marker
+            position={[position.latitude, position.longitude]}
+            icon={boatIcon}
+            opacity={gnssLost ? 0.45 : 1}
+            eventHandlers={{
+              click: (e) => {
+                // Don't show context menu during anchor placement, ruler, or zone mode
+                if (placingAnchor || rulerActive || zoneActive) return;
+                const containerPoint = mapRef.current?.latLngToContainerPoint(e.latlng);
+                if (containerPoint) {
+                  setBoatContextMenu({
+                    x: containerPoint.x,
+                    y: containerPoint.y,
+                  });
+                }
+              },
+            }}
+          />
+        )}
 
         {/* Custom markers */}
         {customMarkers.map((marker) => (
@@ -1716,7 +1742,7 @@ export const ChartView = React.memo<ChartViewProps>(({
 
         <MapController
           position={position}
-          autoCenter={autoCenter}
+          autoCenter={autoCenter && hasFix}
           onUserInteract={handleMapDrag}
           flagButtonZoomRef={flagButtonZoomRef}
         />
@@ -2191,7 +2217,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           ];
           const distanceNm = calculateRouteDistanceNm(currentRoute);
           convertedDistance = convertDistance(distanceNm);
-          etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
+          etaHours = (speed ?? 0) > 0.1 ? distanceNm / (speed ?? 0) : Infinity;
         }
 
         return (
@@ -2641,7 +2667,7 @@ export const ChartView = React.memo<ChartViewProps>(({
             )}
             <button
               onClick={() => {
-                setAnchorDepth(depth); // Use current sensor depth
+                setAnchorDepth(depth ?? 0); // Use current sensor depth (0 if no sensor)
                 setAnchorAlarmDialogOpen(true);
                 setPlacingAnchor(false);
               }}
@@ -2919,7 +2945,7 @@ export const ChartView = React.memo<ChartViewProps>(({
                 </svg>
               ),
               onClick: () => {
-                setAnchorDepth(depth); // Use current sensor depth
+                setAnchorDepth(depth ?? 0); // Use current sensor depth (0 if no sensor)
                 setAnchorAlarmDialogOpen(true);
                 setBoatContextMenu(null);
               },
@@ -2965,7 +2991,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           vesselSettings={vesselSettings}
           onUpdateVesselSettings={setVesselSettings}
           boatPosition={{ lat: position.latitude, lon: position.longitude }}
-          boatHeading={heading}
+          boatHeading={headingNum}
           onAnchorPositionChange={setAnchorPositionOverride}
           weatherEnabled={weatherSettings?.enabled}
           onSetAnchorPosition={() => {
@@ -3047,7 +3073,7 @@ export const ChartView = React.memo<ChartViewProps>(({
         ];
         const distanceNm = calculateRouteDistanceNm(currentRoute);
         const convertedDistance = convertDistance(distanceNm);
-        const etaHours = speed > 0.1 ? distanceNm / speed : Infinity;
+        const etaHours = (speed ?? 0) > 0.1 ? distanceNm / (speed ?? 0) : Infinity;
 
         return (
           <div

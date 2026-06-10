@@ -1258,79 +1258,52 @@ export class WebSocketServer {
   private storeSensorData(data: DisplaySensorData): void {
     const readings: Array<{ category: string; sensorName: string; value: number; unit?: string }> = [];
 
+    // Only record real readings — a null/NaN value means the sensor is absent
+    // or stale, and persisting it would pollute history with phantom data.
+    const add = (category: string, sensorName: string, value: number | null, unit?: string): void => {
+      if (typeof value === 'number' && Number.isFinite(value)) {
+        readings.push({ category, sensorName, value, unit });
+      }
+    };
+
     // Navigation data
     if (data.navigation) {
       const nav = data.navigation;
-      if (nav.position) {
-        readings.push({ category: 'navigation', sensorName: 'latitude', value: nav.position.latitude, unit: 'deg' });
-        readings.push({ category: 'navigation', sensorName: 'longitude', value: nav.position.longitude, unit: 'deg' });
+      if (nav.position && !(nav.position.latitude === 0 && nav.position.longitude === 0)) {
+        add('navigation', 'latitude', nav.position.latitude, 'deg');
+        add('navigation', 'longitude', nav.position.longitude, 'deg');
       }
-      if (nav.speedOverGround !== undefined) {
-        readings.push({ category: 'navigation', sensorName: 'speedOverGround', value: nav.speedOverGround, unit: 'kt' });
-      }
-      if (nav.courseOverGround !== undefined) {
-        readings.push({ category: 'navigation', sensorName: 'courseOverGround', value: nav.courseOverGround, unit: 'deg' });
-      }
-      if (nav.heading !== undefined) {
-        readings.push({ category: 'navigation', sensorName: 'heading', value: nav.heading, unit: 'deg' });
-      }
-      if (nav.attitude?.roll !== undefined) {
-        readings.push({ category: 'navigation', sensorName: 'roll', value: nav.attitude.roll, unit: 'rad' });
-      }
-      if (nav.attitude?.pitch !== undefined) {
-        readings.push({ category: 'navigation', sensorName: 'pitch', value: nav.attitude.pitch, unit: 'rad' });
-      }
+      add('navigation', 'speedOverGround', nav.speedOverGround, 'kt');
+      add('navigation', 'courseOverGround', nav.courseOverGround, 'deg');
+      add('navigation', 'heading', nav.heading, 'deg');
+      add('navigation', 'roll', nav.attitude?.roll, 'rad');
+      add('navigation', 'pitch', nav.attitude?.pitch, 'rad');
     }
 
     // Environment data
     if (data.environment) {
       const env = data.environment;
-      if (env.depth?.belowTransducer !== undefined) {
-        readings.push({ category: 'environment', sensorName: 'depth', value: env.depth.belowTransducer, unit: 'm' });
-      }
-      if (env.wind?.speedApparent !== undefined) {
-        readings.push({ category: 'environment', sensorName: 'windSpeed', value: env.wind.speedApparent, unit: 'kt' });
-      }
-      if (env.wind?.angleApparent !== undefined) {
-        readings.push({ category: 'environment', sensorName: 'windDirection', value: env.wind.angleApparent, unit: 'deg' });
-      }
-      if (env.wind?.speedTrue !== undefined) {
-        readings.push({ category: 'environment', sensorName: 'windSpeedTrue', value: env.wind.speedTrue, unit: 'kt' });
-      }
-      if (env.wind?.angleTrue !== undefined) {
-        readings.push({ category: 'environment', sensorName: 'windDirectionTrue', value: env.wind.angleTrue, unit: 'deg' });
-      }
+      add('environment', 'depth', env.depth?.belowTransducer, 'm');
+      add('environment', 'windSpeed', env.wind?.speedApparent, 'kt');
+      add('environment', 'windDirection', env.wind?.angleApparent, 'deg');
+      add('environment', 'windSpeedTrue', env.wind?.speedTrue, 'kt');
+      add('environment', 'windDirectionTrue', env.wind?.angleTrue, 'deg');
     }
 
     // Electrical data
     if (data.electrical?.battery) {
       const battery = data.electrical.battery;
-      if (battery.voltage !== undefined) {
-        readings.push({ category: 'electrical', sensorName: 'house_voltage', value: battery.voltage, unit: 'V' });
-      }
-      if (battery.current !== undefined) {
-        readings.push({ category: 'electrical', sensorName: 'house_current', value: battery.current, unit: 'A' });
-      }
-      if (battery.stateOfCharge !== undefined) {
-        readings.push({ category: 'electrical', sensorName: 'house_stateOfCharge', value: battery.stateOfCharge, unit: '%' });
-      }
-      if (battery.power !== undefined) {
-        readings.push({ category: 'electrical', sensorName: 'house_power', value: battery.power, unit: 'W' });
-      }
-      if (battery.temperature !== undefined) {
-        readings.push({ category: 'electrical', sensorName: 'house_temperature', value: battery.temperature, unit: '°C' });
-      }
-      if (battery.timeRemaining !== undefined) {
-        readings.push({ category: 'electrical', sensorName: 'house_timeRemaining', value: battery.timeRemaining, unit: 's' });
-      }
+      add('electrical', 'house_voltage', battery.voltage, 'V');
+      add('electrical', 'house_current', battery.current, 'A');
+      add('electrical', 'house_stateOfCharge', battery.stateOfCharge, '%');
+      add('electrical', 'house_power', battery.power, 'W');
+      add('electrical', 'house_temperature', battery.temperature, '°C');
+      add('electrical', 'house_timeRemaining', battery.timeRemaining, 's');
     }
 
     // Propulsion data
     if (data.propulsion?.motor) {
-      const motor = data.propulsion.motor;
-      if (motor.throttle !== undefined) {
-        readings.push({ category: 'propulsion', sensorName: 'motor_throttle', value: motor.throttle, unit: '%' });
-      }
+      add('propulsion', 'motor_throttle', data.propulsion.motor.throttle, '%');
     }
 
     // Tank data — store one row per tank for level (%) and volume (L) so
@@ -1338,12 +1311,8 @@ export class WebSocketServer {
     if (data.tanks) {
       for (const [tankId, tank] of Object.entries(data.tanks)) {
         if (!tank) continue;
-        if (typeof tank.level === 'number') {
-          readings.push({ category: 'tanks', sensorName: `${tankId}_level`, value: tank.level, unit: '%' });
-        }
-        if (typeof tank.volume === 'number') {
-          readings.push({ category: 'tanks', sensorName: `${tankId}_volume`, value: tank.volume, unit: 'L' });
-        }
+        add('tanks', `${tankId}_level`, tank.level, '%');
+        add('tanks', `${tankId}_volume`, tank.volume, 'L');
       }
     }
 

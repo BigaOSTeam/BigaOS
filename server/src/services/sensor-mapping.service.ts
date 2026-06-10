@@ -76,6 +76,21 @@ export class SensorMappingService extends EventEmitter {
   // Latest packet data (from pushSensorDataPacket passthrough)
   private packetData: StandardSensorData | null = null;
   private packetPluginId: string | null = null;
+  private packetReceivedAt: number = 0;
+  private everHadPacket: boolean = false;
+
+  // Last valid GPS fix — held through dropouts so a brief signal loss doesn't
+  // teleport the boat to the 0,0 "no fix" placeholder and back.
+  private lastGoodFix: { latitude: number; longitude: number; timestamp?: Date } | null = null;
+  private lastGoodFixAt: number = 0;
+
+  // After this long without a valid fix, flag the held position as GNSS-lost
+  // (well above the few-second dropouts that are routine while sailing)
+  private readonly GNSS_LOST_MS = 30000;
+
+  // A value older than this is treated as "sensor gone" rather than re-served
+  // as live data (covers senders down to ~0.1Hz without flapping)
+  private readonly SENSOR_STALE_MS = 10000;
 
   // Assembly interval
   private assembleInterval: ReturnType<typeof setInterval> | null = null;
@@ -183,6 +198,21 @@ export class SensorMappingService extends EventEmitter {
   onSensorPacket(event: PluginSensorPacketEvent): void {
     this.packetData = event.data;
     this.packetPluginId = event.pluginId;
+    this.packetReceivedAt = Date.now();
+    this.everHadPacket = true;
+    // Adopt the packet's GPS fix into the held-fix logic so that if this
+    // source dies, the assembled fallback keeps the position and the
+    // GNSS-lost indicator works the same as for slot-based sources.
+    const pos = event.data?.navigation?.position;
+    if (
+      pos &&
+      Number.isFinite(pos.latitude) &&
+      Number.isFinite(pos.longitude) &&
+      !(pos.latitude === 0 && pos.longitude === 0)
+    ) {
+      this.lastGoodFix = { latitude: pos.latitude, longitude: pos.longitude, timestamp: pos.timestamp };
+      this.lastGoodFixAt = Date.now();
+    }
   }
 
   // ================================================================
@@ -197,12 +227,21 @@ export class SensorMappingService extends EventEmitter {
     // If we have a complete packet from a plugin, use it directly
     // (this is the path used by the demo driver)
     if (this.packetData) {
-      this.emit('sensor_data', this.packetData);
-      return;
+      if (Date.now() - this.packetReceivedAt <= this.SENSOR_STALE_MS) {
+        this.emit('sensor_data', this.packetData);
+        return;
+      }
+      // Packet source went silent — drop it so a dead plugin doesn't keep
+      // replaying its last packet as live data; fall through to slot assembly.
+      this.packetData = null;
+      this.packetPluginId = null;
     }
 
-    // Otherwise, assemble from individual slot values
-    if (this.slotValues.size === 0) return;
+    // Otherwise, assemble from individual slot values. Keep emitting after a
+    // packet source dies (everHadPacket) so clients see nulls/GNSS-lost
+    // instead of freezing on the last packet; stay silent only when no data
+    // source has ever produced anything (fresh boot, no plugins).
+    if (this.slotValues.size === 0 && !this.everHadPacket) return;
 
     const assembled = this.buildStandardSensorData();
     this.emit('sensor_data', assembled);
@@ -213,17 +252,57 @@ export class SensorMappingService extends EventEmitter {
    * Supports both combined slots (attitude, wind_apparent) and
    * individual component slots (roll, pitch, yaw, wind_speed_apparent, etc.).
    */
+  /**
+   * Raw slot value, but only if present AND not stale. A sensor that stopped
+   * sending must not have its last value replayed forever as if it were live,
+   * so anything older than SENSOR_STALE_MS reads as "no data" (undefined).
+   */
+  private getFreshRaw(slot: string): any {
+    const entry = this.slotValues.get(slot);
+    if (!entry) return undefined;
+    if (Date.now() - new Date(entry.timestamp).getTime() > this.SENSOR_STALE_MS) return undefined;
+    return entry.value;
+  }
+
+  /** Fresh numeric slot value, or null when absent/stale/non-numeric. */
+  private getFreshNum(slot: string): number | null {
+    const v = this.getFreshRaw(slot);
+    return typeof v === 'number' && Number.isFinite(v) ? v : null;
+  }
+
   private buildStandardSensorData(): StandardSensorData {
+    // NOTE: missing or stale sensors yield null (not a fabricated default), so
+    // a sensor the boat doesn't have — or one that died — surfaces as "no data"
+    // (—) on the UI instead of a plausible-looking fake reading. Position is the
+    // exception: we keep the last fix rather than null it (map math assumes
+    // numeric lat/lon); a nullable-position pass is tracked separately.
     const get = (slot: string) => this.slotValues.get(slot)?.value;
 
-    const position = get('position') || { latitude: 0, longitude: 0, timestamp: new Date() };
-    const sog = get('speed_over_ground') ?? 0;
-    const cog = get('course_over_ground') ?? 0;
+    // GPS: adopt only valid AND fresh fixes; plugins push a 0,0 "no fix"
+    // placeholder on signal loss, and adopting it would teleport the boat
+    // across the chart and trip the anchor alarm. Freshness matters too:
+    // slot values persist, and re-adopting a stale fix every tick would
+    // keep resetting the GNSS-lost clock so the indicator never fires.
+    // lastGoodFix holds the position through dropouts either way.
+    const rawPos = this.getFreshRaw('position');
+    if (
+      rawPos &&
+      Number.isFinite(rawPos.latitude) &&
+      Number.isFinite(rawPos.longitude) &&
+      !(rawPos.latitude === 0 && rawPos.longitude === 0)
+    ) {
+      this.lastGoodFix = rawPos;
+      this.lastGoodFixAt = Date.now();
+    }
+    const position = this.lastGoodFix || { latitude: 0, longitude: 0, timestamp: new Date() };
+    const gnssLost = this.lastGoodFix !== null && Date.now() - this.lastGoodFixAt > this.GNSS_LOST_MS;
+    const sog = this.getFreshNum('speed_over_ground');
+    const cog = this.getFreshNum('course_over_ground');
 
     // Heading: single slot, auto-convert magnetic→true via GPS declination
-    let heading = get('heading') ?? 0;
+    let heading = this.getFreshNum('heading');
     const headingSourceIsMagnetic = this.isHeadingSourceMagnetic();
-    if (headingSourceIsMagnetic && position.latitude !== 0 && position.longitude !== 0) {
+    if (heading !== null && headingSourceIsMagnetic && position.latitude !== 0 && position.longitude !== 0) {
       const declination = getMagneticDeclination(position.latitude, position.longitude);
       heading = heading + declination;
       // Normalize to [0, 2π]
@@ -232,67 +311,81 @@ export class SensorMappingService extends EventEmitter {
     }
 
     // Attitude: try combined slot first, fall back to individual components
-    const attitude = get('attitude') || {
-      roll: get('roll') ?? 0,
-      pitch: get('pitch') ?? 0,
-      yaw: get('yaw') ?? 0,
-    };
-
-    const depth = get('depth') ?? 10;
+    const attitudeRaw = this.getFreshRaw('attitude');
+    const attitude = (attitudeRaw && typeof attitudeRaw === 'object')
+      ? {
+          roll: typeof attitudeRaw.roll === 'number' ? attitudeRaw.roll : null,
+          pitch: typeof attitudeRaw.pitch === 'number' ? attitudeRaw.pitch : null,
+          yaw: typeof attitudeRaw.yaw === 'number' ? attitudeRaw.yaw : null,
+        }
+      : {
+          roll: this.getFreshNum('roll'),
+          pitch: this.getFreshNum('pitch'),
+          yaw: this.getFreshNum('yaw'),
+        };
 
     // Wind: try combined slots first, fall back to individual components
-    const windApparent = get('wind_apparent') || {
-      speed: get('wind_speed_apparent') ?? 0,
-      angle: get('wind_angle_apparent') ?? 0,
-    };
-    const windTrue = get('wind_true') || {
-      speed: get('wind_speed_true') ?? 0,
-      angle: get('wind_angle_true') ?? 0,
-    };
+    const waRaw = this.getFreshRaw('wind_apparent');
+    const wtRaw = this.getFreshRaw('wind_true');
+    const windApparentSpeed = (waRaw && typeof waRaw === 'object')
+      ? (typeof waRaw.speed === 'number' ? waRaw.speed : null)
+      : (typeof waRaw === 'number' ? waRaw : this.getFreshNum('wind_speed_apparent'));
+    const windApparentAngle = (waRaw && typeof waRaw === 'object')
+      ? (typeof waRaw.angle === 'number' ? waRaw.angle : null)
+      : this.getFreshNum('wind_angle_apparent');
+    const windTrueSpeed = (wtRaw && typeof wtRaw === 'object')
+      ? (typeof wtRaw.speed === 'number' ? wtRaw.speed : null)
+      : (typeof wtRaw === 'number' ? wtRaw : this.getFreshNum('wind_speed_true'));
+    const windTrueAngle = (wtRaw && typeof wtRaw === 'object')
+      ? (typeof wtRaw.angle === 'number' ? wtRaw.angle : null)
+      : this.getFreshNum('wind_angle_true');
 
     const navigation: StandardNavigationData = {
       position: { ...position, timestamp: position.timestamp || new Date() },
+      gnssLost,
       courseOverGround: cog,
       speedOverGround: sog,
-      speedThroughWater: get('speed_through_water') ?? 0,
+      speedThroughWater: this.getFreshNum('speed_through_water'),
       heading,
       attitude,
     };
 
     const environment: StandardEnvironmentData = {
       depth: {
-        belowTransducer: depth,
+        belowTransducer: this.getFreshNum('depth'),
       },
       wind: {
-        speedApparent: typeof windApparent === 'object' ? windApparent.speed ?? 0 : windApparent,
-        angleApparent: typeof windApparent === 'object' ? windApparent.angle ?? 0 : 0,
-        speedTrue: typeof windTrue === 'object' ? windTrue.speed ?? 0 : windTrue,
-        angleTrue: typeof windTrue === 'object' ? windTrue.angle ?? 0 : 0,
+        speedApparent: windApparentSpeed,
+        angleApparent: windApparentAngle,
+        speedTrue: windTrueSpeed,
+        angleTrue: windTrueAngle,
       },
       temperature: {
-        engineRoom: get('temperature_engine') ?? 301,
-        cabin: get('temperature_cabin') ?? 295,
-        batteryCompartment: get('temperature_battery') ?? 297,
-        outside: get('temperature_outside') ?? 291,
+        engineRoom: this.getFreshNum('temperature_engine'),
+        cabin: this.getFreshNum('temperature_cabin'),
+        batteryCompartment: this.getFreshNum('temperature_battery'),
+        outside: this.getFreshNum('temperature_outside'),
       },
     };
 
+    const motorStateRaw = this.getFreshRaw('motor_state');
+
     const electrical: StandardElectricalData = {
       battery: {
-        voltage: get('battery_voltage') ?? get('voltage') ?? 12,
-        current: get('battery_current') ?? get('current') ?? 0,
-        temperature: get('battery_temperature') ?? get('temperature') ?? 297,
-        stateOfCharge: get('battery_soc') ?? get('soc') ?? 75,
-        timeRemaining: get('battery_time_remaining') ?? 0,
-        power: get('battery_power') ?? 0,
+        voltage: this.getFreshNum('battery_voltage') ?? this.getFreshNum('voltage'),
+        current: this.getFreshNum('battery_current') ?? this.getFreshNum('current'),
+        temperature: this.getFreshNum('battery_temperature') ?? this.getFreshNum('temperature'),
+        stateOfCharge: this.getFreshNum('battery_soc') ?? this.getFreshNum('soc'),
+        timeRemaining: this.getFreshNum('battery_time_remaining'),
+        power: this.getFreshNum('battery_power'),
       },
     };
 
     const propulsion: StandardPropulsionData = {
       motor: {
-        state: get('motor_state') ?? 'stopped',
-        temperature: get('motor_temperature') ?? 298,
-        throttle: get('motor_throttle') ?? 0,
+        state: motorStateRaw === 'running' || motorStateRaw === 'stopped' ? motorStateRaw : null,
+        temperature: this.getFreshNum('motor_temperature'),
+        throttle: this.getFreshNum('motor_throttle'),
       },
     };
 

@@ -3,13 +3,13 @@ import { useTheme } from '../../../context/ThemeContext';
 import { useLanguage } from '../../../i18n/LanguageContext';
 
 interface BatteryItemProps {
-  voltage: number;
-  temperature: number;
-  stateOfCharge: number;
-  timeRemaining: number;
+  voltage: number | null;
+  temperature: number | null;
+  stateOfCharge: number | null;
+  timeRemaining: number | null;
 }
 
-const formatTimeRemaining = (seconds: number): string => {
+const formatTimeRemaining = (seconds: number | null): string => {
   if (!seconds || seconds <= 0) return '--';
   const d = Math.floor(seconds / 86400);
   const h = Math.floor((seconds % 86400) / 3600);
@@ -52,7 +52,7 @@ export const BatteryItem = React.memo<BatteryItemProps>(({
         color: theme.colors.dataBattery,
         lineHeight: 1,
       }}>
-        {stateOfCharge.toFixed(0)}%
+        {stateOfCharge !== null ? `${stateOfCharge.toFixed(0)}%` : '—'}
       </div>
       <div style={{
         display: 'flex',
@@ -60,11 +60,11 @@ export const BatteryItem = React.memo<BatteryItemProps>(({
         fontSize: 'clamp(9px, 9cqmin, 36px)',
         color: theme.colors.textMuted,
       }}>
-        <span style={{ color: theme.colors.dataWind }}>{voltage.toFixed(1)}V</span>
+        <span style={{ color: theme.colors.dataWind }}>{voltage !== null ? `${voltage.toFixed(1)}V` : '—'}</span>
         <span style={{ opacity: 0.4 }}>|</span>
         <span style={{ color: theme.colors.dataHeading }}>{formatTimeRemaining(timeRemaining)}</span>
         <span style={{ opacity: 0.4 }}>|</span>
-        <span style={{ color: '#ff7043' }}>{temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}</span>
+        <span style={{ color: '#ff7043' }}>{temperature === null || temperature < -200 ? '--' : `${temperature.toFixed(0)}°C`}</span>
       </div>
     </div>
   );

@@ -495,7 +495,7 @@ export const ContextMenu: React.FC<ContextMenuProps> = ({
 };
 
 interface CompassProps {
-  heading: number;
+  heading: number | null;
   bearingToTarget?: number | null; // Bearing to next navigation waypoint
   bearingToMOB?: number | null; // Bearing to a Man Overboard position
 }
@@ -508,8 +508,9 @@ interface CompassProps {
  */
 export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingToTarget: bearingToTargetRad, bearingToMOB: bearingToMOBRad }) => {
   const { theme } = useTheme();
-  // Convert radians to degrees for compass display logic
-  const heading = radToDeg(headingRad);
+  // Convert radians to degrees for compass display logic. No heading data →
+  // dial sits at N (0) but the numeric readout below shows — so it's clear.
+  const heading = radToDeg(headingRad ?? 0);
   const bearingToTarget = bearingToTargetRad != null ? radToDeg(bearingToTargetRad) : bearingToTargetRad;
   const bearingToMOB = bearingToMOBRad != null ? radToDeg(bearingToMOBRad) : bearingToMOBRad;
   const points = [
@@ -553,7 +554,7 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
     <div style={{ width: '100%', textAlign: 'center' }}>
       <div style={{ display: 'inline-block', textAlign: 'center' }}>
         <div style={{ fontSize: '1.4rem', fontWeight: 'bold' }}>
-          {heading.toFixed(0)}°
+          {headingRad !== null ? `${heading.toFixed(0)}°` : '—'}
         </div>
         <div
           style={{
