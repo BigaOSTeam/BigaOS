@@ -44,7 +44,7 @@ const SOURCE_CELL_DEG: Record<GridSource, number> = {
 // Cap the assembled grid per side (matches the contour service's budget).
 const MAX_GRID_DIM = 384;
 
-interface TileInfo {
+export interface TileInfo {
   filePath: string;
   source: DepthSource;
   minLon: number;
@@ -54,7 +54,7 @@ interface TileInfo {
   cellDeg?: number; // custom only: the tile's native cell size
 }
 
-interface CachedTile {
+export interface CachedTile {
   band: ArrayLike<number>;
   width: number;
   height: number;
@@ -85,6 +85,20 @@ export interface DepthBbox {
 // Marker for cells no downloaded tile covers (and for tile nodata). Far outside
 // any real elevation, so the contour builder maps it to its land sentinel.
 const NO_VALUE = 1e7;
+
+/**
+ * Nearest-pixel sample from a cached tile, or null if the point lies outside it
+ * or hits nodata. Shared with the route worker's depth gate, which keeps its
+ * own tile set for synchronous lookups in the A* hot loop.
+ */
+export function sampleCachedTile(tile: CachedTile, lon: number, lat: number): number | null {
+  const px = Math.floor(((lon - tile.minX) / (tile.maxX - tile.minX)) * tile.width);
+  const py = Math.floor(((tile.maxY - lat) / (tile.maxY - tile.minY)) * tile.height);
+  if (px < 0 || px >= tile.width || py < 0 || py >= tile.height) return null;
+  const v = tile.band[py * tile.width + px];
+  if (v == null || !Number.isFinite(v) || (tile.nodata != null && v === tile.nodata)) return null;
+  return v as number;
+}
 
 class DepthTileService {
   private dataDir: string;
@@ -308,12 +322,34 @@ class DepthTileService {
 
   /** Nearest-pixel sample from a cached tile, or null if the point lies outside it. */
   private sample(tile: CachedTile, lon: number, lat: number): number | null {
-    const px = Math.floor(((lon - tile.minX) / (tile.maxX - tile.minX)) * tile.width);
-    const py = Math.floor(((tile.maxY - lat) / (tile.maxY - tile.minY)) * tile.height);
-    if (px < 0 || px >= tile.width || py < 0 || py >= tile.height) return null;
-    const v = tile.band[py * tile.width + px];
-    if (v == null || !Number.isFinite(v) || (tile.nodata != null && v === tile.nodata)) return null;
-    return v as number;
+    return sampleCachedTile(tile, lon, lat);
+  }
+
+  /**
+   * Every indexed tile (all sources) intersecting the bbox — no loads, just the
+   * index. The route worker uses this to preload its own tile set for
+   * synchronous depth gating.
+   */
+  tilesIntersecting(b: DepthBbox): TileInfo[] {
+    const out: TileInfo[] = [];
+    for (const t of this.customTiles) {
+      if (t.minLon < b.east && t.maxLon > b.west && t.minLat < b.north && t.maxLat > b.south) out.push(t);
+    }
+    for (const source of ['emodnet', 'gebco'] as GridSource[]) {
+      const s = SOURCE_TILE_DEG[source];
+      for (let lat = Math.floor(b.south / s) * s; lat < b.north; lat += s) {
+        for (let lon = Math.floor(b.west / s) * s; lon < b.east; lon += s) {
+          const info = this.tileIndex.get(this.tileKey(source, lon, lat));
+          if (info) out.push(info);
+        }
+      }
+    }
+    return out;
+  }
+
+  /** Raw tile load for callers that manage their own tile lifetime (route worker). */
+  loadTileData(info: TileInfo): Promise<CachedTile | null> {
+    return this.loadTile(info);
   }
 
   /** Finest cell size (deg) among custom tiles intersecting the bbox. */

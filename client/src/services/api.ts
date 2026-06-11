@@ -26,8 +26,10 @@ export const navigationAPI = {
   /**
    * Calculate a water-only route between two points
    * Uses longer timeout since pathfinding can take time for complex routes
+   * Pass minSafeDepth (meters, draft + safety margin) to also avoid water
+   * shallower than that wherever downloaded depth data covers the area
    */
-  calculateRoute: (startLat: number, startLon: number, endLat: number, endLon: number) =>
+  calculateRoute: (startLat: number, startLon: number, endLat: number, endLon: number, minSafeDepth?: number) =>
     api.post<{
       success: boolean;
       waypoints: Array<{ lat: number; lon: number }>;
@@ -35,7 +37,14 @@ export const navigationAPI = {
       waypointCount: number;
       crossesLand: boolean;
       failureReason?: string;
-    }>('/navigation/route', { startLat, startLon, endLat, endLon }, { timeout: 120000 }),
+      depth?: {
+        minSafeDepth: number;
+        coverage: 'full' | 'partial' | 'none';
+        shallowestDepth: number | null;
+        startInShallow: boolean;
+        endInShallow: boolean;
+      };
+    }>('/navigation/route', { startLat, startLon, endLat, endLon, minSafeDepth }, { timeout: 120000 }),
 
   /**
    * Check if a direct route crosses land

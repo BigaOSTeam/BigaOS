@@ -13,15 +13,25 @@ type RouteFailureReason =
   | 'START_ON_LAND'
   | 'END_ON_LAND'
   | 'NO_PATH_FOUND'
+  | 'TOO_SHALLOW'
   | 'DISTANCE_TOO_LONG'
   | 'NARROW_CHANNEL'
   | 'MAX_ITERATIONS';
+
+export interface RouteDepthInfo {
+  minSafeDepth: number; // metres the route was gated on (draft + safety margin)
+  coverage: 'full' | 'partial' | 'none';
+  shallowestDepth: number | null; // shallowest known depth along the route (m)
+  startInShallow: boolean;
+  endInShallow: boolean;
+}
 
 interface RouteResult {
   success: boolean;
   waypoints: Array<{ lat: number; lon: number }>;
   distance: number;
   failureReason?: RouteFailureReason;
+  depth?: RouteDepthInfo;
 }
 
 interface PendingRequest {
@@ -156,7 +166,8 @@ class RouteWorkerService {
     startLon: number,
     endLat: number,
     endLon: number,
-    maxIterations: number = 2000000
+    maxIterations: number = 2000000,
+    minSafeDepth?: number
   ): Promise<RouteResult> {
     if (!this.initialized || !this.worker) {
       console.warn('[RouteWorker] Worker not available, returning direct route');
@@ -178,7 +189,7 @@ class RouteWorkerService {
       this.worker!.postMessage({
         type: 'findRoute',
         id,
-        data: { startLat, startLon, endLat, endLon, maxIterations }
+        data: { startLat, startLon, endLat, endLon, maxIterations, minSafeDepth }
       });
 
       // Allow up to 3 minutes for complex route calculations

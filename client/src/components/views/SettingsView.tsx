@@ -836,6 +836,53 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
         />
       </div>
 
+      {/* Depth-Aware Routing Section */}
+      <SSection style={{ marginTop: theme.space.lg }}>{t('vessel.depth_routing')}</SSection>
+
+      <SCard style={{ marginBottom: theme.space.md }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <div style={{ fontWeight: theme.fontWeight.medium, marginBottom: theme.space.xs, fontSize: theme.fontSize.sm }}>
+              {t('vessel.depth_routing_toggle')}
+            </div>
+            <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>
+              {t('vessel.depth_routing_desc')}
+            </div>
+          </div>
+          <SToggle
+            checked={vesselSettings.depthRoutingEnabled}
+            onChange={(v) => setVesselSettings({ ...vesselSettings, depthRoutingEnabled: v })}
+          />
+        </div>
+      </SCard>
+
+      {vesselSettings.depthRoutingEnabled && (
+        <>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+            {renderVesselNumberInput(t('vessel.safety_margin'), vesselSettings.depthSafetyMargin, (v) => setVesselSettings({ ...vesselSettings, depthSafetyMargin: v }), t('units.meters'), 0, true)}
+            <div style={{
+              background: theme.colors.bgCard,
+              borderRadius: '6px',
+              padding: '0.6rem',
+              textAlign: 'center',
+              alignSelf: 'end',
+            }}>
+              <div style={{ fontSize: theme.fontSize.xs, color: theme.colors.textMuted }}>{t('vessel.min_safe_depth')}</div>
+              <div style={{ fontSize: '1.1rem', fontWeight: theme.fontWeight.bold }}>
+                {vesselSettings.draft > 0
+                  ? `${(vesselSettings.draft + vesselSettings.depthSafetyMargin).toFixed(1)} ${t('units.meters')}`
+                  : '—'}
+              </div>
+            </div>
+          </div>
+          {vesselSettings.draft <= 0 && (
+            <SInfoBox style={{ marginBottom: theme.space.md }}>{t('vessel.depth_routing_no_draft')}</SInfoBox>
+          )}
+        </>
+      )}
+
+      <SInfoBox style={{ marginBottom: theme.space.md }}>{t('vessel.depth_routing_note')}</SInfoBox>
+
       <SInfoBox>{t('vessel.why_matters')}</SInfoBox>
     </div>
   );

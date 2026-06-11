@@ -34,6 +34,7 @@ export const CONFIG_BUNDLE_VERSION = 2;
 const UNDERWAY_SETTING_KEYS = new Set<string>([
   'routeWaypoints',
   'navigationTarget',
+  'routeDepthInfo',
 ]);
 
 export interface ConfigBundlePlugin {

@@ -11,7 +11,7 @@ class NavigationController {
    */
   async calculateRoute(req: Request, res: Response) {
     try {
-      const { startLat, startLon, endLat, endLon } = req.body;
+      const { startLat, startLon, endLat, endLon, minSafeDepth } = req.body;
 
       if (
         typeof startLat !== 'number' ||
@@ -23,6 +23,13 @@ class NavigationController {
           error: 'Invalid parameters. Required: startLat, startLon, endLat, endLon (all numbers)'
         });
       }
+
+      // Optional depth gate (metres = draft + safety margin). Anything not a
+      // sensible positive number disables it rather than erroring.
+      const safeDepth =
+        typeof minSafeDepth === 'number' && Number.isFinite(minSafeDepth) && minSafeDepth > 0
+          ? Math.min(minSafeDepth, 50)
+          : undefined;
 
       // Check if navigation data is loaded
       if (!waterDetectionService.hasNavigationData()) {
@@ -58,14 +65,17 @@ class NavigationController {
         });
       }
 
-      const result = await routeWorkerService.findWaterRoute(startLat, startLon, endLat, endLon);
+      const result = await routeWorkerService.findWaterRoute(
+        startLat, startLon, endLat, endLon, undefined, safeDepth
+      );
       res.json({
         success: result.success,
         waypoints: result.waypoints,
         distance: result.distance,
         waypointCount: result.waypoints.length,
         crossesLand: !result.success || result.waypoints.length > 2,
-        failureReason: result.failureReason
+        failureReason: result.failureReason,
+        depth: result.depth
       });
     } catch (error) {
       console.error('Route calculation error:', error);

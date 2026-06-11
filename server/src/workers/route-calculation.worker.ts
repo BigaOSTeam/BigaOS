@@ -8,6 +8,7 @@
 
 import { parentPort } from 'worker_threads';
 import { geoTiffWaterService, GeoTiffWaterType } from '../services/geotiff-water.service';
+import { depthTileService, sampleCachedTile, TileInfo, CachedTile } from '../services/depth-tile.service';
 
 type WaterType = 'ocean' | 'lake' | 'land';
 
@@ -15,9 +16,158 @@ type RouteFailureReason =
   | 'START_ON_LAND'
   | 'END_ON_LAND'
   | 'NO_PATH_FOUND'
+  | 'TOO_SHALLOW'
   | 'DISTANCE_TOO_LONG'
   | 'NARROW_CHANNEL'
   | 'MAX_ITERATIONS';
+
+/** Depth-gating summary returned alongside a calculated route. */
+interface RouteDepthInfo {
+  minSafeDepth: number; // metres the route was gated on (draft + safety margin)
+  coverage: 'full' | 'partial' | 'none'; // how much of the route has depth data
+  shallowestDepth: number | null; // shallowest known depth along the route (m)
+  startInShallow: boolean; // known depth at the start is below minSafeDepth
+  endInShallow: boolean; // known depth at the destination is below minSafeDepth
+}
+
+// Elevation outside this range is nodata/garbage (mirrors the contour service).
+const DEPTH_MIN_VALID_M = -12000;
+const DEPTH_MAX_VALID_M = 9000;
+// Depth data (~115 m cells offshore) is least reliable exactly where the boat
+// must go — berths, anchorages, marina entrances. Within this radius of the
+// start/end the water mask alone governs, so a reachable destination in a
+// shallow bay doesn't make the whole route fail.
+const ENDPOINT_GRACE_NM = 0.25;
+// Memory bound for preloaded depth tiles (worst case ~10 MB each).
+const MAX_GATE_TILES = 32;
+
+/**
+ * DepthGate — synchronous "is this cell deep enough?" lookups for the A* loop.
+ *
+ * Preloads every downloaded depth tile intersecting the search bounds (custom
+ * lake imports first, then EMODnet ~115 m, then GEBCO ~450 m; finest source
+ * wins per sample, falling through on nodata). Cells with no depth data are
+ * NOT blocked — routing falls back to the water mask there and the route
+ * reports partial/none coverage instead of fabricating safety.
+ */
+class DepthGate {
+  readonly minSafeDepthM: number;
+  blockedCells = 0;
+  private endpoints: Array<{ lat: number; lon: number }>;
+  private customLoaded: Array<{ info: TileInfo; data: CachedTile }> = [];
+  private gridLoaded = new Map<string, CachedTile>(); // `${source}:${minLat},${minLon}`
+  private seenPaths = new Set<string>();
+
+  constructor(minSafeDepthM: number, start: { lat: number; lon: number }, end: { lat: number; lon: number }) {
+    this.minSafeDepthM = minSafeDepthM;
+    this.endpoints = [start, end];
+  }
+
+  /** Load tiles for (possibly expanded) bounds; already-loaded tiles are kept. */
+  async prepare(bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number }): Promise<void> {
+    const fresh = depthTileService
+      .tilesIntersecting({ west: bounds.minLon, south: bounds.minLat, east: bounds.maxLon, north: bounds.maxLat })
+      .filter((t) => !this.seenPaths.has(t.filePath));
+    if (fresh.length === 0) return;
+
+    const slots = MAX_GATE_TILES - this.seenPaths.size;
+    let toLoad = fresh;
+    if (fresh.length > slots) {
+      // Keep the tiles nearest the route when over budget.
+      const refs = [
+        ...this.endpoints,
+        {
+          lat: (this.endpoints[0].lat + this.endpoints[1].lat) / 2,
+          lon: (this.endpoints[0].lon + this.endpoints[1].lon) / 2,
+        },
+      ];
+      const score = (t: TileInfo) => {
+        const cLat = (t.minLat + t.maxLat) / 2;
+        const cLon = (t.minLon + t.maxLon) / 2;
+        return Math.min(...refs.map((r) => fastDistance(cLat, cLon, r.lat, r.lon)));
+      };
+      toLoad = [...fresh].sort((a, b) => score(a) - score(b)).slice(0, Math.max(0, slots));
+      console.warn(`[DepthGate] Tile budget reached: loading ${toLoad.length} of ${fresh.length} new tiles`);
+    }
+
+    for (const info of toLoad) {
+      this.seenPaths.add(info.filePath);
+      const data = await depthTileService.loadTileData(info);
+      if (!data) continue;
+      if (info.source === 'custom') {
+        this.customLoaded.push({ info, data });
+        // Smallest-area first so overlapping imports prefer the local one.
+        this.customLoaded.sort(
+          (a, b) =>
+            (a.info.maxLon - a.info.minLon) * (a.info.maxLat - a.info.minLat) -
+            (b.info.maxLon - b.info.minLon) * (b.info.maxLat - b.info.minLat)
+        );
+      } else {
+        this.gridLoaded.set(`${info.source}:${info.minLat},${info.minLon}`, data);
+      }
+    }
+    if (toLoad.length > 0) {
+      console.log(`[DepthGate] ${this.customLoaded.length + this.gridLoaded.size} depth tiles loaded (min safe depth ${this.minSafeDepthM}m)`);
+    }
+  }
+
+  hasAnyData(): boolean {
+    return this.customLoaded.length > 0 || this.gridLoaded.size > 0;
+  }
+
+  /** Water depth in metres (positive down) at a point, or null where no loaded tile has data. */
+  depthAt(lat: number, lon: number): number | null {
+    for (const t of this.customLoaded) {
+      if (lon >= t.info.minLon && lon < t.info.maxLon && lat >= t.info.minLat && lat < t.info.maxLat) {
+        const v = sampleCachedTile(t.data, lon, lat);
+        if (v != null && v > DEPTH_MIN_VALID_M && v < DEPTH_MAX_VALID_M) return -v;
+      }
+    }
+    for (const source of ['emodnet', 'gebco'] as const) {
+      const size = source === 'emodnet' ? 2 : 10;
+      const tile = this.gridLoaded.get(`${source}:${Math.floor(lat / size) * size},${Math.floor(lon / size) * size}`);
+      if (!tile) continue;
+      const v = sampleCachedTile(tile, lon, lat);
+      if (v != null && v > DEPTH_MIN_VALID_M && v < DEPTH_MAX_VALID_M) return -v;
+    }
+    return null;
+  }
+
+  /** True when routing must treat the cell as blocked: depth known and shallower than the safe depth, outside the endpoint grace radius. */
+  blocksRouting(lat: number, lon: number): boolean {
+    const d = this.depthAt(lat, lon);
+    if (d == null || d >= this.minSafeDepthM) return false;
+    for (const p of this.endpoints) {
+      if (fastDistance(lat, lon, p.lat, p.lon) <= ENDPOINT_GRACE_NM) return false;
+    }
+    this.blockedCells++;
+    return true;
+  }
+
+  /**
+   * A gated route can only reach an endpoint through its grace disk. When the
+   * ring of water just outside the grace radius is entirely known-shallow (no
+   * deep and no unknown cells), the endpoint is provably sealed — fail fast
+   * instead of letting A* flood the whole bank until MAX_ITERATIONS.
+   */
+  isEndpointSealed(cLat: number, cLon: number, gridSize: number, isWaterFn: (lat: number, lon: number) => boolean): boolean {
+    const innerNm = ENDPOINT_GRACE_NM;
+    const outerNm = ENDPOINT_GRACE_NM + 3 * gridSize * 60; // ring 3 cells wide
+    const outerDeg = outerNm / 60 / Math.max(0.2, Math.cos((cLat * Math.PI) / 180));
+    let sawWater = false;
+    for (let lat = cLat - outerDeg; lat <= cLat + outerDeg; lat += gridSize) {
+      for (let lon = cLon - outerDeg; lon <= cLon + outerDeg; lon += gridSize) {
+        const distNm = fastDistance(cLat, cLon, lat, lon);
+        if (distNm <= innerNm || distNm > outerNm) continue;
+        if (!isWaterFn(lat, lon)) continue; // land seals on its own
+        sawWater = true;
+        const d = this.depthAt(lat, lon);
+        if (d == null || d >= this.minSafeDepthM) return false; // a way in (or unknowable)
+      }
+    }
+    return sawWater; // every water cell in the ring is known-shallow
+  }
+}
 
 /**
  * Binary Min-Heap Priority Queue for O(log n) insert/extract operations
@@ -95,7 +245,9 @@ class PriorityQueue<T> {
  */
 class DistanceField {
   private grid: Map<number, number> = new Map(); // key -> distance in grid units
-  private waterGrid: Map<number, boolean> = new Map(); // key -> isWater (cached)
+  // key -> navigable (water, and deep enough when a depth gate is active)
+  private waterGrid: Map<number, boolean> = new Map();
+  private gate: DepthGate | null;
   private bounds: { minLat: number; maxLat: number; minLon: number; maxLon: number };
   private gridSize: number;
   private invGridSize: number;
@@ -119,7 +271,8 @@ class DistanceField {
     endLat: number,
     endLon: number,
     gridSize: number,
-    maxDistance: number = 50 // ~4.5km at 90m grid
+    maxDistance: number = 50, // ~4.5km at 90m grid
+    gate: DepthGate | null = null
   ) {
     this.startLat = startLat;
     this.startLon = startLon;
@@ -129,6 +282,7 @@ class DistanceField {
     this.invGridSize = 1 / gridSize;
     this.maxDistance = maxDistance;
     this.currentMargin = DistanceField.INITIAL_MARGIN;
+    this.gate = gate;
 
     this.bounds = this.calculateBounds(this.currentMargin);
   }
@@ -149,7 +303,10 @@ class DistanceField {
   }
 
   /**
-   * Check if a coordinate is water (with caching)
+   * Check if a coordinate is navigable (water — and, with a depth gate, deep
+   * enough), with caching. Shallow cells become obstacles exactly like land,
+   * so the distance transform, proximity penalties and jump-safety radii all
+   * keep the route clear of them.
    */
   private checkWater(lat: number, lon: number): boolean {
     const key = this.getKey(lat, lon);
@@ -159,9 +316,9 @@ class DistanceField {
     }
 
     const geoType = geoTiffWaterService.getWaterTypeSync(lon, lat);
-    const isWater = geoType !== 'land';
-    this.waterGrid.set(key, isWater);
-    return isWater;
+    const navigable = geoType !== 'land' && !(this.gate?.blocksRouting(lat, lon) ?? false);
+    this.waterGrid.set(key, navigable);
+    return navigable;
   }
 
   /**
@@ -177,6 +334,11 @@ class DistanceField {
       this.bounds.maxLon,
       this.bounds.maxLat
     );
+
+    // Depth tiles too, so every navigability check below is a sync lookup
+    if (this.gate) {
+      await this.gate.prepare(this.bounds);
+    }
 
     this.grid.clear();
     // Keep waterGrid cache - it's still valid
@@ -373,20 +535,10 @@ class DistanceField {
   }
 
   /**
-   * Check if a coordinate is water using the cached waterGrid (faster than global isWater)
+   * Check if a coordinate is navigable using the cached waterGrid (faster than global isWater)
    */
   isWaterCached(lat: number, lon: number): boolean {
-    const key = this.getKey(lat, lon);
-
-    if (this.waterGrid.has(key)) {
-      return this.waterGrid.get(key)!;
-    }
-
-    // Fall back to GeoTIFF check and cache the result
-    const geoType = geoTiffWaterService.getWaterTypeSync(lon, lat);
-    const water = geoType !== 'land';
-    this.waterGrid.set(key, water);
-    return water;
+    return this.checkWater(lat, lon);
   }
 
   /**
@@ -449,9 +601,21 @@ async function initialize(): Promise<void> {
 
   console.log('[Worker] Initializing GeoTIFF water service...');
   await geoTiffWaterService.initialize();
+  // Index (not load) downloaded depth tiles for depth-aware routing
+  await depthTileService.initialize();
   initialized = true;
   const stats = geoTiffWaterService.getStats();
   console.log(`[Worker] GeoTIFF water service ready: ${stats.tileCount} tiles`);
+}
+
+// Depth gate for the route currently being calculated (one request at a time).
+// Kept module-level so the standalone helpers below honour it without changing
+// the pure isWater cache, which stays valid across requests.
+let activeGate: DepthGate | null = null;
+
+/** Water AND (when depth-gated) deep enough — the per-point passability test. */
+function isNavigable(lat: number, lon: number): boolean {
+  return isWater(lat, lon) && !(activeGate?.blocksRouting(lat, lon) ?? false);
 }
 
 /**
@@ -514,7 +678,7 @@ function calculateDistance(lat1: number, lon1: number, lat2: number, lon2: numbe
 }
 
 /**
- * Find a nearby water cell on the grid
+ * Find a nearby navigable cell on the grid
  */
 function findNearbyWaterCell(
   lat: number,
@@ -525,7 +689,7 @@ function findNearbyWaterCell(
   const snappedLat = Math.round(lat / gridSize) * gridSize;
   const snappedLon = Math.round(lon / gridSize) * gridSize;
 
-  if (isWater(snappedLat, snappedLon)) {
+  if (isNavigable(snappedLat, snappedLon)) {
     return { lat: snappedLat, lon: snappedLon };
   }
 
@@ -537,7 +701,7 @@ function findNearbyWaterCell(
         const testLat = snappedLat + dLat * gridSize;
         const testLon = snappedLon + dLon * gridSize;
 
-        if (isWater(testLat, testLon)) {
+        if (isNavigable(testLat, testLon)) {
           return { lat: testLat, lon: testLon };
         }
       }
@@ -548,7 +712,7 @@ function findNearbyWaterCell(
 }
 
 /**
- * Check if a direct line between two points crosses land (fine-grained check)
+ * Check if a direct line between two points stays navigable (fine-grained check)
  */
 function isDirectRouteWater(lat1: number, lon1: number, lat2: number, lon2: number): boolean {
   const distMeters = calculateDistance(lat1, lon1, lat2, lon2) * 1852;
@@ -558,7 +722,7 @@ function isDirectRouteWater(lat1: number, lon1: number, lat2: number, lon2: numb
     const t = i / checkPoints;
     const lat = lat1 + t * (lat2 - lat1);
     const lon = lon1 + t * (lon2 - lon1);
-    if (!isWater(lat, lon)) {
+    if (!isNavigable(lat, lon)) {
       return false;
     }
   }
@@ -616,17 +780,92 @@ interface AStarNode {
   key: number;
 }
 
+interface RouteCalcResult {
+  success: boolean;
+  waypoints: Array<{ lat: number; lon: number }>;
+  distance: number;
+  failureReason?: RouteFailureReason;
+  depth?: RouteDepthInfo;
+}
+
 /**
- * Find a water-only route between two points using optimized A* pathfinding
+ * Sample depth along a finished route (~100 m steps) for the coverage report:
+ * how much of it had depth data, and the shallowest known spot.
+ */
+function buildDepthInfo(
+  gate: DepthGate,
+  waypoints: Array<{ lat: number; lon: number }>,
+  startLat: number,
+  startLon: number,
+  endLat: number,
+  endLon: number
+): RouteDepthInfo {
+  let known = 0;
+  let unknown = 0;
+  let shallowest: number | null = null;
+  const STEP_NM = 0.054; // ~100 m
+  for (let i = 1; i < waypoints.length; i++) {
+    const a = waypoints[i - 1];
+    const b = waypoints[i];
+    const legNm = calculateDistance(a.lat, a.lon, b.lat, b.lon);
+    const steps = Math.min(800, Math.max(1, Math.ceil(legNm / STEP_NM)));
+    for (let s = 0; s <= steps; s++) {
+      const t = s / steps;
+      const d = gate.depthAt(a.lat + t * (b.lat - a.lat), a.lon + t * (b.lon - a.lon));
+      if (d == null) {
+        unknown++;
+      } else {
+        known++;
+        if (shallowest == null || d < shallowest) shallowest = d;
+      }
+    }
+  }
+  // Endpoint pixels are often nodata in the source data (berths sit on "land"
+  // cells at 115 m resolution) — don't let a sliver downgrade full coverage.
+  const coverage: RouteDepthInfo['coverage'] =
+    known === 0 ? 'none' : unknown / (known + unknown) < 0.02 ? 'full' : 'partial';
+  const dStart = gate.depthAt(startLat, startLon);
+  const dEnd = gate.depthAt(endLat, endLon);
+  return {
+    minSafeDepth: gate.minSafeDepthM,
+    coverage,
+    shallowestDepth: shallowest,
+    startInShallow: dStart != null && dStart < gate.minSafeDepthM,
+    endInShallow: dEnd != null && dEnd < gate.minSafeDepthM,
+  };
+}
+
+/**
+ * Find a water-only route between two points using optimized A* pathfinding.
+ * With `minSafeDepth` set (metres, draft + safety margin), cells with known
+ * depth shallower than it are treated as obstacles wherever downloaded depth
+ * tiles cover the area; uncovered cells stay passable and are reported via
+ * the result's depth coverage instead.
  */
 async function findWaterRoute(
   startLat: number,
   startLon: number,
   endLat: number,
   endLon: number,
-  maxIterations: number = 2000000
-): Promise<{ success: boolean; waypoints: Array<{ lat: number; lon: number }>; distance: number; failureReason?: RouteFailureReason }> {
-  console.log(`[Worker] Route request: (${startLat.toFixed(5)}, ${startLon.toFixed(5)}) -> (${endLat.toFixed(5)}, ${endLon.toFixed(5)})`);
+  maxIterations: number = 2000000,
+  minSafeDepth?: number
+): Promise<RouteCalcResult> {
+  try {
+    return await findWaterRouteImpl(startLat, startLon, endLat, endLon, maxIterations, minSafeDepth);
+  } finally {
+    activeGate = null;
+  }
+}
+
+async function findWaterRouteImpl(
+  startLat: number,
+  startLon: number,
+  endLat: number,
+  endLon: number,
+  maxIterations: number,
+  minSafeDepth?: number
+): Promise<RouteCalcResult> {
+  console.log(`[Worker] Route request: (${startLat.toFixed(5)}, ${startLon.toFixed(5)}) -> (${endLat.toFixed(5)}, ${endLon.toFixed(5)})${minSafeDepth ? `, min safe depth ${minSafeDepth}m` : ''}`);
 
   // Check distance limit FIRST before any expensive operations
   const totalDistance = calculateDistance(startLat, startLon, endLat, endLon);
@@ -644,9 +883,17 @@ async function findWaterRoute(
   const gridSize = 0.0008;
   const invGridSize = 1 / gridSize;
 
+  // Depth gate (draft + safety margin). Created even when no depth pack covers
+  // the area so the result can report coverage: 'none' honestly.
+  const gate =
+    minSafeDepth != null && Number.isFinite(minSafeDepth) && minSafeDepth > 0
+      ? new DepthGate(minSafeDepth, { lat: startLat, lon: startLon }, { lat: endLat, lon: endLon })
+      : null;
+  activeGate = gate;
+
   // Build the distance field for land proximity calculations
   // maxDistance of 50 grid units = ~4.5km detection radius
-  const distanceField = new DistanceField(startLat, startLon, endLat, endLon, gridSize, 50);
+  const distanceField = new DistanceField(startLat, startLon, endLat, endLon, gridSize, 50, gate);
   await distanceField.build();
   console.log(`[Worker] Distance field ready:`, distanceField.getStats());
 
@@ -674,17 +921,45 @@ async function findWaterRoute(
     };
   }
 
+  // FAIL FAST for depth gating: an endpoint surrounded by known-shallow water
+  // beyond its grace radius can never be reached — say so immediately instead
+  // of flooding the search space.
+  if (gate) {
+    const startSealed = gate.isEndpointSealed(startLat, startLon, gridSize, isWater);
+    const endSealed = !startSealed && gate.isEndpointSealed(endLat, endLon, gridSize, isWater);
+    if (startSealed || endSealed) {
+      console.warn(`[Worker] ${startSealed ? 'Start' : 'End'} point is sealed by water shallower than ${gate.minSafeDepthM}m`);
+      const dStart = gate.depthAt(startLat, startLon);
+      const dEnd = gate.depthAt(endLat, endLon);
+      return {
+        success: false,
+        waypoints: [{ lat: startLat, lon: startLon }, { lat: endLat, lon: endLon }],
+        distance: calculateDistance(startLat, startLon, endLat, endLon),
+        failureReason: 'TOO_SHALLOW',
+        depth: {
+          minSafeDepth: gate.minSafeDepthM,
+          coverage: 'partial',
+          shallowestDepth: null,
+          startInShallow: dStart != null && dStart < gate.minSafeDepthM,
+          endInShallow: dEnd != null && dEnd < gate.minSafeDepthM,
+        }
+      };
+    }
+  }
+
   // EARLY TERMINATION: Check if direct path is safe using distance field
   // This is much faster than A* for open water routes
   if (distanceField.isDirectPathSafe(startLat, startLon, endLat, endLon)) {
     console.log(`[Worker] Direct route is clear (distance field check)`);
+    const directWaypoints = [
+      { lat: startLat, lon: startLon },
+      { lat: endLat, lon: endLon }
+    ];
     return {
       success: true,
-      waypoints: [
-        { lat: startLat, lon: startLon },
-        { lat: endLat, lon: endLon }
-      ],
-      distance: calculateDistance(startLat, startLon, endLat, endLon)
+      waypoints: directWaypoints,
+      distance: calculateDistance(startLat, startLon, endLat, endLon),
+      depth: gate ? buildDepthInfo(gate, directWaypoints, startLat, startLon, endLat, endLon) : undefined
     };
   }
 
@@ -1054,7 +1329,7 @@ async function findWaterRoute(
     // Validate and adjust waypoints that might be too close to land
     const validated: Array<{ lat: number; lon: number }> = [];
     for (const waypoint of simplified) {
-      if (isWater(waypoint.lat, waypoint.lon)) {
+      if (isNavigable(waypoint.lat, waypoint.lon)) {
         validated.push(waypoint);
       } else {
         // Waypoint ended up on land - try to find nearby water
@@ -1079,7 +1354,12 @@ async function findWaterRoute(
     }
 
     console.log(`[Worker] Water route found: ${validated.length} waypoints, ${totalDist.toFixed(1)} NM, ${iterations} iterations`);
-    return { success: true, waypoints: validated, distance: totalDist };
+    return {
+      success: true,
+      waypoints: validated,
+      distance: totalDist,
+      depth: gate ? buildDepthInfo(gate, validated, startLat, startLon, endLat, endLon) : undefined
+    };
   }
 
   // Determine the most likely failure reason
@@ -1095,6 +1375,17 @@ async function findWaterRoute(
   } else {
     // General pathfinding failure - land blocks the route
     failureReason = 'NO_PATH_FOUND';
+  }
+
+  // When depth gating actually blocked cells, the shallow constraint is the
+  // likely culprit — tell the user so they can adjust draft/margin instead of
+  // puzzling over a "no path" error.
+  if (
+    gate &&
+    gate.blockedCells > 0 &&
+    (failureReason === 'NO_PATH_FOUND' || failureReason === 'NARROW_CHANNEL')
+  ) {
+    failureReason = 'TOO_SHALLOW';
   }
 
   console.warn(`[Worker] Pathfinding failed after ${iterations} iterations: ${failureReason}`);
@@ -1121,8 +1412,8 @@ if (parentPort) {
         await initialize();
         parentPort!.postMessage({ id: message.id, success: true });
       } else if (message.type === 'findRoute') {
-        const { startLat, startLon, endLat, endLon, maxIterations } = message.data;
-        const result = await findWaterRoute(startLat, startLon, endLat, endLon, maxIterations);
+        const { startLat, startLon, endLat, endLon, maxIterations, minSafeDepth } = message.data;
+        const result = await findWaterRoute(startLat, startLon, endLat, endLon, maxIterations, minSafeDepth);
         parentPort!.postMessage({ id: message.id, success: true, result });
       }
     } catch (error) {

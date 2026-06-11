@@ -283,6 +283,15 @@ export const ChartView = React.memo<ChartViewProps>(({
   const [routeWaypoints, setRouteWaypoints] = useBoatSetting<
     Array<{ lat: number; lon: number }>
   >('routeWaypoints', []);
+  // Depth gating summary for the active route (boat-wide, like the route
+  // itself). Null when the route was calculated without depth-aware routing.
+  const [routeDepthInfo, setRouteDepthInfo] = useBoatSetting<{
+    minSafeDepth: number;
+    coverage: 'full' | 'partial' | 'none';
+    shallowestDepth: number | null;
+    startInShallow: boolean;
+    endInShallow: boolean;
+  } | null>('routeDepthInfo', null);
   const [routeLoading, setRouteLoading] = useState(false);
 
   // Autopilot state
@@ -434,6 +443,16 @@ export const ChartView = React.memo<ChartViewProps>(({
             t('chart.route_timeout_s3')
           ]
         };
+      case 'TOO_SHALLOW':
+        return {
+          title: t('chart.route_too_shallow_title'),
+          message: t('chart.route_too_shallow_msg'),
+          suggestions: [
+            t('chart.route_too_shallow_s1'),
+            t('chart.route_too_shallow_s2'),
+            t('chart.route_too_shallow_s3')
+          ]
+        };
       default:
         return {
           title: t('chart.route_failed_title'),
@@ -456,11 +475,19 @@ export const ChartView = React.memo<ChartViewProps>(({
     setRouteLoading(true);
     setRouteError(null);
     try {
+      // Depth-aware routing: avoid water shallower than draft + safety margin
+      // (only when enabled and a draft is configured — no draft, no gate).
+      const minSafeDepth =
+        vesselSettings.depthRoutingEnabled && vesselSettings.draft > 0
+          ? vesselSettings.draft + Math.max(0, vesselSettings.depthSafetyMargin)
+          : undefined;
+
       const response = await navigationAPI.calculateRoute(
         startLat,
         startLon,
         endLat,
-        endLon
+        endLon,
+        minSafeDepth
       );
 
       // Check if route calculation failed with a reason
@@ -477,6 +504,7 @@ export const ChartView = React.memo<ChartViewProps>(({
       }
 
       setRouteWaypoints(response.data.waypoints);
+      setRouteDepthInfo(response.data.depth ?? null);
     } catch (error: unknown) {
       console.error('Failed to calculate route:', error);
 
@@ -495,10 +523,11 @@ export const ChartView = React.memo<ChartViewProps>(({
         { lat: startLat, lon: startLon },
         { lat: endLat, lon: endLon },
       ]);
+      setRouteDepthInfo(null);
     } finally {
       setRouteLoading(false);
     }
-  }, []);
+  }, [vesselSettings]);
 
   // Markers / routes / navigation target are persisted via BoatSettings; no
   // local persistence layer is needed. We still clear waypoints when the
@@ -507,7 +536,10 @@ export const ChartView = React.memo<ChartViewProps>(({
     if (!navigationTarget && routeWaypoints.length > 0) {
       setRouteWaypoints([]);
     }
-  }, [navigationTarget, routeWaypoints.length, setRouteWaypoints]);
+    if (!navigationTarget && routeDepthInfo) {
+      setRouteDepthInfo(null);
+    }
+  }, [navigationTarget, routeWaypoints.length, setRouteWaypoints, routeDepthInfo, setRouteDepthInfo]);
 
   // Smooth heading transition function
   const smoothTransitionToHeading = useCallback((targetHeading: number) => {
@@ -2251,52 +2283,79 @@ export const ChartView = React.memo<ChartViewProps>(({
                   cursor: 'pointer',
                   boxShadow: '0 2px 8px rgba(0,0,0,0.3)',
                   display: 'flex',
+                  flexDirection: 'column',
                   alignItems: 'center',
-                  gap: '0.5rem',
+                  gap: '0.25rem',
                 }}
               >
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <circle cx="5" cy="18" r="3" fill="currentColor" />
-                  <line x1="8" y1="16" x2="16" y2="8" strokeDasharray="3 3" />
-                  <path d="M19 3c-3.5 0-5 2.5-5 5s2.5 5 5 5 5-2.5 5-5-1.5-5-5-5z" fill="none" stroke="none" />
-                  <path d="M19 2a4 4 0 0 0-4 4c0 3 4 6 4 6s4-3 4-6a4 4 0 0 0-4-4z" fill="currentColor" stroke="none" />
-                  <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
-                </svg>
-                {navigationTarget.name && (
-                  <>
-                    <span>{navigationTarget.name}</span>
-                    <span style={{ opacity: 0.7 }}>|</span>
-                  </>
-                )}
-                <span>
-                  {convertedDistance.toFixed(convertedDistance < 10 ? 2 : 1)}{' '}
-                  {distanceConversions[distanceUnit].label}
-                </span>
-                <span style={{ opacity: 0.7 }}>|</span>
-                <span>{formatETA(etaHours)}</span>
-                <svg
-                  width="18"
-                  height="18"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  style={{ opacity: 0.7, marginLeft: '0.25rem' }}
-                >
-                  <line x1="18" y1="6" x2="6" y2="18" />
-                  <line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <circle cx="5" cy="18" r="3" fill="currentColor" />
+                    <line x1="8" y1="16" x2="16" y2="8" strokeDasharray="3 3" />
+                    <path d="M19 3c-3.5 0-5 2.5-5 5s2.5 5 5 5 5-2.5 5-5-1.5-5-5-5z" fill="none" stroke="none" />
+                    <path d="M19 2a4 4 0 0 0-4 4c0 3 4 6 4 6s4-3 4-6a4 4 0 0 0-4-4z" fill="currentColor" stroke="none" />
+                    <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
+                  </svg>
+                  {navigationTarget.name && (
+                    <>
+                      <span>{navigationTarget.name}</span>
+                      <span style={{ opacity: 0.7 }}>|</span>
+                    </>
+                  )}
+                  <span>
+                    {convertedDistance.toFixed(convertedDistance < 10 ? 2 : 1)}{' '}
+                    {distanceConversions[distanceUnit].label}
+                  </span>
+                  <span style={{ opacity: 0.7 }}>|</span>
+                  <span>{formatETA(etaHours)}</span>
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ opacity: 0.7, marginLeft: '0.25rem' }}
+                  >
+                    <line x1="18" y1="6" x2="6" y2="18" />
+                    <line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </div>
+                {/* Depth-aware routing status (only when the route was depth-gated) */}
+                {routeDepthInfo && (() => {
+                  const fmtDepth = `${convertDepth(routeDepthInfo.minSafeDepth).toFixed(1)} ${depthUnit}`;
+                  const warn = routeDepthInfo.coverage === 'none' || routeDepthInfo.endInShallow;
+                  const text =
+                    routeDepthInfo.coverage === 'none'
+                      ? t('chart.route_depth_none')
+                      : routeDepthInfo.endInShallow
+                        ? t('chart.route_depth_shallow_end', { depth: fmtDepth })
+                        : routeDepthInfo.coverage === 'full'
+                          ? t('chart.route_depth_ok', { depth: fmtDepth })
+                          : t('chart.route_depth_partial', { depth: fmtDepth });
+                  return (
+                    <div
+                      style={{
+                        fontSize: '0.7rem',
+                        fontWeight: 'normal',
+                        color: warn ? '#ffe082' : 'rgba(255,255,255,0.9)',
+                      }}
+                    >
+                      {text}
+                    </div>
+                  );
+                })()}
               </button>
             )}
 

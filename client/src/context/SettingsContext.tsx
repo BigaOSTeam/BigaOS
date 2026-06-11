@@ -271,6 +271,11 @@ export interface VesselSettings {
   // Chain calculation preferences
   useCatenaryFormula: boolean; // Use physics-based catenary equation
   useWindLoaFormula: boolean; // Use Wind + LOA empirical rule
+
+  // Depth-aware routing: calculated routes avoid water shallower than
+  // draft + depthSafetyMargin wherever downloaded depth data covers the area
+  depthRoutingEnabled: boolean;
+  depthSafetyMargin: number; // meters under the keel
 }
 
 export const speedConversions: Record<SpeedUnit, { factor: number; label: string }> = {
@@ -412,6 +417,10 @@ const defaultVesselSettings: VesselSettings = {
   // Chain calculation preferences
   useCatenaryFormula: true,
   useWindLoaFormula: true,
+
+  // Depth-aware routing
+  depthRoutingEnabled: true,
+  depthSafetyMargin: 0.5,
 };
 
 const defaultWeatherSettings: WeatherSettings = {
@@ -529,7 +538,9 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
         setApiUrlsState(data.settings.apiUrls);
       }
       if (data.settings.vesselSettings) {
-        setVesselSettingsState(data.settings.vesselSettings);
+        // Merge over defaults so settings saved before new fields existed
+        // (e.g. depth routing) still get sensible values.
+        setVesselSettingsState({ ...defaultVesselSettings, ...data.settings.vesselSettings });
       }
       if (data.settings.weatherSettings) {
         setWeatherSettingsState(data.settings.weatherSettings);
@@ -592,7 +603,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
           setApiUrlsState(data.value);
           break;
         case 'vesselSettings':
-          setVesselSettingsState(data.value);
+          setVesselSettingsState({ ...defaultVesselSettings, ...data.value });
           break;
         case 'weatherSettings':
           setWeatherSettingsState(data.value);
