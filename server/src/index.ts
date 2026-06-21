@@ -15,6 +15,7 @@ import { depthTileService } from './services/depth-tile.service';
 import { heritageService } from './services/heritage.service';
 import { seabedService } from './services/seabed.service';
 import { routeWorkerService } from './services/route-worker.service';
+import { weatherRoutingWorkerService } from './services/weather-routing-worker.service';
 import { DataController } from './services/data.controller';
 import { initializeLanguages } from './i18n/lang';
 import { sdNotifyReady, sdNotifyWatchdog, sdNotifyStopping } from './utils/sd-notify';
@@ -79,6 +80,11 @@ async function startServer() {
   // Initialize route worker (async, non-blocking) - runs pathfinding in separate thread
   routeWorkerService.initialize().catch(error => {
     console.error('Failed to initialize route worker:', error);
+  });
+
+  // Initialize weather-routing (isochrone) worker (async, non-blocking)
+  weatherRoutingWorkerService.initialize().catch(error => {
+    console.error('Failed to initialize weather routing worker:', error);
   });
 
   // Initialize i18n translations
@@ -224,6 +230,7 @@ async function shutdown(signal: string) {
     try { wsServer.stop(); } catch (e) { console.error('[Shutdown] wsServer.stop failed:', e); }
     try { await DataController.getInstance().stop(); } catch (e) { console.error('[Shutdown] DataController.stop failed:', e); }
     try { await routeWorkerService.terminate(); } catch (e) { console.error('[Shutdown] routeWorker.terminate failed:', e); }
+    try { await weatherRoutingWorkerService.terminate(); } catch (e) { console.error('[Shutdown] weatherRoutingWorker.terminate failed:', e); }
     try { await dbWorker.terminate(); } catch (e) { console.error('[Shutdown] dbWorker.terminate failed:', e); }
     try { db.close(); } catch (e) { console.error('[Shutdown] db.close failed:', e); }
     httpServer.close(() => {

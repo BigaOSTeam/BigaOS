@@ -1,5 +1,6 @@
 // Navigation utility functions for distance, bearing, and ETA calculations
 import { TWO_PI } from '../../../utils/angle';
+import type { WeatherRouteStep } from './weather-route.types';
 
 /**
  * Calculate distance between two points using Haversine formula
@@ -91,6 +92,76 @@ export const calculateBearing = (
 
   const bearing = Math.atan2(y, x);
   return (bearing + TWO_PI) % TWO_PI;
+};
+
+/**
+ * Interpolate a boat position/heading along a weather-route timeline at an
+ * absolute time. Used by the preview to move the boat as the slider scrubs.
+ * Clamps to the timeline ends.
+ */
+export interface TimelineInterp {
+  lat: number;
+  lon: number;
+  headingRad: number;
+  step: WeatherRouteStep; // the active (segment-end) step at this time
+  segFrac: number; // 0..1 within the bracketing segment
+  index: number; // index of the bracketing-end step
+}
+
+export const interpolateTimeline = (
+  timeline: WeatherRouteStep[],
+  atMs: number
+): TimelineInterp | null => {
+  if (!timeline || timeline.length === 0) return null;
+  if (timeline.length === 1) {
+    const s = timeline[0];
+    return { lat: s.lat, lon: s.lon, headingRad: s.headingRad, step: s, segFrac: 0, index: 0 };
+  }
+
+  const first = timeline[0];
+  const last = timeline[timeline.length - 1];
+  if (atMs <= first.etaMs) {
+    return { lat: first.lat, lon: first.lon, headingRad: timeline[1].headingRad, step: timeline[1], segFrac: 0, index: 1 };
+  }
+  if (atMs >= last.etaMs) {
+    return { lat: last.lat, lon: last.lon, headingRad: last.headingRad, step: last, segFrac: 1, index: timeline.length - 1 };
+  }
+
+  // Find the bracketing segment [i-1, i].
+  let i = 1;
+  while (i < timeline.length && timeline[i].etaMs < atMs) i++;
+  const a = timeline[i - 1];
+  const b = timeline[i];
+  const span = b.etaMs - a.etaMs;
+  const frac = span > 0 ? (atMs - a.etaMs) / span : 0;
+  return {
+    lat: a.lat + (b.lat - a.lat) * frac,
+    lon: a.lon + (b.lon - a.lon) * frac,
+    headingRad: b.headingRad, // the leg being sailed into b
+    step: b,
+    segFrac: frac,
+    index: i,
+  };
+};
+
+/**
+ * Distance remaining (NM) along the timeline from the interpolated position at
+ * a given time to the destination.
+ */
+export const timelineDistanceRemainingNm = (
+  timeline: WeatherRouteStep[],
+  interp: { lat: number; lon: number; index: number }
+): number => {
+  if (!timeline || timeline.length < 2) return 0;
+  let total = 0;
+  // From interpolated position to the next node...
+  const next = timeline[interp.index];
+  if (next) total += calculateDistanceNm(interp.lat, interp.lon, next.lat, next.lon);
+  // ...then the remaining full legs.
+  for (let k = interp.index; k < timeline.length - 1; k++) {
+    total += calculateDistanceNm(timeline[k].lat, timeline[k].lon, timeline[k + 1].lat, timeline[k + 1].lon);
+  }
+  return total;
 };
 
 /**

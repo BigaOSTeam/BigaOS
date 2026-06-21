@@ -1,5 +1,19 @@
 // Navigation utilities
-export { calculateDistanceNm, calculateDistanceMeters, calculateRouteDistanceNm, formatETA, calculateBearing } from './navigation-utils';
+export { calculateDistanceNm, calculateDistanceMeters, calculateRouteDistanceNm, formatETA, calculateBearing, interpolateTimeline, timelineDistanceRemainingNm } from './navigation-utils';
+
+// Weather routing (Start Navigation dialog + animated preview)
+export { StartNavigationDialog } from './StartNavigationDialog';
+export { RoutePreviewLayer } from './RoutePreviewLayer';
+export { RoutePreviewPanel } from './RoutePreviewPanel';
+export { BestWindowList } from './BestWindowList';
+export type {
+  WeatherRouteResult,
+  WeatherRouteStep,
+  RouteWeatherInfo,
+  RankedDeparture,
+  CalculateOptions,
+  NavFlow,
+} from './weather-route.types';
 
 // Map icons and types
 export {

@@ -74,7 +74,12 @@ import {
   useWeatherOverlay,
   useTideForecast,
   LayerLoadingProvider,
+  StartNavigationDialog,
+  RoutePreviewLayer,
+  RoutePreviewPanel,
 } from './chart';
+import type { NavFlow, CalculateOptions, WeatherRouteResult, RankedDeparture, RouteWeatherInfo } from './chart/weather-route.types';
+import { buildVesselPerformance } from '../../services/polar';
 
 // Component to refresh tiles when connectivity changes from offline to online
 const ConnectivityRefresher: React.FC = () => {
@@ -294,6 +299,14 @@ export const ChartView = React.memo<ChartViewProps>(({
   } | null>('routeDepthInfo', null);
   const [routeLoading, setRouteLoading] = useState(false);
 
+  // Weather routing: advisory summary for the active route (boat-wide).
+  const [routeWeatherInfo, setRouteWeatherInfo] = useBoatSetting<RouteWeatherInfo | null>('routeWeatherInfo', null);
+  // Feature flag — when off, "Navigate Here" routes immediately as before.
+  const [weatherRoutingFlow] = useClientSetting<boolean>('weatherRoutingFlow', true);
+  // Transient Start-Navigation flow (dialog → calculating → preview); never persisted.
+  const [navFlow, setNavFlow] = useState<NavFlow>({ phase: 'idle' });
+  const navAbortRef = useRef<AbortController | null>(null);
+
   // Autopilot state
   const [autopilotOpen, setAutopilotOpen] = useState(false);
   const [autopilotActive, setAutopilotActive] = useState(false);
@@ -470,7 +483,8 @@ export const ChartView = React.memo<ChartViewProps>(({
     startLat: number,
     startLon: number,
     endLat: number,
-    endLon: number
+    endLon: number,
+    depthRouting: boolean = vesselSettings.depthRoutingEnabled
   ) => {
     setRouteLoading(true);
     setRouteError(null);
@@ -478,7 +492,7 @@ export const ChartView = React.memo<ChartViewProps>(({
       // Depth-aware routing: avoid water shallower than draft + safety margin
       // (only when enabled and a draft is configured — no draft, no gate).
       const minSafeDepth =
-        vesselSettings.depthRoutingEnabled && vesselSettings.draft > 0
+        depthRouting && vesselSettings.draft > 0
           ? vesselSettings.draft + Math.max(0, vesselSettings.depthSafetyMargin)
           : undefined;
 
@@ -539,7 +553,10 @@ export const ChartView = React.memo<ChartViewProps>(({
     if (!navigationTarget && routeDepthInfo) {
       setRouteDepthInfo(null);
     }
-  }, [navigationTarget, routeWaypoints.length, setRouteWaypoints, routeDepthInfo, setRouteDepthInfo]);
+    if (!navigationTarget && routeWeatherInfo) {
+      setRouteWeatherInfo(null);
+    }
+  }, [navigationTarget, routeWaypoints.length, setRouteWaypoints, routeDepthInfo, setRouteDepthInfo, routeWeatherInfo, setRouteWeatherInfo]);
 
   // Smooth heading transition function
   const smoothTransitionToHeading = useCallback((targetHeading: number) => {
@@ -1316,14 +1333,14 @@ export const ChartView = React.memo<ChartViewProps>(({
     setMarkerContextMenu(null);
   };
 
-  const navigateToMarker = (marker: CustomMarker) => {
+  const navigateToMarker = (marker: CustomMarker, depthRouting?: boolean) => {
     setRouteWaypoints([]); // Clear old waypoints
     setNavigationTarget(marker);
     setMarkerContextMenu(null);
     setAutoCenter(false);
 
     // Calculate route once from current position to marker
-    fetchRoute(position.latitude, position.longitude, marker.lat, marker.lon);
+    fetchRoute(position.latitude, position.longitude, marker.lat, marker.lon, depthRouting);
 
     if (mapRef.current) {
       const bounds = L.latLngBounds(
@@ -1335,7 +1352,7 @@ export const ChartView = React.memo<ChartViewProps>(({
     }
   };
 
-  const navigateToCoordinates = (lat: number, lon: number) => {
+  const navigateToCoordinates = (lat: number, lon: number, depthRouting?: boolean) => {
     // Create a temporary navigation target for the coordinates
     const tempTarget: CustomMarker = {
       id: 'nav-target',
@@ -1352,7 +1369,7 @@ export const ChartView = React.memo<ChartViewProps>(({
     setAutoCenter(false);
 
     // Calculate route from current position to coordinates
-    fetchRoute(position.latitude, position.longitude, lat, lon);
+    fetchRoute(position.latitude, position.longitude, lat, lon, depthRouting);
 
     if (mapRef.current) {
       const bounds = L.latLngBounds(
@@ -1365,6 +1382,95 @@ export const ChartView = React.memo<ChartViewProps>(({
   };
 
   const cancelNavigation = () => setNavigationTarget(null);
+
+  // ── Start Navigation flow (weather routing) ──────────────────────────────
+
+  /** Open the Start Navigation dialog for a destination (coords or saved marker). */
+  const openStartNavigation = (lat: number, lon: number, marker?: CustomMarker) => {
+    setContextMenu(null);
+    setMarkerContextMenu(null);
+    setNavFlow({ phase: 'dialog', destination: { lat, lon }, marker });
+  };
+
+  const closeNavFlow = useCallback(() => {
+    navAbortRef.current?.abort();
+    navAbortRef.current = null;
+    setNavFlow({ phase: 'idle' });
+  }, []);
+
+  /** Run the chosen calculation (weather route, or fall back to depth route). */
+  const runCalculation = useCallback(async (opts: CalculateOptions, dest: { lat: number; lon: number }, marker?: CustomMarker) => {
+    // Weather routing off → use the existing immediate depth-route flow,
+    // honouring the dialog's depth-routing choice.
+    if (!opts.weatherRouting) {
+      setNavFlow({ phase: 'idle' });
+      if (marker) navigateToMarker(marker, opts.depthRouting);
+      else navigateToCoordinates(dest.lat, dest.lon, opts.depthRouting);
+      return;
+    }
+
+    const ac = new AbortController();
+    navAbortRef.current = ac;
+    setNavFlow({ phase: 'calculating', destination: dest, marker });
+
+    const minSafeDepth =
+      opts.depthRouting && vesselSettings.draft > 0
+        ? vesselSettings.draft + Math.max(0, vesselSettings.depthSafetyMargin)
+        : undefined;
+
+    try {
+      const response = await navigationAPI.weatherRoute(
+        {
+          startLat: position.latitude,
+          startLon: position.longitude,
+          endLat: dest.lat,
+          endLon: dest.lon,
+          departureMs: opts.departure.kind === 'at' ? opts.departure.ms : undefined,
+          findBestWindow: opts.departure.kind === 'best-window',
+          minSafeDepth,
+          performance: buildVesselPerformance(vesselSettings),
+        },
+        { signal: ac.signal }
+      );
+      const result = response.data;
+      if (!result.success) {
+        const errorInfo = getRouteErrorInfo(result.failureReason || 'NO_PATH_FOUND');
+        setRouteError({ reason: result.failureReason || 'NO_PATH_FOUND', ...errorInfo });
+        setNavFlow({ phase: 'dialog', destination: dest, marker });
+        return;
+      }
+      setNavFlow({ phase: 'preview', destination: dest, marker, result, depthOnly: false, scrubMs: result.weather.departureMs });
+    } catch (error: unknown) {
+      if (ac.signal.aborted) return; // user cancelled
+      const axiosError = error as { response?: { data?: { error?: string; failureReason?: string; message?: string } } };
+      if (axiosError.response?.data?.error === 'NO_NAVIGATION_DATA') {
+        setNavDataError(axiosError.response.data.message || 'Navigation data not loaded.');
+        setNavFlow({ phase: 'idle' });
+        return;
+      }
+      const reason = axiosError.response?.data?.failureReason || 'NO_WEATHER_DATA';
+      setRouteError({ reason, ...getRouteErrorInfo(reason) });
+      setNavFlow({ phase: 'dialog', destination: dest, marker });
+    } finally {
+      navAbortRef.current = null;
+    }
+  }, [position.latitude, position.longitude, vesselSettings]);
+
+  /** Commit the previewed route to boat-wide navigation state and engage it. */
+  const commitPreview = useCallback((result: WeatherRouteResult, dest: { lat: number; lon: number }, marker?: CustomMarker) => {
+    const target: CustomMarker = marker ?? { id: 'nav-target', lat: dest.lat, lon: dest.lon, name: '', color: '#66bb6a', icon: 'pin' };
+    setRouteWaypoints(result.waypoints);
+    setNavigationTarget(target);
+    setRouteWeatherInfo(result.weather);
+    setRouteDepthInfo(null);
+    setAutoCenter(false);
+    setNavFlow({ phase: 'idle' });
+    if (mapRef.current) {
+      const bounds = L.latLngBounds([position.latitude, position.longitude], [dest.lat, dest.lon]);
+      setWeatherOverlayHidden(true);
+      mapRef.current.fitBounds(bounds, { padding: [120, 120], maxZoom: 15 });
+    }
+  }, [position.latitude, position.longitude, setRouteWaypoints, setNavigationTarget, setRouteWeatherInfo, setRouteDepthInfo]);
 
   return (
     <div style={{ width: '100%', height: '100%', position: 'relative' }}>
@@ -1725,6 +1831,11 @@ export const ChartView = React.memo<ChartViewProps>(({
           />
         )}
 
+        {/* Weather-route preview: tacking polyline, wind arrows, scrubbed boat */}
+        {navFlow.phase === 'preview' && (
+          <RoutePreviewLayer result={navFlow.result} scrubMs={navFlow.scrubMs} />
+        )}
+
         {/* Ruler tool: dashed multi-leg path, vertex dots, per-leg distance labels */}
         {rulerPoints.length >= 2 && (
           <>
@@ -1796,7 +1907,7 @@ export const ChartView = React.memo<ChartViewProps>(({
         {weatherOverlayEnabled && (
           <WeatherOverlay
             enabled={weatherOverlayEnabled}
-            hidden={weatherOverlayHidden}
+            hidden={weatherOverlayHidden || navFlow.phase === 'preview'}
             forecastHour={weatherOverlay.forecastHour}
             displayMode={weatherOverlay.displayMode}
             tideHeight={weatherOverlay.displayMode === 'tide' ? tide.heightAt(weatherOverlay.forecastHour) : null}
@@ -1940,8 +2051,55 @@ export const ChartView = React.memo<ChartViewProps>(({
         />
       )}
 
-      {/* Route calculation loading overlay */}
-      {routeLoading && (
+      {/* Start Navigation dialog (weather routing flow) */}
+      {navFlow.phase === 'dialog' && (
+        <StartNavigationDialog
+          origin={{ lat: position.latitude, lon: position.longitude }}
+          destination={navFlow.destination}
+          destinationName={navFlow.marker?.name || undefined}
+          onCancel={closeNavFlow}
+          onCalculate={(opts) => runCalculation(opts, navFlow.destination, navFlow.marker)}
+        />
+      )}
+
+      {/* Weather-route preview panel (slider + telemetry + actions) */}
+      {navFlow.phase === 'preview' && (
+        <RoutePreviewPanel
+          result={navFlow.result}
+          scrubMs={navFlow.scrubMs}
+          onScrub={(ms) => setNavFlow((f) => (f.phase === 'preview' ? { ...f, scrubMs: ms } : f))}
+          onStartNavigation={() => commitPreview(navFlow.result, navFlow.destination, navFlow.marker)}
+          onAdjust={() => setNavFlow({ phase: 'dialog', destination: navFlow.destination, marker: navFlow.marker })}
+          onCancel={closeNavFlow}
+          onSelectDeparture={(d: RankedDeparture) =>
+            setNavFlow((f) =>
+              f.phase === 'preview'
+                ? {
+                    ...f,
+                    scrubMs: d.departureMs,
+                    result: {
+                      ...f.result,
+                      waypoints: d.waypoints,
+                      timeline: d.timeline,
+                      weather: {
+                        ...f.result.weather,
+                        departureMs: d.departureMs,
+                        totalDurationMs: d.durationMs,
+                        maxWindKn: d.maxWindKn,
+                        maxWaveM: d.maxWaveM,
+                      },
+                    },
+                  }
+                : f
+            )
+          }
+          sidebarWidth={sidebarWidth}
+          sidebarPosition={sidebarPosition}
+        />
+      )}
+
+      {/* Route calculation loading overlay (depth route, or weather calc) */}
+      {(routeLoading || navFlow.phase === 'calculating') && (
         <div
           style={{
             position: 'absolute',
@@ -1979,8 +2137,23 @@ export const ChartView = React.memo<ChartViewProps>(({
               }}
             />
             <div style={{ color: '#fff', fontSize: '1rem', fontWeight: 500 }}>
-              {t('chart.calculating_route')}
+              {navFlow.phase === 'calculating' ? t('nav.calculating_weather') : t('chart.calculating_route')}
             </div>
+            {navFlow.phase === 'calculating' && (
+              <button
+                onClick={closeNavFlow}
+                style={{
+                  background: 'transparent',
+                  border: `1px solid ${theme.colors.border}`,
+                  color: theme.colors.textSecondary,
+                  borderRadius: '6px',
+                  padding: '0.4rem 1rem',
+                  cursor: 'pointer',
+                }}
+              >
+                {t('common.cancel')}
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -2893,7 +3066,10 @@ export const ChartView = React.memo<ChartViewProps>(({
                   <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
                 </svg>
               ),
-              onClick: () => navigateToCoordinates(contextMenu.lat, contextMenu.lon),
+              onClick: () =>
+                weatherRoutingFlow
+                  ? openStartNavigation(contextMenu.lat, contextMenu.lon)
+                  : navigateToCoordinates(contextMenu.lat, contextMenu.lon),
             },
           ]}
           onClose={() => setContextMenu(null)}
@@ -2934,7 +3110,10 @@ export const ChartView = React.memo<ChartViewProps>(({
                   <circle cx="19" cy="6" r="1.5" fill="rgba(0,0,0,0.3)" stroke="none" />
                 </svg>
               ),
-              onClick: () => navigateToMarker(markerContextMenu.marker),
+              onClick: () =>
+                weatherRoutingFlow
+                  ? openStartNavigation(markerContextMenu.marker.lat, markerContextMenu.marker.lon, markerContextMenu.marker)
+                  : navigateToMarker(markerContextMenu.marker),
             },
             {
               label: t('chart.delete_marker'),

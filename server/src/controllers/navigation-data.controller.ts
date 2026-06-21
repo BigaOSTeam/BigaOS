@@ -19,6 +19,7 @@ import * as path from 'path';
 import { DataManagementController, DataFileConfig } from './data-management.controller';
 import { waterDetectionService } from '../services/water-detection.service';
 import { routeWorkerService } from '../services/route-worker.service';
+import { weatherRoutingWorkerService } from '../services/weather-routing-worker.service';
 import { depthTileService } from '../services/depth-tile.service';
 import { depthContourService } from '../services/depth-contour.service';
 import { heritageService } from '../services/heritage.service';
@@ -164,9 +165,10 @@ class NavigationDataController extends DataManagementController {
   /** Reload whichever services a category's data feeds. */
   private async reloadForCategory(category: string | undefined): Promise<void> {
     if (category === 'navigation') {
-      console.log('Navigation data changed, reloading water detection + route worker...');
+      console.log('Navigation data changed, reloading water detection + route workers...');
       await waterDetectionService.reload();
       await routeWorkerService.reinitialize();
+      await weatherRoutingWorkerService.reinitialize();
     } else if (category === 'depth') {
       console.log('Depth data changed, reloading depth tiles + clearing contour cache...');
       await depthTileService.reload();

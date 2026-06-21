@@ -48,6 +48,11 @@ export type AnchorType =
 // Chain material type - affects weight calculation in catenary formula
 export type ChainType = 'galvanized' | 'stainless-steel';
 
+// Propulsion mode used by weather routing to model boat speed.
+export type PropulsionType = 'sail' | 'motor' | 'motorsail';
+// Parametric polar shape — picks the speed-vs-angle/wind curve family.
+export type PolarPreset = 'cruisingMonohull' | 'performance' | 'catamaran' | 'custom';
+
 // Weight class definitions for anchor performance scaling
 export type AnchorWeightClass = 'light' | 'medium' | 'heavy';
 
@@ -276,6 +281,14 @@ export interface VesselSettings {
   // draft + depthSafetyMargin wherever downloaded depth data covers the area
   depthRoutingEnabled: boolean;
   depthSafetyMargin: number; // meters under the keel
+
+  // Performance / sailing — used by weather routing to estimate boat speed
+  // along a passage from the wind and wave forecast.
+  propulsion: PropulsionType; // sail / motor / motorsail
+  polarPreset: PolarPreset; // parametric polar shape (or 'custom')
+  pointingAngleDeg: number; // closest angle to the true wind the boat can sail (close-hauled)
+  maxSpeedKn: number; // best boat speed; 0 = derive hull speed from waterlineLength
+  cruisingSpeedKn: number; // speed under engine (motoring / light-wind fallback)
 }
 
 export const speedConversions: Record<SpeedUnit, { factor: number; label: string }> = {
@@ -421,6 +434,13 @@ const defaultVesselSettings: VesselSettings = {
   // Depth-aware routing
   depthRoutingEnabled: true,
   depthSafetyMargin: 0.5,
+
+  // Performance / sailing
+  propulsion: 'motorsail',
+  polarPreset: 'cruisingMonohull',
+  pointingAngleDeg: 42,
+  maxSpeedKn: 0, // 0 → derived from waterlineLength (hull speed)
+  cruisingSpeedKn: 5.5,
 };
 
 const defaultWeatherSettings: WeatherSettings = {

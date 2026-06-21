@@ -10,6 +10,8 @@ import {
   TimeFormat,
   DateFormat,
   ChainType,
+  PropulsionType,
+  PolarPreset,
   speedConversions,
   windConversions,
   depthConversions,
@@ -40,6 +42,7 @@ import { wsService } from '../../services/websocket';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { LANGUAGES, LanguageCode } from '../../i18n/languages';
 import { CustomSelect } from '../ui/CustomSelect';
+import { effectiveMaxSpeedKn } from '../../services/polar';
 import {
   SLabel,
   SSection,
@@ -883,7 +886,52 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
 
       <SInfoBox style={{ marginBottom: theme.space.md }}>{t('vessel.depth_routing_note')}</SInfoBox>
 
-      <SInfoBox>{t('vessel.why_matters')}</SInfoBox>
+      <SInfoBox style={{ marginBottom: theme.space.lg }}>{t('vessel.why_matters')}</SInfoBox>
+
+      {/* Performance / Sailing Section — drives weather routing */}
+      <SSection style={{ marginTop: theme.space.lg }}>{t('vessel.performance')}</SSection>
+
+      <div style={{ marginBottom: theme.space.md }}>
+        <SLabel>{t('vessel.propulsion')}</SLabel>
+        <SOptionGroup
+          options={['sail' as PropulsionType, 'motorsail' as PropulsionType, 'motor' as PropulsionType]}
+          labels={{ 'sail': t('vessel.propulsion_sail'), 'motorsail': t('vessel.propulsion_motorsail'), 'motor': t('vessel.propulsion_motor') } as Record<PropulsionType, string>}
+          value={vesselSettings.propulsion}
+          onChange={(v) => setVesselSettings({ ...vesselSettings, propulsion: v })}
+        />
+      </div>
+
+      {vesselSettings.propulsion !== 'motor' && (
+        <>
+          <div style={{ marginBottom: theme.space.md }}>
+            <SLabel>{t('vessel.polar_preset')}</SLabel>
+            <SOptionGroup
+              options={['cruisingMonohull' as PolarPreset, 'performance' as PolarPreset, 'catamaran' as PolarPreset]}
+              labels={{ 'cruisingMonohull': t('vessel.polar_cruising'), 'performance': t('vessel.polar_performance'), 'catamaran': t('vessel.polar_catamaran'), 'custom': t('vessel.polar_custom') } as Record<PolarPreset, string>}
+              value={vesselSettings.polarPreset === 'custom' ? 'cruisingMonohull' : vesselSettings.polarPreset}
+              onChange={(v) => setVesselSettings({ ...vesselSettings, polarPreset: v })}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+            {renderVesselNumberInput(t('vessel.pointing_angle'), vesselSettings.pointingAngleDeg, (v) => setVesselSettings({ ...vesselSettings, pointingAngleDeg: v }), t('units.degrees'), 25, true)}
+            {renderVesselNumberInput(t('vessel.max_speed'), vesselSettings.maxSpeedKn, (v) => setVesselSettings({ ...vesselSettings, maxSpeedKn: v }), t('units.knots'), 0, true)}
+          </div>
+          {vesselSettings.maxSpeedKn <= 0 && (
+            <SInfoBox style={{ marginBottom: theme.space.md }}>
+              {t('vessel.max_speed_derived', { speed: effectiveMaxSpeedKn(vesselSettings).toFixed(1) })}
+            </SInfoBox>
+          )}
+        </>
+      )}
+
+      {vesselSettings.propulsion !== 'sail' && (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: theme.space.md, marginBottom: theme.space.md }}>
+          {renderVesselNumberInput(t('vessel.cruising_speed'), vesselSettings.cruisingSpeedKn, (v) => setVesselSettings({ ...vesselSettings, cruisingSpeedKn: v }), t('units.knots'), 0, true)}
+        </div>
+      )}
+
+      <SInfoBox>{t('vessel.performance_note')}</SInfoBox>
     </div>
   );
 

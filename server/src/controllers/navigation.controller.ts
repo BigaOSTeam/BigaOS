@@ -1,7 +1,15 @@
 import { Request, Response } from 'express';
 import { waterDetectionService } from '../services/water-detection.service';
 import { routeWorkerService } from '../services/route-worker.service';
+import { weatherRoutingWorkerService } from '../services/weather-routing-worker.service';
+import { buildWeatherField, FieldBbox } from '../services/weather-field.service';
+import { resolvePolar, VesselPerformance } from '../services/polar';
+import { calculateDistance } from '../workers/lib/geo';
 import { getDataController } from '../services/data.controller';
+
+const HOUR_MS = 3_600_000;
+const DAY_MS = 86_400_000;
+const FORECAST_HORIZON_MS = 7 * DAY_MS;
 
 class NavigationController {
   /**
@@ -80,6 +88,130 @@ class NavigationController {
     } catch (error) {
       console.error('Route calculation error:', error);
       res.status(500).json({ error: 'Failed to calculate route' });
+    }
+  }
+
+  /**
+   * Calculate a weather-optimized (isochrone) route.
+   * POST /api/navigation/weather-route
+   *
+   * Body: startLat/startLon/endLat/endLon, optional departureMs, findBestWindow,
+   * minSafeDepth (depth gating), maxWindKn/maxWaveM (avoidance), and a vessel
+   * performance payload (propulsion/polarPreset/pointingAngleDeg/maxSpeedKn/
+   * cruisingSpeedKn/waterlineLengthM).
+   */
+  async weatherRoute(req: Request, res: Response) {
+    try {
+      const { startLat, startLon, endLat, endLon, departureMs, findBestWindow, minSafeDepth, maxWindKn, maxWaveM, performance } = req.body;
+
+      if (
+        typeof startLat !== 'number' ||
+        typeof startLon !== 'number' ||
+        typeof endLat !== 'number' ||
+        typeof endLon !== 'number'
+      ) {
+        return res.status(400).json({ error: 'Invalid parameters. Required: startLat, startLon, endLat, endLon (all numbers)' });
+      }
+
+      if (!waterDetectionService.hasNavigationData()) {
+        return res.status(503).json({
+          error: 'NO_NAVIGATION_DATA',
+          message: 'Navigation data not loaded. Please download ocean/lake data in Settings > Data Management.',
+        });
+      }
+
+      if (!weatherRoutingWorkerService.isReady()) {
+        return res.status(503).json({ error: 'WORKER_UNAVAILABLE', message: 'Weather routing worker not ready.' });
+      }
+
+      const start = { lat: startLat, lon: startLon };
+      const end = { lat: endLat, lon: endLon };
+
+      const perf: VesselPerformance = {
+        propulsion: performance?.propulsion ?? 'motorsail',
+        polarPreset: performance?.polarPreset ?? 'cruisingMonohull',
+        pointingAngleDeg: typeof performance?.pointingAngleDeg === 'number' ? performance.pointingAngleDeg : 45,
+        maxSpeedKn: typeof performance?.maxSpeedKn === 'number' ? performance.maxSpeedKn : 0,
+        cruisingSpeedKn: typeof performance?.cruisingSpeedKn === 'number' ? performance.cruisingSpeedKn : 5.5,
+        waterlineLengthM: typeof performance?.waterlineLengthM === 'number' ? performance.waterlineLengthM : 0,
+      };
+      const polar = resolvePolar(perf);
+
+      const safeDepth =
+        typeof minSafeDepth === 'number' && Number.isFinite(minSafeDepth) && minSafeDepth > 0
+          ? Math.min(minSafeDepth, 50)
+          : undefined;
+
+      const nowMs = Date.now();
+      const departureBase = typeof departureMs === 'number' && departureMs > nowMs - HOUR_MS ? departureMs : nowMs;
+
+      // Rough passage-time upper bound (slow boat) to size the forecast window.
+      const directNm = calculateDistance(startLat, startLon, endLat, endLon);
+      const estPassageMs = Math.max(HOUR_MS, Math.ceil(directNm / 2) * HOUR_MS); // ~2 kn worst case
+
+      // Departure times to evaluate.
+      let departures: number[];
+      if (findBestWindow) {
+        const STEP = 6 * HOUR_MS;
+        departures = [];
+        for (let t = departureBase; t <= departureBase + 3 * DAY_MS; t += STEP) {
+          if (t + estPassageMs <= nowMs + FORECAST_HORIZON_MS) departures.push(t);
+        }
+        if (departures.length === 0) departures = [departureBase];
+      } else {
+        departures = [departureBase];
+      }
+
+      // Corridor bbox: start/end + a generous margin for tacking detours.
+      const latSpan = Math.abs(endLat - startLat);
+      const lonSpan = Math.abs(endLon - startLon);
+      const margin = Math.min(2, Math.max(0.25, 0.4 * Math.max(latSpan, lonSpan)));
+      const bbox: FieldBbox = {
+        north: Math.max(startLat, endLat) + margin,
+        south: Math.min(startLat, endLat) - margin,
+        east: Math.max(startLon, endLon) + margin,
+        west: Math.min(startLon, endLon) - margin,
+      };
+
+      // Abort the build + optimization if the client disconnects.
+      const ac = new AbortController();
+      res.on('close', () => ac.abort());
+
+      const windowEndMs = Math.max(...departures) + estPassageMs;
+      const field = await buildWeatherField(bbox, { startMs: departureBase, endMs: windowEndMs }, { signal: ac.signal });
+
+      if (field.coverage === 'none') {
+        return res.status(422).json({
+          success: false,
+          failureReason: 'NO_WEATHER_DATA',
+          message: 'No weather forecast data available for this area (offline, or outside coverage).',
+        });
+      }
+
+      // A* water route as a coastal fallback (the isochrone's straight legs can't
+      // always thread a coastline). Best-effort — ignore failures.
+      let fallbackPath: Array<{ lat: number; lon: number }> | undefined;
+      if (routeWorkerService.isReady()) {
+        try {
+          const aStar = await routeWorkerService.findWaterRoute(startLat, startLon, endLat, endLon, undefined, safeDepth);
+          if (aStar.success && aStar.waypoints.length >= 2) fallbackPath = aStar.waypoints;
+        } catch {
+          /* fallback is optional */
+        }
+      }
+
+      const result = await weatherRoutingWorkerService.optimize(
+        { start, end, weatherField: field, polar, departures, constraints: { minSafeDepth: safeDepth, maxWindKn, maxWaveM }, fallbackPath },
+        ac.signal
+      );
+
+      res.json(result);
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        return; // client gone
+      }
+      console.error('Weather route error:', error);
+      res.status(500).json({ error: 'Failed to calculate weather route' });
     }
   }
 

@@ -77,6 +77,7 @@ router.post('/database/cleanup', DatabaseController.cleanupOldData);
 
 // Navigation routes
 router.post('/navigation/route', navigationController.calculateRoute.bind(navigationController));
+router.post('/navigation/weather-route', navigationController.weatherRoute.bind(navigationController));
 router.post('/navigation/check-route', navigationController.checkRoute.bind(navigationController));
 router.get('/navigation/water-type', navigationController.getWaterType.bind(navigationController));
 router.get('/navigation/demo', navigationController.getDemoNavigation.bind(navigationController));

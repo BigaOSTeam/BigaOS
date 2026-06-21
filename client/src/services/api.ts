@@ -47,6 +47,38 @@ export const navigationAPI = {
     }>('/navigation/route', { startLat, startLon, endLat, endLon, minSafeDepth }, { timeout: 120000 }),
 
   /**
+   * Calculate a weather-optimized (isochrone) route. Longer timeout since the
+   * field fetch + optimization (and best-window scan) can take a while.
+   */
+  weatherRoute: (
+    body: {
+      startLat: number;
+      startLon: number;
+      endLat: number;
+      endLon: number;
+      departureMs?: number;
+      findBestWindow?: boolean;
+      minSafeDepth?: number;
+      maxWindKn?: number;
+      maxWaveM?: number;
+      performance?: {
+        propulsion: string;
+        polarPreset: string;
+        pointingAngleDeg: number;
+        maxSpeedKn: number;
+        cruisingSpeedKn: number;
+        waterlineLengthM: number;
+      };
+    },
+    config?: { signal?: AbortSignal }
+  ) =>
+    api.post<import('../components/navigation/chart/weather-route.types').WeatherRouteResult>(
+      '/navigation/weather-route',
+      body,
+      { timeout: 180000, signal: config?.signal }
+    ),
+
+  /**
    * Check if a direct route crosses land
    */
   checkRoute: (startLat: number, startLon: number, endLat: number, endLon: number) =>
