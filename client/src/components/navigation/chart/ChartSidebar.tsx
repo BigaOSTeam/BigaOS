@@ -111,6 +111,10 @@ export const ChartSidebar: React.FC<ChartSidebarProps> = ({
         height: '100%',
         [`border${sidebarPosition === 'left' ? 'Right' : 'Left'}`]: separator,
         background: theme.colors.bgTertiary,
+        // Bind the text colour to the theme explicitly — the SOG/COG/heading
+        // readouts render with no colour of their own, so without this they fall
+        // back to whatever colour they inherit and turn unreadable in light theme.
+        color: theme.colors.textPrimary,
         zIndex: 1000,
         display: 'flex',
         flexDirection: 'column',

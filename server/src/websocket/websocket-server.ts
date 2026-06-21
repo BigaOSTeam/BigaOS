@@ -817,6 +817,29 @@ export class WebSocketServer {
         }
       });
 
+      // Push one device's colour theme to the boat's built-in displays. Theme is
+      // a per-client setting (key `themeMode`), so we write it for each display
+      // and notify each one — this persists for offline displays too. Remote
+      // clients (phones/tablets) are excluded: their users pick their own theme.
+      socket.on('theme_apply_all', async (data: { themeMode: string }) => {
+        try {
+          const mode = data?.themeMode;
+          if (mode !== 'dark' && mode !== 'light' && mode !== 'marine') return;
+          const clients = await dbWorker.getAllClients();
+          const displays = clients.filter((c) => c.client_type === 'display');
+          for (const client of displays) {
+            await dbWorker.setClientSetting(client.id, 'themeMode', JSON.stringify(mode));
+            this.io.to(`client:${client.id}`).emit('client_settings_changed', {
+              key: 'themeMode',
+              value: mode,
+              timestamp: new Date(),
+            });
+          }
+        } catch (error) {
+          console.error('[WebSocket] Failed to apply theme to all displays:', error);
+        }
+      });
+
       // ================================================================
       // Switch Handlers
       // ================================================================

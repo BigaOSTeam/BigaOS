@@ -562,7 +562,7 @@ export const Compass: React.FC<CompassProps> = ({ heading: headingRad, bearingTo
             height: '0',
             borderLeft: '3px solid transparent',
             borderRight: '3px solid transparent',
-            borderTop: '4px solid #fff',
+            borderTop: `4px solid ${theme.colors.textPrimary}`,
             margin: '1px auto 3px auto',
           }}
         />

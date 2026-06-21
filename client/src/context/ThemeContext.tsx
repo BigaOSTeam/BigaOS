@@ -1,10 +1,14 @@
-import React, { createContext, useContext, useEffect, useMemo } from 'react';
-import { useSettings } from './SettingsContext';
+import React, { createContext, useCallback, useContext, useEffect, useMemo } from 'react';
+import { useClientSetting } from './ClientSettingsContext';
+import { wsService } from '../services/websocket';
 import { themes, type ThemeDefinition, type ThemeMode } from '../styles/themes';
 
 interface ThemeContextType {
   theme: ThemeDefinition;
   themeMode: ThemeMode;
+  setThemeMode: (mode: ThemeMode) => void;
+  /** Push this device's theme to every built-in display on the boat. */
+  applyThemeToAll: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | null>(null);
@@ -60,26 +64,39 @@ export function applyThemeToDOM(themeObj: ThemeDefinition, mode?: ThemeMode) {
     const value = themeObj.shadow[key as keyof typeof themeObj.shadow];
     if (value) root.style.setProperty(cssVar, value);
   }
-  // Light mode: hover darkens, Dark mode: hover brightens
-  const isLight = mode === 'light';
+  // Light-background themes (light, marine): hover darkens. Dark: hover brightens.
+  const isLight = mode !== undefined && mode !== 'dark';
   root.style.setProperty('--hover-brightness', isLight ? '0.9' : '1.1');
   root.style.setProperty('--hover-brightness-subtle', isLight ? '0.93' : '1.07');
   root.style.setProperty('--active-brightness', isLight ? '0.82' : '0.85');
 }
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const { themeMode } = useSettings();
+  // Theme is per-device (same mechanism as night mode / sidebar position), so a
+  // sunlit cockpit screen can run light while the nav-station screen stays dark.
+  const [themeMode, setThemeMode] = useClientSetting<ThemeMode>('themeMode', 'dark');
 
   const currentTheme = useMemo(() => themes[themeMode] || themes.dark, [themeMode]);
 
   useEffect(() => {
     applyThemeToDOM(currentTheme, themeMode);
+    // Remember the choice so the next boot can paint the right theme before
+    // client settings arrive (avoids a dark flash on a light-themed screen).
+    try {
+      localStorage.setItem('bigaos-theme-mode', themeMode);
+    } catch { /* read-only filesystem — ignore */ }
   }, [currentTheme, themeMode]);
+
+  const applyThemeToAll = useCallback(() => {
+    wsService.emit('theme_apply_all', { themeMode });
+  }, [themeMode]);
 
   const value = useMemo(() => ({
     theme: currentTheme,
     themeMode,
-  }), [currentTheme, themeMode]);
+    setThemeMode,
+    applyThemeToAll,
+  }), [currentTheme, themeMode, setThemeMode, applyThemeToAll]);
 
   return (
     <ThemeContext.Provider value={value}>
@@ -108,6 +125,8 @@ export const StandaloneThemeProvider: React.FC<{ children: React.ReactNode }> = 
   const value = useMemo(() => ({
     theme: currentTheme,
     themeMode: mode,
+    setThemeMode: () => {},
+    applyThemeToAll: () => {},
   }), [currentTheme]);
 
   return (

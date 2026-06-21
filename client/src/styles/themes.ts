@@ -5,7 +5,7 @@
  * Light theme: bright/white theme with blue accents
  */
 
-export type ThemeMode = 'dark' | 'light';
+export type ThemeMode = 'dark' | 'light' | 'marine';
 
 export interface ThemeColors {
   bgPrimary: string;
@@ -206,50 +206,55 @@ export const darkTheme: ThemeDefinition = {
   ...shared,
 };
 
+// Light theme — tuned for direct-sunlight readability: a pure-white page for
+// maximum screen brightness, near-black text, clearly visible mid-grey borders,
+// and semantic/data colours deeply darkened (the dark theme's bright cyan/green/
+// amber wash out on white). Instrument readouts use the data* colours, so those
+// in particular must hold contrast under glare.
 export const lightTheme: ThemeDefinition = {
   colors: {
     bgPrimary: '#ffffff',
-    bgSecondary: '#f2f3f5',
-    bgTertiary: '#e5e8ec',
-    bgCard: '#ffffff',
-    bgCardHover: '#f0f2f4',
-    bgCardActive: '#e0e4e8',
+    bgSecondary: '#eef2f7',
+    bgTertiary: '#e2e8f0',
+    bgCard: '#eef2f7',
+    bgCardHover: '#e4ebf2',
+    bgCardActive: '#d9e2ec',
     bgOverlay: 'rgba(0, 0, 0, 0.4)',
     bgOverlayHeavy: 'rgba(0, 0, 0, 0.7)',
 
-    textPrimary: '#040e18',
-    textSecondary: '#0d2440',
-    textMuted: '#345068',
-    textDisabled: '#6a7f90',
+    textPrimary: '#0a1722',
+    textSecondary: '#2b3a48',
+    textMuted: '#51606e',
+    textDisabled: '#8795a1',
 
-    primary: '#1c75b9',
-    primaryLight: '#1c75b9',
-    primaryMedium: '#145a8f',
-    primaryDark: '#1484b3',
-    primarySolid: '#1c75b9',
+    primary: '#0b5fa5',
+    primaryLight: '#d6e7f6',
+    primaryMedium: '#4a8cc4',
+    primaryDark: '#094a80',
+    primarySolid: '#0b5fa5',
 
-    success: '#66bb6a',
-    successLight: '#c8e6c9',
-    successSolid: '#66bb6a',
-    warning: '#ffa726',
-    warningLight: '#ffe0b2',
-    error: '#ef5350',
-    errorLight: '#ffcdd2',
-    errorSolid: '#ef5350',
-    info: '#4fc3f7',
-    infoLight: '#b3e5fc',
+    success: '#2e7d32',
+    successLight: '#cdeccd',
+    successSolid: '#2e7d32',
+    warning: '#b26a00',
+    warningLight: '#f6e2bf',
+    error: '#c62828',
+    errorLight: '#f6cdcd',
+    errorSolid: '#c62828',
+    info: '#0277bd',
+    infoLight: '#cce5f3',
 
-    dataSpeed: '#4fc3f7',
-    dataDepth: '#66bb6a',
-    dataHeading: '#ab47bc',
-    dataWind: '#ffa726',
-    dataPosition: '#4fc3f7',
-    dataBattery: '#66bb6a',
+    dataSpeed: '#0277bd',
+    dataDepth: '#2e7d32',
+    dataHeading: '#6a1b9a',
+    dataWind: '#b26a00',
+    dataPosition: '#0277bd',
+    dataBattery: '#2e7d32',
 
-    border: '#bcc5cf',
-    borderHover: '#8c9fae',
-    borderFocus: '#0ea7aa',
-    borderDashed: '#b4bec8',
+    border: '#aab6c2',
+    borderHover: '#7d8b99',
+    borderFocus: '#0b5fa5',
+    borderDashed: '#b8c2cd',
   },
   shadow: {
     sm: '0 1px 3px rgba(9, 30, 50, 0.14)',
@@ -259,7 +264,66 @@ export const lightTheme: ThemeDefinition = {
   ...shared,
 };
 
+// Marine theme — a softer middle ground between dark and the stark sunlight
+// white: muted light-blue surfaces with navy text and nautical blue/teal
+// accents. Contrast is deliberately gentler than the white theme (navy on light
+// blue, not near-black on white) for easier, less glary cabin/daylight use,
+// while staying well clear of the dark theme's low daytime legibility.
+export const marineTheme: ThemeDefinition = {
+  colors: {
+    bgPrimary: '#d7e4f0',
+    bgSecondary: '#c6d6e6',
+    bgTertiary: '#bacce0',
+    bgCard: '#cddbea',
+    bgCardHover: '#c2d3e4',
+    bgCardActive: '#b3c8dd',
+    bgOverlay: 'rgba(12, 28, 46, 0.42)',
+    bgOverlayHeavy: 'rgba(12, 28, 46, 0.68)',
+
+    textPrimary: '#21405a',
+    textSecondary: '#355068',
+    textMuted: '#5a7488',
+    textDisabled: '#8aa0b2',
+
+    primary: '#1565a8',
+    primaryLight: '#b9d3ea',
+    primaryMedium: '#5b93c0',
+    primaryDark: '#0f4d82',
+    primarySolid: '#1565a8',
+
+    success: '#2e7d50',
+    successLight: '#bfe0cc',
+    successSolid: '#2e7d50',
+    warning: '#b5701a',
+    warningLight: '#ecd6b3',
+    error: '#c0392b',
+    errorLight: '#ecc6c1',
+    errorSolid: '#c0392b',
+    info: '#1976a8',
+    infoLight: '#bcd9e8',
+
+    dataSpeed: '#1976a8',
+    dataDepth: '#2e7d50',
+    dataHeading: '#6d4a9c',
+    dataWind: '#b5701a',
+    dataPosition: '#1976a8',
+    dataBattery: '#2e7d50',
+
+    border: '#a3b8cd',
+    borderHover: '#7d97b0',
+    borderFocus: '#1565a8',
+    borderDashed: '#aabfd1',
+  },
+  shadow: {
+    sm: '0 1px 3px rgba(12, 35, 60, 0.16)',
+    md: '0 2px 8px rgba(12, 35, 60, 0.20)',
+    lg: '0 4px 16px rgba(12, 35, 60, 0.24)',
+  },
+  ...shared,
+};
+
 export const themes: Record<ThemeMode, ThemeDefinition> = {
   dark: darkTheme,
   light: lightTheme,
+  marine: marineTheme,
 };

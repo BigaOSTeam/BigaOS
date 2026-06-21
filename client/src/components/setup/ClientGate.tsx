@@ -6,15 +6,18 @@ import { TileSourcesProvider } from '../../context/TileSourcesContext';
 import { SetupWizard } from './SetupWizard';
 import App from '../../App';
 import { applyThemeToDOM, StandaloneThemeProvider } from '../../context/ThemeContext';
-import { themes } from '../../styles/themes';
+import { themes, type ThemeMode } from '../../styles/themes';
 import { wsService } from '../../services/websocket';
 import { API_BASE_URL } from '../../utils/urls';
 import { clearStoredServerUrl, isNativeApp } from '../../utils/serverConfig';
 
-// Apply default dark theme before any render. The real theme arrives once
-// SettingsContext loads it from the server; until then we paint dark to
-// avoid a flash of unstyled content on the loading screen.
-applyThemeToDOM(themes.dark, 'dark');
+// Paint the last-used theme before any render. Theme is per-client and arrives
+// from the server once ClientSettings load; until then we repaint this screen's
+// remembered choice (written to localStorage by ThemeProvider) so a light-themed
+// sunlit display doesn't flash dark on every boot. Falls back to dark.
+const storedThemeMode = localStorage.getItem('bigaos-theme-mode') as ThemeMode | null;
+const bootThemeMode: ThemeMode = storedThemeMode && themes[storedThemeMode] ? storedThemeMode : 'dark';
+applyThemeToDOM(themes[bootThemeMode], bootThemeMode);
 
 const SERVER_PROBE_TIMEOUT_MS = 5000;
 

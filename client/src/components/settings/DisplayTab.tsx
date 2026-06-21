@@ -3,9 +3,50 @@ import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useClient } from '../../context/ClientContext';
 import { wsService } from '../../services/websocket';
-import { SButton, SLabel, SSection } from '../ui/SettingsUI';
+import { SButton, SLabel, SSection, SOptionGroup } from '../ui/SettingsUI';
 import { CustomSelect } from '../ui/CustomSelect';
 import { NightModeSection } from './NightModeSection';
+import type { ThemeMode } from '../../styles/themes';
+
+/**
+ * Per-device colour theme (dark / light) with an "apply to all" button —
+ * same per-client + broadcast model as NightModeSection. Light is intended for
+ * direct-sunlight readability; dark for night/cabin use.
+ */
+const ThemeSection: React.FC = () => {
+  const { theme, themeMode, setThemeMode, applyThemeToAll } = useTheme();
+  const { t } = useLanguage();
+
+  return (
+    <div style={{ marginBottom: theme.space.xl }}>
+      <SSection description={t('theme.section_desc')}>{t('settings.theme')}</SSection>
+
+      <SOptionGroup
+        options={['dark', 'marine', 'light'] as ThemeMode[]}
+        labels={{
+          dark: t('settings.theme_dark'),
+          marine: t('settings.theme_marine'),
+          light: t('settings.theme_light'),
+        }}
+        value={themeMode}
+        onChange={setThemeMode}
+        equalWidth
+      />
+
+      <div
+        style={{
+          marginTop: theme.space.lg,
+          paddingTop: theme.space.lg,
+          borderTop: `1px solid ${theme.colors.border}`,
+        }}
+      >
+        <SButton variant="secondary" onClick={applyThemeToAll} fullWidth>
+          {t('theme.apply_all')}
+        </SButton>
+      </div>
+    </div>
+  );
+};
 
 interface DisplayInfo {
   output: string;
@@ -222,6 +263,9 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({ hasAgent }) => {
 
   return (
     <div>
+      {/* Colour theme (dark/light) — per device, shown on every client */}
+      <ThemeSection />
+
       {/* Night mode (red display) — per device, shown on every client */}
       <NightModeSection />
 
