@@ -2,11 +2,42 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import { useLanguage } from '../../i18n/LanguageContext';
 import { useClient } from '../../context/ClientContext';
+import { useClientSetting } from '../../context/ClientSettingsContext';
 import { wsService } from '../../services/websocket';
-import { SButton, SLabel, SSection, SOptionGroup } from '../ui/SettingsUI';
+import { SButton, SLabel, SSection, SOptionGroup, SToggle } from '../ui/SettingsUI';
 import { CustomSelect } from '../ui/CustomSelect';
 import { NightModeSection } from './NightModeSection';
 import type { ThemeMode } from '../../styles/themes';
+
+/**
+ * Per-device wet-weather touch filter. Rejects stray touches from rain/spray so
+ * water on the screen can't press buttons on its own; deliberate single-finger
+ * taps still work. Off by default — only cockpit screens exposed to spray need
+ * it. The filter engine lives in utils/wetTouchFilter.ts (mounted by
+ * WetTouchGuard); here we just flip the per-client setting.
+ */
+const WetWeatherSection: React.FC = () => {
+  const { theme } = useTheme();
+  const { t } = useLanguage();
+  const [enabled, setEnabled] = useClientSetting<boolean>('wetTouchGuard', false);
+
+  return (
+    <div style={{ marginBottom: theme.space.xl }}>
+      <SSection description={t('wet.section_desc')}>{t('wet.section_title')}</SSection>
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: theme.space.md,
+        }}
+      >
+        <SLabel style={{ marginBottom: 0 }}>{t('wet.toggle_label')}</SLabel>
+        <SToggle checked={enabled} onChange={setEnabled} />
+      </div>
+    </div>
+  );
+};
 
 /**
  * Per-device colour theme (dark / light) with an "apply to all" button —
@@ -268,6 +299,9 @@ export const DisplayTab: React.FC<DisplayTabProps> = ({ hasAgent }) => {
 
       {/* Night mode (red display) — per device, shown on every client */}
       <NightModeSection />
+
+      {/* Wet-weather touch filter — per device, shown on every client */}
+      <WetWeatherSection />
 
       {/* Pi-specific hardware controls — only when this client has an agent */}
       {hasAgent && (

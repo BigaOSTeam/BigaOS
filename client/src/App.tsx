@@ -28,6 +28,7 @@ import { ButtonProvider } from './context/ButtonContext';
 import { ChartControlProvider } from './context/ChartControlContext';
 import { UiActionListener } from './components/UiActionListener';
 import { ButtonOverlay } from './components/ButtonOverlay';
+import { WetTouchGuard } from './components/WetTouchGuard';
 import { TankProvider } from './context/TankContext';
 import { TutorialProvider } from './context/TutorialContext';
 import { TutorialOverlay } from './components/tutorial/TutorialOverlay';
@@ -822,6 +823,7 @@ function App() {
                   <VirtualKeyboard />
                   <UiActionListener />
                   <ButtonOverlay />
+                  <WetTouchGuard />
                   <TutorialOverlay />
                 </TutorialProvider>
               </ConfirmDialogProvider>

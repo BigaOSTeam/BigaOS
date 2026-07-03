@@ -636,6 +636,30 @@ body {
   }
 }
 
+/* Wet-weather touch filter: feedback when a stray (water) touch is rejected.
+   The layer never intercepts input; the ripple flashes at the rejected point so
+   a mis-rejected real tap doesn't feel like a dead screen. See WetTouchGuard. */
+.wet-reject-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 21000;
+}
+.wet-reject-ripple {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px; /* centre on the touch point (left/top) */
+  border-radius: 50%;
+  border: 2px solid rgba(80, 180, 255, 0.9);
+  background: rgba(80, 180, 255, 0.15);
+  animation: wet-reject 0.65s ease-out forwards;
+}
+@keyframes wet-reject {
+  from { transform: scale(0.4); opacity: 0.9; }
+  to { transform: scale(1.7); opacity: 0; }
+}
+
 /* Centered press-and-hold ring overlay for MOB activation */
 @keyframes mob-ring-fill {
   from { stroke-dashoffset: 339.292; } /* 2*pi*54 */
