@@ -1,0 +1,6 @@
+{
+  "articles": [
+    { "slug": "overview", "title": "Überblick" },
+    { "slug": "setup", "title": "Einrichtung & Fehlersuche" }
+  ]
+}

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "updatedAt": "2026-05-06T00:00:00Z",
+  "updatedAt": "2026-07-03T00:00:00Z",
   "plugins": [
     {
       "id": "bigaos-demo-driver",
@@ -190,6 +190,31 @@
           "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
           "releaseDate": "2026-03-23",
           "changelog": "Initial release"
+        }
+      ]
+    },
+    {
+      "id": "bigaos-usb-serial",
+      "name": "USB Serial (NMEA 0183)",
+      "description": "Read any USB serial instrument that speaks NMEA 0183 — GPS, wind, depth, log, heading, water temperature, rudder — straight from a device plugged into the Raspberry Pi. Auto-detects the port and baud; every recognised value maps to its sensor slot.",
+      "author": "BigaOS Team",
+      "type": "driver",
+      "flag": "official",
+      "latestVersion": "1.0.0",
+      "capabilities": [
+        "sensor-data",
+        "settings",
+        "alerts",
+        "network"
+      ],
+      "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-usb-serial.tar.gz",
+      "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-usb-serial",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-usb-serial.tar.gz",
+          "releaseDate": "2026-07-03",
+          "changelog": "Initial release — full NMEA 0183 instrument set over USB serial, with device/baud auto-detection"
         }
       ]
     }

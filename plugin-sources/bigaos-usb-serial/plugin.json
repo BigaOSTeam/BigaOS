@@ -1,0 +1,82 @@
+{
+  "id": "bigaos-usb-serial",
+  "name": "USB Serial (NMEA 0183)",
+  "version": "1.0.0",
+  "description": "Read any USB serial instrument that speaks NMEA 0183 — GPS, wind, depth, log, heading, water temperature, rudder — straight from a device plugged into the Raspberry Pi. Auto-detects the port and baud; every recognised value maps to its sensor slot.",
+  "author": "BigaOS Team",
+  "type": "driver",
+  "main": "index.js",
+  "flag": "official",
+  "capabilities": ["sensor-data", "settings", "alerts", "network"],
+  "help": {
+    "languages": ["en", "de"],
+    "directory": "help/"
+  },
+  "versions": [
+    { "version": "1.0.0", "date": "2026-07-03", "changelog": "Initial release — full NMEA 0183 instrument set over USB serial, with device/baud auto-detection" }
+  ],
+  "driver": {
+    "protocol": "serial",
+    "dataStreams": [
+      { "id": "position", "name": "GPS Position", "dataType": "position", "unit": "degrees", "updateRate": 1, "interface": "serial", "description": "Latitude/longitude from RMC/GGA/GLL — only when the receiver reports a valid fix" },
+      { "id": "sog", "name": "Speed Over Ground", "dataType": "speed_over_ground", "unit": "m/s", "updateRate": 1, "interface": "serial", "description": "Speed over ground from RMC/VTG" },
+      { "id": "cog", "name": "Course Over Ground", "dataType": "course_over_ground", "unit": "radians", "updateRate": 1, "interface": "serial", "description": "Course over ground (true) from RMC/VTG" },
+      { "id": "heading_true", "name": "Heading (True)", "dataType": "heading", "unit": "radians", "updateRate": 1, "interface": "serial", "description": "True heading from HDT/VHW" },
+      { "id": "heading_magnetic", "name": "Heading (Magnetic)", "dataType": "heading", "unit": "radians", "updateRate": 1, "interface": "serial", "description": "Magnetic heading from HDG/HDM/VHW (auto-corrected to true using GPS declination)" },
+      { "id": "stw", "name": "Speed Through Water", "dataType": "speed_through_water", "unit": "m/s", "updateRate": 1, "interface": "serial", "description": "Boat speed through water from VHW (speed log)" },
+      { "id": "depth", "name": "Water Depth", "dataType": "depth", "unit": "meters", "updateRate": 1, "interface": "serial", "description": "Depth below transducer from DBT/DPT" },
+      { "id": "wind_speed_apparent", "name": "Apparent Wind Speed", "dataType": "wind_speed_apparent", "unit": "m/s", "updateRate": 1, "interface": "serial", "description": "Apparent wind speed from MWV/VWR" },
+      { "id": "wind_angle_apparent", "name": "Apparent Wind Angle", "dataType": "wind_angle_apparent", "unit": "radians", "updateRate": 1, "interface": "serial", "description": "Apparent wind angle from MWV/VWR" },
+      { "id": "wind_speed_true", "name": "True Wind Speed", "dataType": "wind_speed_true", "unit": "m/s", "updateRate": 1, "interface": "serial", "description": "True wind speed from MWV/MWD" },
+      { "id": "wind_angle_true", "name": "True Wind Angle", "dataType": "wind_angle_true", "unit": "radians", "updateRate": 1, "interface": "serial", "description": "True wind angle (boat-referenced) from MWV" },
+      { "id": "water_temp", "name": "Water Temperature", "dataType": "water_temperature", "unit": "K", "updateRate": 1, "interface": "serial", "description": "Sea water temperature from MTW" },
+      { "id": "rudder", "name": "Rudder Angle", "dataType": "rudder_angle", "unit": "radians", "updateRate": 1, "interface": "serial", "description": "Rudder angle from RSA (positive = starboard)" }
+    ],
+    "configSchema": [
+      {
+        "key": "info",
+        "label": "About",
+        "type": "info",
+        "default": "Plug a USB instrument that outputs NMEA 0183 (GPS, wind, depth, log, heading...) into the Raspberry Pi. Leave device and baud on Auto to have BigaOS find it. Recognised values appear under Settings → Data Sources and map automatically.",
+        "description": ""
+      },
+      {
+        "key": "devicePath",
+        "label": "Serial Device",
+        "type": "string",
+        "default": "auto",
+        "description": "Serial port of the instrument, e.g. /dev/ttyUSB0 or /dev/ttyACM0. Leave as 'auto' to detect it automatically."
+      },
+      {
+        "key": "baudRate",
+        "label": "Baud Rate",
+        "type": "select",
+        "default": "auto",
+        "description": "Serial speed. 'Auto' tries the common rates until it finds valid data. GPS mice usually use 4800 or 9600; NMEA 0183 instruments are typically 4800.",
+        "options": [
+          { "value": "auto", "label": "Auto" },
+          { "value": "4800", "label": "4800" },
+          { "value": "9600", "label": "9600" },
+          { "value": "19200", "label": "19200" },
+          { "value": "38400", "label": "38400" },
+          { "value": "57600", "label": "57600" },
+          { "value": "115200", "label": "115200" }
+        ]
+      },
+      {
+        "key": "autoReconnect",
+        "label": "Auto Reconnect",
+        "type": "boolean",
+        "default": true,
+        "description": "Automatically reconnect if the device is unplugged or the connection drops"
+      },
+      {
+        "key": "reconnectInterval",
+        "label": "Reconnect Interval (seconds)",
+        "type": "number",
+        "default": 5,
+        "description": "Seconds to wait between reconnection attempts"
+      }
+    ]
+  }
+}
