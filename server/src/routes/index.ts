@@ -8,6 +8,8 @@ import { tilesController } from '../controllers/tiles.controller';
 import { depthController } from '../controllers/depth.controller';
 import { heritageController } from '../controllers/heritage.controller';
 import { seabedController } from '../controllers/seabed.controller';
+import { chartController } from '../controllers/chart.controller';
+import { seamarkController } from '../controllers/seamark.controller';
 import { regionalImportController } from '../controllers/regional-import.controller';
 import { autopilotController } from '../controllers/autopilot.controller';
 import { weatherController } from '../controllers/weather.controller';
@@ -137,6 +139,17 @@ router.get('/heritage/features', fileOpsLimiter, heritageController.getFeatures.
 // Seabed composition (anchoring) — EMODnet substrate + Posidonia polygons,
 // offline-first (downloaded pack) with a live EMODnet Seabed Habitats WFS fallback.
 router.get('/seabed/features', fileOpsLimiter, seabedController.getFeatures.bind(seabedController));
+
+// Offline chart packs — PMTiles vector base map. `/packs` lists installed packs;
+// the per-pack file is served with HTTP Range (byte-range reads are chatty, so
+// it uses the generous tile limiter rather than the file-ops one).
+router.get('/charts/packs', fileOpsLimiter, chartController.getPacks.bind(chartController));
+router.get('/charts/:packId/tiles.pmtiles', tileServeLimiter, chartController.servePmtiles.bind(chartController));
+
+// Offline seamarks — vector buoys/lights/beacons from a downloaded pack,
+// bbox- and zoom-filtered. Where no pack is installed the client uses the
+// online `nautical` raster overlay instead.
+router.get('/seamarks/features', fileOpsLimiter, seamarkController.getFeatures.bind(seamarkController));
 
 // Regional importer — user-added lake depth (modeled from an OSM outline + max
 // depth), generated on-device and folded into the Depth overlay.

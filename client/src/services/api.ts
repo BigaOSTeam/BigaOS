@@ -205,9 +205,17 @@ export const regionalAPI = {
   removeLake: (id: string) => api.delete<{ success: boolean }>(`/regional/lakes/${id}`),
 };
 
-// Tile source registry
-export type TileSourceRole = 'base' | 'overlay';
-export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'seabed' | 'mbtiles' | 'zones';
+// Tile source registry. Mirrors the server's `TileSourceRole`/`TileSourceKind`.
+export type TileSourceRole = 'base' | 'overlay' | 'base-companion';
+export type TileSourceKind =
+  | 'remote'
+  | 'contours'
+  | 'heritage'
+  | 'seabed'
+  | 'mbtiles'
+  | 'zones'
+  | 'pmtiles'
+  | 'seamarks';
 
 /**
  * Public view of a server tile source (from GET /tiles/sources). The chart UI
@@ -223,8 +231,6 @@ export interface PublicTileSource {
   maxZoom?: number;
   defaultEnabled?: boolean;
   notForNavigation?: boolean;
-  offlineDownloadable?: boolean;
-  estimatedBytesPerTile?: number;
 }
 
 export interface DeviceStorage {

@@ -2,19 +2,22 @@
  * Tile-source registry.
  *
  * Single source of truth for every map tile layer the app knows about. The
- * server uses it to validate `/tiles/:source/...` requests, to look up the
- * remote URL when proxying, and to iterate over downloadable sources for the
- * offline-maps feature. The client fetches a sanitised view of it via
+ * server uses it to validate `/tiles/:source/...` requests and to look up the
+ * remote URL when proxying. The client fetches a sanitised view of it via
  * `GET /api/tile-sources` so the UI can render the base/overlay controls,
  * attribution, and disclaimers from data instead of hardcoded strings.
  *
- * Adding a new tile source = appending one entry here. Removing one is also
- * just an entry; the offline-region records on disk store the source id as a
- * string, so an unknown id just stops being downloadable (it doesn't break
- * existing records).
+ * Adding a new tile source = appending one entry here; removing one is just
+ * deleting its entry.
  */
 
-export type TileSourceRole = 'base' | 'overlay';
+// `base` — a user-selectable base map (exactly one active at a time).
+// `overlay` — a toggleable layer stacked above the base.
+// `base-companion` — renders *together with* its base (not instead of it), e.g.
+//   the offline PMTiles base pack drawn above the online `street` raster so
+//   coverage gaps fall through. Not user-selectable on its own; mounted by the
+//   client when its companion base is active. See the offline chart-pack work.
+export type TileSourceRole = 'base' | 'overlay' | 'base-companion';
 
 // `remote` — HTTP tile server proxied through `/tiles/:source/...`.
 // `contours` — not tiles at all: a vector depth-contour overlay the client
@@ -33,7 +36,21 @@ export type TileSourceRole = 'base' | 'overlay';
 // `zones` — user-authored regulatory/area overlays (no-go, nature, anchorage,
 //   speed). Like `contours`/`heritage` it's a vector overlay the client renders
 //   itself; the polygons live in the `chartZones` boat setting (no server data).
-export type TileSourceKind = 'remote' | 'contours' | 'heritage' | 'seabed' | 'mbtiles' | 'zones';
+// `pmtiles` — an offline vector base-map pack (downloaded PMTiles file, served
+//   by chart-pack.service over HTTP Range). The client renders it with
+//   protomaps-leaflet, stacked above the online raster base. Has no `url`.
+// `seamarks` — offline vector seamarks: the client fetches GeoJSON from
+//   `/seamarks/features` (seamark.service) and draws its own symbols, the
+//   vector/offline counterpart of the `nautical` raster overlay. Has no `url`.
+export type TileSourceKind =
+  | 'remote'
+  | 'contours'
+  | 'heritage'
+  | 'seabed'
+  | 'mbtiles'
+  | 'zones'
+  | 'pmtiles'
+  | 'seamarks';
 
 export interface TileSource {
   id: string;
@@ -57,12 +74,6 @@ export interface TileSource {
   // True when the underlying data carries a "not for navigation" disclaimer
   // (Sentinel-2, EMODnet etc.). The client surfaces a small badge.
   notForNavigation?: boolean;
-
-  // Gates whether this source appears in the offline-maps download UI.
-  offlineDownloadable?: boolean;
-
-  // Used to size the offline-download estimate.
-  estimatedBytesPerTile?: number;
 
   // Path into the existing `mapTileUrls` setting that, if set, overrides
   // `url` at request time. Lets an install point at a paid tile provider
@@ -88,8 +99,6 @@ export const TILE_SOURCES: readonly TileSource[] = [
     url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
-    offlineDownloadable: true,
-    estimatedBytesPerTile: 18 * 1024,
     customUrlSettingKey: 'streetMap',
   },
   {
@@ -106,8 +115,6 @@ export const TILE_SOURCES: readonly TileSource[] = [
       '(Contains modified Copernicus Sentinel data 2024) — CC BY-NC-SA 4.0',
     maxZoom: 17,
     notForNavigation: true,
-    offlineDownloadable: true,
-    estimatedBytesPerTile: 25 * 1024,
     customUrlSettingKey: 'satelliteMap',
   },
   {
@@ -119,8 +126,6 @@ export const TILE_SOURCES: readonly TileSource[] = [
     attribution: '© <a href="https://www.openseamap.org/">OpenSeaMap</a> contributors',
     maxZoom: 18,
     defaultEnabled: true,
-    offlineDownloadable: true,
-    estimatedBytesPerTile: 8 * 1024,
     customUrlSettingKey: 'nauticalOverlay',
   },
   {
@@ -197,13 +202,6 @@ export function getTileSource(id: string): TileSource | undefined {
 }
 
 /**
- * Sources that the offline-maps downloader is allowed to bulk-fetch.
- */
-export function getOfflineDownloadableSources(): TileSource[] {
-  return TILE_SOURCES.filter((s) => s.offlineDownloadable);
-}
-
-/**
  * Subset of the registry suitable to send to the client over the public API.
  * Strips fields that are server-internal — there are none today, but the
  * indirection keeps a future "internal-only" flag easy to add.
@@ -218,8 +216,6 @@ export interface PublicTileSource {
   maxZoom?: number;
   defaultEnabled?: boolean;
   notForNavigation?: boolean;
-  offlineDownloadable?: boolean;
-  estimatedBytesPerTile?: number;
 }
 
 export function toPublicTileSource(s: TileSource): PublicTileSource {
@@ -233,7 +229,5 @@ export function toPublicTileSource(s: TileSource): PublicTileSource {
     maxZoom: s.maxZoom,
     defaultEnabled: s.defaultEnabled,
     notForNavigation: s.notForNavigation,
-    offlineDownloadable: s.offlineDownloadable,
-    estimatedBytesPerTile: s.estimatedBytesPerTile,
   };
 }

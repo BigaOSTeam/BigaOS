@@ -14,6 +14,8 @@ import { waterDetectionService } from './services/water-detection.service';
 import { depthTileService } from './services/depth-tile.service';
 import { heritageService } from './services/heritage.service';
 import { seabedService } from './services/seabed.service';
+import { chartPackService } from './services/chart-pack.service';
+import { seamarkService } from './services/seamark.service';
 import { routeWorkerService } from './services/route-worker.service';
 import { DataController } from './services/data.controller';
 import { initializeLanguages } from './i18n/lang';
@@ -74,6 +76,15 @@ async function startServer() {
   // Load downloaded seabed-composition polygons (async, non-blocking) for the anchoring overlay
   seabedService.initialize().catch(error => {
     console.error('Failed to initialize seabed service:', error);
+  });
+
+  // Index downloaded offline chart packs (async, non-blocking): PMTiles base
+  // packs + OpenSeaMap seamark packs. Inert until a chart pack is downloaded.
+  chartPackService.initialize().catch(error => {
+    console.error('Failed to initialize chart pack service:', error);
+  });
+  seamarkService.initialize().catch(error => {
+    console.error('Failed to initialize seamark service:', error);
   });
 
   // Initialize route worker (async, non-blocking) - runs pathfinding in separate thread

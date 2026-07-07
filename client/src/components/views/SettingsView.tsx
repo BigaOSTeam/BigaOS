@@ -1155,7 +1155,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
           alignItems: 'center',
           gap: theme.space.md,
         }}>
-          <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.text }}>
+          <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.textPrimary }}>
             {t('downloads.tile_cache')}
             <span style={{ color: theme.colors.textMuted, marginLeft: theme.space.sm }}>
               {storageStats?.totalSize ?? formatFileSize(0)}

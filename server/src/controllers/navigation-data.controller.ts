@@ -23,6 +23,8 @@ import { depthTileService } from '../services/depth-tile.service';
 import { depthContourService } from '../services/depth-contour.service';
 import { heritageService } from '../services/heritage.service';
 import { seabedService } from '../services/seabed.service';
+import { chartPackService } from '../services/chart-pack.service';
+import { seamarkService } from '../services/seamark.service';
 
 // OSM Water Layer — oceans, lakes, rivers (90 m). Drives water detection + routing.
 const NAVIGATION_DATA_FILES: DataFileConfig[] = [
@@ -153,7 +155,48 @@ const SEABED_DATA_FILES: DataFileConfig[] = [
   }
 ];
 
-const ALL_DATA_FILES: DataFileConfig[] = [...NAVIGATION_DATA_FILES, ...DEPTH_DATA_FILES, ...HERITAGE_DATA_FILES, ...SEABED_DATA_FILES];
+// Offline chart packs: OSM vector base map (PMTiles) + OpenSeaMap seamarks
+// (GeoJSON), one per cruising region, mirroring the depth regions. Base packs
+// extract into chart-packs/osm-<region>/ (indexed by chart-pack.service, served
+// with Range); seamark packs into chart-packs/seamark-<region>/ (loaded by
+// seamark.service). World + Baltic first; other regions follow as the pack CI
+// publishes them. (Like the seabed pack, the release assets are produced as a
+// data-ops step — the entries can precede the assets.)
+const CHART_REL = 'https://github.com/BigaOSTeam/BigaOS-data/releases/download/chart-packs-v1';
+const CHART_DATA_FILES: DataFileConfig[] = [
+  {
+    id: 'chart-osm-world',
+    name: 'World overview (z0–7)',
+    description: 'OSM base map, low zoom, whole planet — context everywhere, offline',
+    category: 'charts',
+    defaultUrl: `${CHART_REL}/chart-osm-world-v1.tar.gz`,
+    localPath: 'chart-packs/osm-world',
+  },
+  {
+    id: 'chart-osm-baltic',
+    name: 'Baltic Sea — base map',
+    description: 'OSM vector base map, coastal Baltic (z0–13)',
+    category: 'charts',
+    defaultUrl: `${CHART_REL}/chart-osm-baltic-v1.tar.gz`,
+    localPath: 'chart-packs/osm-baltic',
+  },
+  {
+    id: 'seamark-baltic',
+    name: 'Baltic Sea — seamarks',
+    description: 'Buoys, lights, beacons (OpenSeaMap data)',
+    category: 'charts',
+    defaultUrl: `${CHART_REL}/seamark-baltic-v1.tar.gz`,
+    localPath: 'chart-packs/seamark-baltic',
+  },
+];
+
+const ALL_DATA_FILES: DataFileConfig[] = [
+  ...NAVIGATION_DATA_FILES,
+  ...DEPTH_DATA_FILES,
+  ...HERITAGE_DATA_FILES,
+  ...SEABED_DATA_FILES,
+  ...CHART_DATA_FILES,
+];
 
 class NavigationDataController extends DataManagementController {
   constructor() {
@@ -177,6 +220,10 @@ class NavigationDataController extends DataManagementController {
     } else if (category === 'seabed') {
       console.log('Seabed data changed, reloading seabed composition...');
       await seabedService.reload();
+    } else if (category === 'charts') {
+      console.log('Chart packs changed, reindexing base packs + seamarks...');
+      await chartPackService.reload();
+      await seamarkService.reload();
     }
   }
 

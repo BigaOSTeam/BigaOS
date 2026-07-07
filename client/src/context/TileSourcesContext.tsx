@@ -31,7 +31,6 @@ const FALLBACK_SOURCES: PublicTileSource[] = [
     kind: 'remote',
     attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
     maxZoom: 19,
-    offlineDownloadable: true,
   },
   {
     id: 'satellite',
@@ -42,7 +41,6 @@ const FALLBACK_SOURCES: PublicTileSource[] = [
       '<a href="https://s2maps.eu">Sentinel-2 cloudless</a> by EOX IT Services GmbH (CC BY-NC-SA 4.0)',
     maxZoom: 17,
     notForNavigation: true,
-    offlineDownloadable: true,
   },
   {
     id: 'nautical',
@@ -52,7 +50,6 @@ const FALLBACK_SOURCES: PublicTileSource[] = [
     attribution: '© <a href="https://www.openseamap.org/">OpenSeaMap</a> contributors',
     maxZoom: 18,
     defaultEnabled: true,
-    offlineDownloadable: true,
   },
 ];
 
@@ -115,9 +112,7 @@ export const TileSourcesProvider: React.FC<{ children: ReactNode }> = ({ childre
     (id: string) => {
       // Local-pack sources are served from the Pi's own disk — prefetch freely.
       // Everything else is a remote source: no pre-emptive fetching (policy).
-      // Cast: the 'pmtiles' kind arrives with Phase 3; comparing as a string
-      // keeps this correct now (all sources → 0) and once packs land (→ 1).
-      return (getSource(id)?.kind as string) === 'pmtiles' ? 1 : 0;
+      return getSource(id)?.kind === 'pmtiles' ? 1 : 0;
     },
     [getSource]
   );
