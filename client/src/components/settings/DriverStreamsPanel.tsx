@@ -11,7 +11,7 @@
  * - Info and password config field types
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '../../context/ThemeContext';
 import {
   PluginInfo,
@@ -25,6 +25,7 @@ import { useLanguage } from '../../i18n/LanguageContext';
 import { useSettings } from '../../context/SettingsContext';
 import { CustomSelect } from '../ui/CustomSelect';
 import { SLabel, SSection, SInput, SButton, SToggle, SInfoBox } from '../ui/SettingsUI';
+import { degToRad } from '../../utils/angle';
 
 // ============================================================================
 // Slot categories (slot types grouped for display)
@@ -77,6 +78,10 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
   const [magCalActive, setMagCalActive] = useState(false);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [headingInput, setHeadingInput] = useState('');
+  const [alignPending, setAlignPending] = useState(false);
+  const [alignFeedback, setAlignFeedback] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const prevAlignResult = useRef<any>(undefined);
 
   const configSchema = plugin.manifest.configSchema || plugin.manifest.driver?.configSchema || [];
   const isDriver = plugin.manifest.type === 'driver';
@@ -113,6 +118,34 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
     }, 5000);
     return () => clearInterval(interval);
   }, [isDriver, plugin.id, executePluginAction]);
+
+  // Watch for the heading alignment result (MacArthur HAT only)
+  const alignResult = pluginActionResults['bigaos-macarthur-hat:imu_align_heading'];
+  useEffect(() => {
+    if (!alignPending || alignResult === prevAlignResult.current) return;
+    prevAlignResult.current = alignResult;
+    setAlignPending(false);
+    if (alignResult?.error) {
+      setAlignFeedback({ kind: 'error', text: alignResult.error });
+    } else {
+      setAlignFeedback({ kind: 'success', text: t('imu.align_success') || 'Heading aligned' });
+      setHeadingInput('');
+    }
+  }, [alignPending, alignResult, t]);
+
+  const handleAlignHeading = useCallback(() => {
+    const deg = parseFloat(headingInput);
+    if (!Number.isFinite(deg)) {
+      setAlignFeedback({ kind: 'error', text: t('imu.align_invalid') || 'Enter the current heading in degrees (0–359)' });
+      return;
+    }
+    prevAlignResult.current = alignResult;
+    setAlignFeedback(null);
+    setAlignPending(true);
+    executePluginAction('bigaos-macarthur-hat', 'imu_align_heading', {
+      heading: degToRad(((deg % 360) + 360) % 360),
+    });
+  }, [headingInput, alignResult, executePluginAction, t]);
 
   // Poll IMU calibration status when advanced settings are open (MacArthur HAT only)
   useEffect(() => {
@@ -837,6 +870,15 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
               {imuCalStatus.calibrated
                 ? (t('imu.calibrated') || 'Calibrated')
                 : (t('imu.not_calibrated') || 'Not calibrated')}
+              {' · '}
+              {imuCalStatus.headingAligned
+                ? (t('imu.heading_aligned') || 'Bow direction set')
+                : (t('imu.heading_not_aligned') || 'Bow direction not set')}
+              {imuCalStatus.magDisturbance && (
+                <span style={{ color: theme.colors.warning, marginLeft: theme.space.sm }}>
+                  {t('imu.mag_disturbance') || 'Magnetic interference detected'}
+                </span>
+              )}
               {imuCalStatus.status !== 'idle' && imuCalStatus.status !== 'complete' && (
                 <span style={{ color: theme.colors.warning, marginLeft: theme.space.sm }}>
                   {imuCalStatus.status === 'calibrating_gyro' && `${t('imu.calibrating_gyro') || 'Calibrating gyro'}... ${imuCalStatus.progress}%`}
@@ -893,6 +935,58 @@ export const DriverSettingsDialog: React.FC<DriverSettingsDialogProps> = ({
                 {t('imu.mag_cal_hint') || 'Slowly rotate the boat through as many headings as possible, then press Finish.'}
               </div>
             )}
+
+            {/* Heading alignment — for devices not mounted facing the bow */}
+            <div style={{
+              marginTop: theme.space.md,
+              paddingTop: theme.space.md,
+              borderTop: `1px solid ${theme.colors.border}`,
+            }}>
+              <div style={{
+                fontSize: theme.fontSize.sm,
+                fontWeight: theme.fontWeight.semibold,
+                color: theme.colors.textPrimary,
+                marginBottom: theme.space.xs,
+              }}>
+                {t('imu.align_heading') || 'Heading Alignment'}
+              </div>
+              <div style={{
+                fontSize: theme.fontSize.xs,
+                color: theme.colors.textMuted,
+                marginBottom: theme.space.sm,
+              }}>
+                {t('imu.align_heading_hint') || 'If the device is not mounted facing the bow, enter the direction the boat is actually pointing right now (magnetic, from a handheld or ship’s compass) and press Align.'}
+              </div>
+              <div style={{ display: 'flex', gap: theme.space.sm }}>
+                <SInput
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  max={359}
+                  value={headingInput}
+                  onChange={(e) => setHeadingInput(e.target.value)}
+                  placeholder={t('imu.align_placeholder') || 'Current heading (0–359°)'}
+                  inputStyle={{ flex: 1 }}
+                />
+                <SButton
+                  variant="primary"
+                  onClick={handleAlignHeading}
+                  disabled={alignPending || headingInput.trim() === '' || (imuCalStatus.status !== 'idle' && imuCalStatus.status !== 'complete')}
+                  style={{ minWidth: '100px' }}
+                >
+                  {alignPending ? (t('imu.aligning') || 'Aligning…') : (t('imu.align') || 'Align')}
+                </SButton>
+              </div>
+              {alignFeedback && (
+                <div style={{
+                  marginTop: theme.space.sm,
+                  fontSize: theme.fontSize.xs,
+                  color: alignFeedback.kind === 'error' ? theme.colors.error : theme.colors.success,
+                }}>
+                  {alignFeedback.text}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

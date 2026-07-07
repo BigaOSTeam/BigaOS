@@ -2,28 +2,51 @@
  * IMU Calibration Module
  *
  * Handles gyroscope bias, magnetometer hard-iron/soft-iron, and
- * mounting offset calibration for the ICM-20948 IMU.
+ * mounting alignment calibration for the ICM-20948 IMU.
+ *
+ * Mounting alignment is a full quaternion tare: the device can be
+ * installed in any orientation (sideways in a cabinet, rotated away
+ * from the bow) — the tare maps the device attitude onto the boat
+ * frame, so heading, roll and pitch all come out on boat axes.
  *
  * Calibration data is persisted via plugin settings and loaded on startup.
- * If no calibration exists on first run, gyro bias and mounting offset
+ * If no calibration exists on first run, gyro bias and mounting alignment
  * are auto-calibrated (magnetometer requires user-initiated rotation).
  */
+
+const { qMultiply, qConjugate, qNormalize, qFromEuler, qToEuler, qAverage } = require('./quaternion');
 
 // Number of samples for gyro bias calibration (~2s at 50Hz)
 const GYRO_CAL_SAMPLES = 100;
 
-// Number of samples for mounting offset (~1s at 50Hz)
+// Number of samples for mounting alignment (~1s at 50Hz)
 const MOUNT_CAL_SAMPLES = 50;
 
 // Max accelerometer variance (g²) to accept gyro calibration (must be stationary)
 const MOTION_THRESHOLD = 0.01;
+
+// Max heading wander (rad) across the alignment window before rejecting the tare
+const ALIGN_STABILITY_RAD = 3 * Math.PI / 180;
+
+// Corrected mag magnitude outside this factor of the calibrated field
+// strength is treated as a disturbance (alternator burst, DC wiring, ...)
+const MAG_TOLERANCE = 0.3;
+
+// Slow EMA so the expected field strength tracks the geomagnetic environment
+const MAG_EMA_ALPHA = 0.001;
+
+const TWO_PI = 2 * Math.PI;
 
 class IMUCalibration {
   constructor() {
     this.gyroBias = { x: 0, y: 0, z: 0 };
     this.magHardIron = { x: 0, y: 0, z: 0 };
     this.magSoftIron = { x: 1, y: 1, z: 1 };
-    this.mountingOffset = { roll: 0, pitch: 0, heading: 0 };
+    this.mountingOffset = { roll: 0, pitch: 0, heading: 0 }; // legacy (pre-quaternion) offsets
+    this.mountQuat = null; // quaternion tare — supersedes mountingOffset when set
+    this.magFieldMagnitude = null; // expected corrected |mag| in µT (from compass cal)
+    this.magRejectCount = 0;
+    this.lastMagRejectTime = 0;
     this.calibrated = false;
     this.status = 'idle'; // idle | calibrating_gyro | calibrating_mount | calibrating_mag | complete
     this.progress = 0;
@@ -43,6 +66,8 @@ class IMUCalibration {
       if (data.magHardIron) this.magHardIron = data.magHardIron;
       if (data.magSoftIron) this.magSoftIron = data.magSoftIron;
       if (data.mountingOffset) this.mountingOffset = data.mountingOffset;
+      if (data.mountQuat) this.mountQuat = data.mountQuat;
+      if (typeof data.magFieldMagnitude === 'number') this.magFieldMagnitude = data.magFieldMagnitude;
       this.calibrated = true;
       this.status = 'complete';
       return true;
@@ -62,6 +87,8 @@ class IMUCalibration {
       magHardIron: this.magHardIron,
       magSoftIron: this.magSoftIron,
       mountingOffset: this.mountingOffset,
+      mountQuat: this.mountQuat,
+      magFieldMagnitude: this.magFieldMagnitude,
     });
   }
 
@@ -104,36 +131,70 @@ class IMUCalibration {
   }
 
   /**
-   * Calibrate mounting offset using the current AHRS output.
-   * Averages the current roll/pitch/heading as the zero reference.
+   * Calibrate mounting alignment (quaternion tare) using the current AHRS state.
+   *
+   * Assumes the boat is level. Samples the converged device attitude and
+   * computes the fixed rotation that maps it onto the boat frame:
+   *   mountQuat = conj(Q_ref) ⊗ fromEuler(0, 0, targetHeading)
+   *
+   * @param {number|null} targetHeading - the boat's actual current magnetic
+   *   heading (radians). Pass null to keep the current boat heading unchanged
+   *   (pure re-level, e.g. auto-calibration on first run).
+   * @returns {Promise<{ heading: number }>} the heading the attitude was mapped to
    */
-  calibrateMountingOffset(imuConnection, fusion) {
-    return new Promise((resolve) => {
+  alignMounting(imuConnection, fusion, targetHeading = null) {
+    return new Promise((resolve, reject) => {
       this.status = 'calibrating_mount';
       this.progress = 0;
 
       const samples = [];
 
+      // Guard the awaited RPC path against a stalled sensor
+      const timeout = setTimeout(() => {
+        imuConnection.removeListener('data', onData);
+        this.status = this.calibrated ? 'complete' : 'idle';
+        reject(new Error('No IMU data received — is the sensor connected?'));
+      }, 10000);
+
       const onData = (data) => {
+        const correctedMag = this.applyMag(data.mag);
         const corrected = {
           accel: data.accel,
           gyro: this.applyGyro(data.gyro),
-          mag: this.applyMag(data.mag),
+          mag: this.checkMagField(correctedMag) ? correctedMag : { x: 0, y: 0, z: 0 },
           timestamp: data.timestamp,
         };
-        const attitude = fusion.update(corrected);
-        samples.push(attitude);
+        fusion.update(corrected);
+        samples.push(fusion.getQuaternion());
         this.progress = Math.round((samples.length / MOUNT_CAL_SAMPLES) * 100);
 
         if (samples.length >= MOUNT_CAL_SAMPLES) {
+          clearTimeout(timeout);
           imuConnection.removeListener('data', onData);
 
-          // Average the attitude readings as mounting offset
-          const avgRoll = samples.reduce((s, a) => s + a.roll, 0) / samples.length;
-          const avgPitch = samples.reduce((s, a) => s + a.pitch, 0) / samples.length;
-          // Don't offset heading — user may want magnetic heading as-is
-          this.mountingOffset = { roll: avgRoll, pitch: avgPitch, heading: 0 };
-          resolve(this.mountingOffset);
+          // Reject the tare if heading was still moving during the window
+          const headings = samples.map(q => qToEuler(q).heading);
+          if (this._circularSpread(headings) > ALIGN_STABILITY_RAD) {
+            this.status = this.calibrated ? 'complete' : 'idle';
+            reject(new Error('Heading not stable — wait for the compass to settle, then try again'));
+            return;
+          }
+
+          const qRef = qAverage(samples);
+
+          // null target = keep the boat heading where it is today (pure re-level)
+          let target = targetHeading;
+          if (target === null) {
+            const current = this.mountQuat
+              ? qToEuler(qMultiply(qRef, this.mountQuat)).heading
+              : qToEuler(qRef).heading;
+            target = current;
+          }
+
+          this.mountQuat = qNormalize(qMultiply(qConjugate(qRef), qFromEuler(0, 0, target)));
+          // Quaternion tare supersedes the legacy euler offsets
+          this.mountingOffset = { roll: 0, pitch: 0, heading: 0 };
+          resolve({ heading: ((target % TWO_PI) + TWO_PI) % TWO_PI });
         }
       };
 
@@ -200,6 +261,11 @@ class IMUCalibration {
       z: avgRange / rangeZ,
     };
 
+    // After correction the field magnitude is ~avgRange — remember it so
+    // magnetic disturbances (electrical bursts) can be detected and rejected
+    this.magFieldMagnitude = avgRange;
+    this.magRejectCount = 0;
+
     this.status = 'complete';
     this.calibrated = true;
     return { hardIron: this.magHardIron, softIron: this.magSoftIron, samples: this.magSamples };
@@ -228,9 +294,43 @@ class IMUCalibration {
   }
 
   /**
-   * Apply mounting offset to AHRS output.
+   * Check whether a corrected mag reading is plausible against the
+   * calibrated field strength. Implausible readings (electrical bursts,
+   * a drill next to the cabinet, ...) should not be fed to the filter —
+   * the gyro carries the heading through the disturbance.
+   *
+   * Always true until a compass calibration has stored a field magnitude.
    */
-  applyMountingOffset(attitude) {
+  checkMagField(correctedMag) {
+    if (!this.magFieldMagnitude) return true;
+
+    const m = Math.hypot(correctedMag.x, correctedMag.y, correctedMag.z);
+    const expected = this.magFieldMagnitude;
+
+    if (m < expected * (1 - MAG_TOLERANCE) || m > expected * (1 + MAG_TOLERANCE)) {
+      this.magRejectCount++;
+      this.lastMagRejectTime = Date.now();
+      return false;
+    }
+
+    // Track slow changes in the ambient field (sailing to other latitudes)
+    this.magFieldMagnitude = expected * (1 - MAG_EMA_ALPHA) + m * MAG_EMA_ALPHA;
+    return true;
+  }
+
+  /**
+   * Map the device attitude onto the boat frame.
+   *
+   * Uses the quaternion tare when available; falls back to the legacy
+   * euler roll/pitch subtraction for calibrations saved by older versions.
+   */
+  applyMounting(attitude, quat) {
+    if (this.mountQuat && quat) {
+      const e = qToEuler(qMultiply(quat, this.mountQuat));
+      let heading = e.heading;
+      if (heading < 0) heading += TWO_PI;
+      return { roll: e.roll, pitch: e.pitch, heading };
+    }
     return {
       roll: attitude.roll - this.mountingOffset.roll,
       pitch: attitude.pitch - this.mountingOffset.pitch,
@@ -251,10 +351,32 @@ class IMUCalibration {
       magSoftIron: this.magSoftIron,
       mountingOffset: this.mountingOffset,
       magSamples: this.magSamples,
+      headingAligned: this.mountQuat !== null,
+      magDisturbance: this.lastMagRejectTime > 0 && (Date.now() - this.lastMagRejectTime) < 2000,
+      magRejectCount: this.magRejectCount,
     };
   }
 
   // ── Helpers ────────────────────────────────────────────────────
+
+  /**
+   * Max angular deviation (rad) of a set of headings from their circular mean.
+   */
+  _circularSpread(headings) {
+    let sinSum = 0, cosSum = 0;
+    for (const h of headings) {
+      sinSum += Math.sin(h);
+      cosSum += Math.cos(h);
+    }
+    const mean = Math.atan2(sinSum, cosSum);
+    let max = 0;
+    for (const h of headings) {
+      let d = Math.abs(h - mean) % TWO_PI;
+      if (d > Math.PI) d = TWO_PI - d;
+      if (d > max) max = d;
+    }
+    return max;
+  }
 
   _average(samples) {
     const n = samples.length;

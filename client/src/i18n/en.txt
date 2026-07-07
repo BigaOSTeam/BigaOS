@@ -987,6 +987,16 @@ imu.recalibrate=Recalibrate Level
 imu.start_mag_cal=Calibrate Compass
 imu.stop_mag_cal=Finish Compass Cal
 imu.mag_cal_hint=Slowly rotate the boat through as many headings as possible, then press Finish.
+imu.heading_aligned=Bow direction set
+imu.heading_not_aligned=Bow direction not set
+imu.mag_disturbance=Magnetic interference detected
+imu.align_heading=Heading Alignment
+imu.align_heading_hint=If the device is not mounted facing the bow, enter the direction the boat is actually pointing right now (magnetic, from a handheld or ship's compass) and press Align.
+imu.align_placeholder=Current heading (0–359°)
+imu.align=Align
+imu.aligning=Aligning…
+imu.align_success=Heading aligned
+imu.align_invalid=Enter the current heading in degrees (0–359)
 
 # ==================== Interface Labels ====================
 iface.nmea2000=NMEA 2000

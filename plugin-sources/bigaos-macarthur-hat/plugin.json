@@ -1,7 +1,7 @@
 {
   "id": "bigaos-macarthur-hat",
   "name": "MacArthur HAT",
-  "version": "1.6.0",
+  "version": "1.7.0",
   "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus, ICM-20948 IMU via I2C, and ADS1115 4-channel ADC for resistive tank senders.",
   "author": "BigaOS Team",
   "type": "driver",
@@ -31,7 +31,8 @@
     { "version": "1.5.0", "date": "2026-03-15", "changelog": "PGN 127506 support (SOC, time remaining), battery power (V×A), IMU calibration system with gyro bias, mounting offset, magnetometer hard/soft iron, and beta warmup" },
     { "version": "1.5.1", "date": "2026-03-20", "changelog": "Filter out invalid battery temperature (0K = no sensor), fix current display at zero" },
     { "version": "1.5.2", "date": "2026-03-20", "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping" },
-    { "version": "1.6.0", "date": "2026-05-02", "changelog": "ADS1115 tank input support — 4 raw analog_voltage streams for resistive tank senders, calibrated server-side via the new Tanks settings tab" }
+    { "version": "1.6.0", "date": "2026-05-02", "changelog": "ADS1115 tank input support — 4 raw analog_voltage streams for resistive tank senders, calibrated server-side via the new Tanks settings tab" },
+    { "version": "1.7.0", "date": "2026-07-07", "changelog": "IMU heading alignment for devices not mounted facing the bow (quaternion mounting tare), magnetic disturbance rejection against electrical bursts, calmer steady-state heading filter" }
   ],
   "driver": {
     "protocol": "nmea2000",

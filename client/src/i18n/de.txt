@@ -989,6 +989,16 @@ imu.recalibrate=Lage neu kalibrieren
 imu.start_mag_cal=Kompass kalibrieren
 imu.stop_mag_cal=Kalibrierung beenden
 imu.mag_cal_hint=Drehen Sie das Boot langsam durch möglichst viele Kurse und drücken Sie dann Beenden.
+imu.heading_aligned=Bugrichtung eingestellt
+imu.heading_not_aligned=Bugrichtung nicht eingestellt
+imu.mag_disturbance=Magnetische Störung erkannt
+imu.align_heading=Kursausrichtung
+imu.align_heading_hint=Wenn das Gerät nicht in Fahrtrichtung eingebaut ist, geben Sie den aktuellen missweisenden Kurs des Bootes ein (zum Beispiel vom Handpeilkompass) und drücken Sie auf Ausrichten.
+imu.align_placeholder=Aktueller Kurs (0–359°)
+imu.align=Ausrichten
+imu.aligning=Wird ausgerichtet…
+imu.align_success=Kurs ausgerichtet
+imu.align_invalid=Geben Sie den aktuellen Kurs in Grad ein (0–359)
 
 # ==================== Schnittstellen-Bezeichnungen ====================
 iface.nmea2000=NMEA 2000

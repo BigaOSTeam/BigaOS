@@ -6,9 +6,13 @@
  *
  * Features:
  * - Beta warmup: starts with high beta (2.5) for fast convergence,
- *   then reduces to steady-state (0.4) after warmup period
+ *   then reduces to steady-state (0.1) after warmup period. The low
+ *   steady beta makes heading inert against magnetometer disturbances —
+ *   turns still track instantly via the gyro.
  * - Accepts pre-corrected data (gyro bias and mag calibration
- *   applied externally by IMUCalibration)
+ *   applied externally by IMUCalibration). A zero mag vector {0,0,0}
+ *   makes the filter run gyro+accel only for that sample (used for
+ *   magnetic disturbance rejection).
  *
  * Input:  accel (g), gyro (rad/s), mag (µT)
  * Output: roll, pitch, heading (all in radians)
@@ -17,7 +21,7 @@
 const AHRS = require('ahrs');
 
 const WARMUP_BETA = 2.5;
-const STEADY_BETA = 0.4;
+const STEADY_BETA = 0.1;
 const WARMUP_SAMPLES = 200; // ~4 seconds at 50Hz
 
 class IMUFusion {
@@ -83,6 +87,13 @@ class IMUFusion {
       pitch: euler.pitch,     // radians, ±π/2
       heading,                // radians, [0, 2π] (magnetic)
     };
+  }
+
+  /**
+   * Current orientation quaternion {w,x,y,z} (device frame -> world).
+   */
+  getQuaternion() {
+    return this.ahrs.getQuaternion();
   }
 
   reset() {

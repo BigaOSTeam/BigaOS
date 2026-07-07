@@ -97,18 +97,20 @@ function processIMUData(data) {
 
   imuSampleCount++;
 
-  // Apply calibration corrections
+  // Apply calibration corrections. Implausible mag readings (electrical
+  // bursts) are zeroed so the filter runs gyro+accel only for that sample.
+  const correctedMag = imuCalibration.applyMag(data.mag);
   const corrected = {
     accel: data.accel,
     gyro: imuCalibration.applyGyro(data.gyro),
-    mag: imuCalibration.applyMag(data.mag),
+    mag: imuCalibration.checkMagField(correctedMag) ? correctedMag : { x: 0, y: 0, z: 0 },
     timestamp: data.timestamp,
   };
 
   const attitude = imuFusion.update(corrected);
 
-  // Apply mounting offset
-  const final = imuCalibration.applyMountingOffset(attitude);
+  // Map device attitude onto the boat frame (mounting alignment)
+  const final = imuCalibration.applyMounting(attitude, imuFusion.getQuaternion());
 
   // Rate-limit pushes to 10Hz
   const now = Date.now();
@@ -137,18 +139,18 @@ async function runAutoCalibration() {
     const gyroBias = await imuCalibration.calibrateGyro(imuConnection);
     api.log(`IMU: Gyro bias: x=${gyroBias.x.toFixed(4)}, y=${gyroBias.y.toFixed(4)}, z=${gyroBias.z.toFixed(4)}`);
 
-    // Step 2: Let the fusion filter converge with corrected gyro data (~3s)
+    // Step 2: Let the fusion filter re-converge with corrected gyro data (~3s)
     api.log('IMU: Waiting for AHRS convergence...');
+    imuFusion.reset(); // Re-converge with calibrated gyro
     imuCalibrating = false; // Let processIMUData run to feed the filter
     await new Promise(resolve => setTimeout(resolve, 3000));
     imuCalibrating = true;
 
-    // Step 3: Mounting offset (capture current orientation as level)
-    api.log('IMU: Calibrating mounting offset (capturing current orientation as level)...');
-    // Reset fusion so it re-converges with calibrated gyro
-    imuFusion.reset();
-    await imuCalibration.calibrateMountingOffset(imuConnection, imuFusion);
-    api.log(`IMU: Mounting offset: roll=${imuCalibration.mountingOffset.roll.toFixed(3)}, pitch=${imuCalibration.mountingOffset.pitch.toFixed(3)}`);
+    // Step 3: Mounting alignment (capture current orientation as level,
+    // heading unchanged — align the bow later via "Align Heading")
+    api.log('IMU: Calibrating mounting alignment (capturing current orientation as level)...');
+    await imuCalibration.alignMounting(imuConnection, imuFusion, null);
+    api.log('IMU: Mounting alignment captured');
 
     // Save
     imuCalibration.calibrated = true;
@@ -439,7 +441,7 @@ module.exports = {
           imuCalibrating = false;
           await new Promise(resolve => setTimeout(resolve, 3000));
           imuCalibrating = true;
-          await imuCalibration.calibrateMountingOffset(imuConnection, imuFusion);
+          await imuCalibration.alignMounting(imuConnection, imuFusion, null);
           imuCalibration.calibrated = true;
           imuCalibration.status = 'complete';
           await imuCalibration.save(api);
@@ -454,6 +456,36 @@ module.exports = {
       })();
 
       return { status: 'started' };
+    }
+
+    if (action === 'imu_align_heading') {
+      if (!imuConnection || !imuConnection.isConnected() || !imuCalibration || !imuFusion) {
+        return { error: 'IMU not connected' };
+      }
+      if (imuCalibrating) return { error: 'Calibration already in progress' };
+
+      const heading = params ? Number(params.heading) : NaN;
+      if (!Number.isFinite(heading)) {
+        return { error: 'Invalid heading' };
+      }
+      const target = ((heading % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI);
+
+      // Synchronous: samples ~1s of the converged filter, no fusion reset,
+      // so the corrected heading is live immediately after the tare.
+      imuCalibrating = true;
+      try {
+        const result = await imuCalibration.alignMounting(imuConnection, imuFusion, target);
+        imuCalibration.calibrated = true;
+        imuCalibration.status = 'complete';
+        await imuCalibration.save(api);
+        api.log(`IMU: Heading aligned — current attitude mapped to ${(target * 180 / Math.PI).toFixed(1)}° magnetic`);
+        return { status: 'complete', heading: result.heading };
+      } catch (err) {
+        api.log(`IMU: Heading alignment failed: ${err.message}`);
+        return { error: err.message };
+      } finally {
+        imuCalibrating = false;
+      }
     }
 
     if (action === 'imu_start_mag_calibration') {

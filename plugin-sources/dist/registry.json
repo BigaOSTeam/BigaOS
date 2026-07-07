@@ -1,222 +1,228 @@
 {
-  "schemaVersion": 1,
-  "updatedAt": "2026-07-03T00:00:00Z",
-  "plugins": [
+ "schemaVersion": 1,
+ "updatedAt": "2026-07-07T00:00:00Z",
+ "plugins": [
+  {
+   "id": "bigaos-demo-driver",
+   "name": "Demo Driver",
+   "description": "Demo data source for testing and development. Generates random sensor data without hardware.",
+   "author": "BigaOS Team",
+   "type": "driver",
+   "flag": "official",
+   "latestVersion": "1.0.0",
+   "capabilities": [
+    "sensor-data",
+    "settings"
+   ],
+   "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-demo-driver.tar.gz",
+   "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-demo-driver",
+   "versions": [
     {
-      "id": "bigaos-demo-driver",
-      "name": "Demo Driver",
-      "description": "Demo data source for testing and development. Generates random sensor data without hardware.",
-      "author": "BigaOS Team",
-      "type": "driver",
-      "flag": "official",
-      "latestVersion": "1.0.0",
-      "capabilities": [
-        "sensor-data",
-        "settings"
-      ],
-      "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-demo-driver.tar.gz",
-      "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-demo-driver",
-      "versions": [
-        {
-          "version": "1.0.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-demo-driver.tar.gz",
-          "releaseDate": "2026-02-09",
-          "changelog": "Initial release"
-        }
-      ]
-    },
-    {
-      "id": "bigaos-macarthur-hat",
-      "name": "MacArthur HAT",
-      "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus, ICM-20948 IMU via I2C, and ADS1115 4-channel ADC for resistive tank senders.",
-      "author": "BigaOS Team",
-      "type": "driver",
-      "flag": "official",
-      "latestVersion": "1.6.0",
-      "capabilities": [
-        "sensor-data",
-        "settings",
-        "alerts",
-        "network"
-      ],
-      "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-      "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
-      "versions": [
-        {
-          "version": "1.0.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-12",
-          "changelog": "Initial release with NMEA 2000 support (15 PGNs)"
-        },
-        {
-          "version": "1.1.4",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-13",
-          "changelog": "CAN bus parsing fixes, setup automation, debug improvements"
-        },
-        {
-          "version": "1.2.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-13",
-          "changelog": "Add ICM-20948 IMU support (roll, pitch, yaw, magnetic heading)"
-        },
-        {
-          "version": "1.2.1",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Fix ahrs dependency version"
-        },
-        {
-          "version": "1.3.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Redesign data source selection with per-slot dropdowns, interface labels, source liveness detection"
-        },
-        {
-          "version": "1.3.1",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Fix native module compilation — exclude node_modules from tarball"
-        },
-        {
-          "version": "1.3.2",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Clean plugin directory before install to force native module rebuild"
-        },
-        {
-          "version": "1.3.3",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Install build-essential in setup.sh and rebuild i2c-bus native module for IMU support"
-        },
-        {
-          "version": "1.3.4",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Auto-load i2c-dev kernel module, persist reboot message, redesign terminal panel"
-        },
-        {
-          "version": "1.4.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Unified heading with auto magnetic declination, remove imu_yaw, fix auto-map liveness, uninstall script, advanced settings UI"
-        },
-        {
-          "version": "1.4.1",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Safe shutdown via power module (GPIO 21/16), plugin install error handling, unsupported interfaces info"
-        },
-        {
-          "version": "1.4.2",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Fix gpio-poweroff pin (GPIO 16→26) and add active_low for correct power latch behavior"
-        },
-        {
-          "version": "1.4.3",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Fix package.json version sync, remove unused code"
-        },
-        {
-          "version": "1.4.4",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-14",
-          "changelog": "Fix CRLF line endings in shell scripts"
-        },
-        {
-          "version": "1.4.5",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-02-15",
-          "changelog": "Add plugin i18n support with EN/DE translations for config labels"
-        },
-        {
-          "version": "1.5.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-03-15",
-          "changelog": "PGN 127506 support (SOC, time remaining), battery power (V×A), IMU calibration system with gyro bias, mounting offset, magnetometer hard/soft iron, and beta warmup"
-        },
-        {
-          "version": "1.5.1",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-03-20",
-          "changelog": "Filter out invalid battery temperature (0K = no sensor), fix current display at zero"
-        },
-        {
-          "version": "1.5.2",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-03-20",
-          "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping"
-        },
-        {
-          "version": "1.6.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
-          "releaseDate": "2026-05-02",
-          "changelog": "ADS1115 tank input support — 4 raw analog_voltage streams for resistive tank senders, calibrated server-side via the new Tanks settings tab"
-        }
-      ]
-    },
-    {
-      "id": "bigaos-tailscale",
-      "name": "Tailscale VPN",
-      "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere using your boat's stable Tailscale machine name (e.g. http://bigaos:3000) — no need to chase IP addresses.",
-      "author": "BigaOS Team",
-      "type": "service",
-      "flag": "official",
-      "latestVersion": "1.2.0",
-      "capabilities": [
-        "settings",
-        "network"
-      ],
-      "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
-      "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-tailscale",
-      "versions": [
-        {
-          "version": "1.2.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
-          "releaseDate": "2026-04-28",
-          "changelog": "Setup instructions now guide users toward MagicDNS / machine-name access (http://bigaos:3000) instead of pasting changing IPs."
-        },
-        {
-          "version": "1.1.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
-          "releaseDate": "2026-03-26",
-          "changelog": "Fix permissions (set operator in setup), add connect/disconnect loading & error feedback in UI"
-        },
-        {
-          "version": "1.0.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
-          "releaseDate": "2026-03-23",
-          "changelog": "Initial release"
-        }
-      ]
-    },
-    {
-      "id": "bigaos-usb-serial",
-      "name": "USB Serial (NMEA 0183)",
-      "description": "Read any USB serial instrument that speaks NMEA 0183 — GPS, wind, depth, log, heading, water temperature, rudder — straight from a device plugged into the Raspberry Pi. Auto-detects the port and baud; every recognised value maps to its sensor slot.",
-      "author": "BigaOS Team",
-      "type": "driver",
-      "flag": "official",
-      "latestVersion": "1.0.0",
-      "capabilities": [
-        "sensor-data",
-        "settings",
-        "alerts",
-        "network"
-      ],
-      "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-usb-serial.tar.gz",
-      "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-usb-serial",
-      "versions": [
-        {
-          "version": "1.0.0",
-          "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-usb-serial.tar.gz",
-          "releaseDate": "2026-07-03",
-          "changelog": "Initial release — full NMEA 0183 instrument set over USB serial, with device/baud auto-detection"
-        }
-      ]
+     "version": "1.0.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-demo-driver.tar.gz",
+     "releaseDate": "2026-02-09",
+     "changelog": "Initial release"
     }
-  ]
+   ]
+  },
+  {
+   "id": "bigaos-macarthur-hat",
+   "name": "MacArthur HAT",
+   "description": "Read sensor data from the MacArthur HAT on Raspberry Pi. Supports NMEA 2000 via CAN bus, ICM-20948 IMU via I2C, and ADS1115 4-channel ADC for resistive tank senders.",
+   "author": "BigaOS Team",
+   "type": "driver",
+   "flag": "official",
+   "latestVersion": "1.7.0",
+   "capabilities": [
+    "sensor-data",
+    "settings",
+    "alerts",
+    "network"
+   ],
+   "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+   "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-macarthur-hat",
+   "versions": [
+    {
+     "version": "1.0.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-12",
+     "changelog": "Initial release with NMEA 2000 support (15 PGNs)"
+    },
+    {
+     "version": "1.1.4",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-13",
+     "changelog": "CAN bus parsing fixes, setup automation, debug improvements"
+    },
+    {
+     "version": "1.2.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-13",
+     "changelog": "Add ICM-20948 IMU support (roll, pitch, yaw, magnetic heading)"
+    },
+    {
+     "version": "1.2.1",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Fix ahrs dependency version"
+    },
+    {
+     "version": "1.3.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Redesign data source selection with per-slot dropdowns, interface labels, source liveness detection"
+    },
+    {
+     "version": "1.3.1",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Fix native module compilation \u2014 exclude node_modules from tarball"
+    },
+    {
+     "version": "1.3.2",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Clean plugin directory before install to force native module rebuild"
+    },
+    {
+     "version": "1.3.3",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Install build-essential in setup.sh and rebuild i2c-bus native module for IMU support"
+    },
+    {
+     "version": "1.3.4",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Auto-load i2c-dev kernel module, persist reboot message, redesign terminal panel"
+    },
+    {
+     "version": "1.4.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Unified heading with auto magnetic declination, remove imu_yaw, fix auto-map liveness, uninstall script, advanced settings UI"
+    },
+    {
+     "version": "1.4.1",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Safe shutdown via power module (GPIO 21/16), plugin install error handling, unsupported interfaces info"
+    },
+    {
+     "version": "1.4.2",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Fix gpio-poweroff pin (GPIO 16\u219226) and add active_low for correct power latch behavior"
+    },
+    {
+     "version": "1.4.3",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Fix package.json version sync, remove unused code"
+    },
+    {
+     "version": "1.4.4",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-14",
+     "changelog": "Fix CRLF line endings in shell scripts"
+    },
+    {
+     "version": "1.4.5",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-02-15",
+     "changelog": "Add plugin i18n support with EN/DE translations for config labels"
+    },
+    {
+     "version": "1.5.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-03-15",
+     "changelog": "PGN 127506 support (SOC, time remaining), battery power (V\u00d7A), IMU calibration system with gyro bias, mounting offset, magnetometer hard/soft iron, and beta warmup"
+    },
+    {
+     "version": "1.5.1",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-03-20",
+     "changelog": "Filter out invalid battery temperature (0K = no sensor), fix current display at zero"
+    },
+    {
+     "version": "1.5.2",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-03-20",
+     "changelog": "Parse time remaining from canboatjs string format, direct battery_voltage/current slot mapping"
+    },
+    {
+     "version": "1.6.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-05-02",
+     "changelog": "ADS1115 tank input support \u2014 4 raw analog_voltage streams for resistive tank senders, calibrated server-side via the new Tanks settings tab"
+    },
+    {
+     "version": "1.7.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-macarthur-hat.tar.gz",
+     "releaseDate": "2026-07-07",
+     "changelog": "IMU heading alignment for devices not mounted facing the bow (quaternion mounting tare), magnetic disturbance rejection against electrical bursts, calmer steady-state heading filter"
+    }
+   ]
+  },
+  {
+   "id": "bigaos-tailscale",
+   "name": "Tailscale VPN",
+   "description": "Remote access to your boat via Tailscale VPN. Connect securely from anywhere using your boat's stable Tailscale machine name (e.g. http://bigaos:3000) \u2014 no need to chase IP addresses.",
+   "author": "BigaOS Team",
+   "type": "service",
+   "flag": "official",
+   "latestVersion": "1.2.0",
+   "capabilities": [
+    "settings",
+    "network"
+   ],
+   "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
+   "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-tailscale",
+   "versions": [
+    {
+     "version": "1.2.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
+     "releaseDate": "2026-04-28",
+     "changelog": "Setup instructions now guide users toward MagicDNS / machine-name access (http://bigaos:3000) instead of pasting changing IPs."
+    },
+    {
+     "version": "1.1.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
+     "releaseDate": "2026-03-26",
+     "changelog": "Fix permissions (set operator in setup), add connect/disconnect loading & error feedback in UI"
+    },
+    {
+     "version": "1.0.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-tailscale.tar.gz",
+     "releaseDate": "2026-03-23",
+     "changelog": "Initial release"
+    }
+   ]
+  },
+  {
+   "id": "bigaos-usb-serial",
+   "name": "USB Serial (NMEA 0183)",
+   "description": "Read any USB serial instrument that speaks NMEA 0183 \u2014 GPS, wind, depth, log, heading, water temperature, rudder \u2014 straight from a device plugged into the Raspberry Pi. Auto-detects the port and baud; every recognised value maps to its sensor slot.",
+   "author": "BigaOS Team",
+   "type": "driver",
+   "flag": "official",
+   "latestVersion": "1.0.0",
+   "capabilities": [
+    "sensor-data",
+    "settings",
+    "alerts",
+    "network"
+   ],
+   "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-usb-serial.tar.gz",
+   "repository": "https://github.com/BigaOSTeam/BigaOS/tree/main/plugin-sources/bigaos-usb-serial",
+   "versions": [
+    {
+     "version": "1.0.0",
+     "downloadUrl": "https://github.com/BigaOSTeam/BigaOS/raw/main/plugin-sources/dist/bigaos-usb-serial.tar.gz",
+     "releaseDate": "2026-07-03",
+     "changelog": "Initial release \u2014 full NMEA 0183 instrument set over USB serial, with device/baud auto-detection"
+    }
+   ]
+  }
+ ]
 }
