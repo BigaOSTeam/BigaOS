@@ -480,10 +480,16 @@ export const mapStatusAPI = {
     api.get<{ online: boolean; lastCheck: number }>('/tiles/status'),
 
   /**
-   * Get device storage statistics (free space, etc.)
+   * Get device storage statistics (free space, tile-cache footprint, etc.)
    */
   getStorageStats: () =>
     api.get<StorageStats>('/tiles/storage'),
+
+  /**
+   * Clear the server-side disk tile cache.
+   */
+  clearTileCache: () =>
+    api.delete<{ ok: boolean; totalBytes: number; totalSize: string }>('/tiles/cache'),
 };
 
 // System / Update API

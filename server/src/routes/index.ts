@@ -120,6 +120,8 @@ router.delete('/data/:fileId', heavyOpsLimiter, navigationDataController.deleteF
 router.get('/tiles/sources', fileOpsLimiter, tilesController.getTileSources.bind(tilesController));
 router.get('/tiles/status', fileOpsLimiter, tilesController.getStatus.bind(tilesController));
 router.get('/tiles/storage', fileOpsLimiter, tilesController.getStorageStats.bind(tilesController));
+// Clear the server-side disk tile cache (Settings → Downloads "Clear tile cache").
+router.delete('/tiles/cache', fileOpsLimiter, tilesController.clearCache.bind(tilesController));
 // Tile serving (must be last due to wildcard params).
 router.get('/tiles/:source/:z/:x/:y', tileServeLimiter, tilesController.serveTile.bind(tilesController));
 

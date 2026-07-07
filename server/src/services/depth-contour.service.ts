@@ -29,6 +29,7 @@ import * as GeoTIFF from 'geotiff';
 import { contours as d3contours } from 'd3-contour';
 import { depthTileService, DepthValueGrid } from './depth-tile.service';
 import { assertSafeOutboundUrl } from '../utils/url-safety';
+import { APP_USER_AGENT } from '../utils/app-identity';
 
 // Default isobath depths in metres. Coastal-friendly near the surface, sparser
 // in deep water. Contours are drawn at the negative of each (elevation grid).
@@ -371,7 +372,8 @@ class DepthContourService {
   private async fetchOnlineGrid(bbox: DepthBbox): Promise<DepthValueGrid | null> {
     try {
       assertSafeOutboundUrl(GEBCO_COG_URL, 'gebco cog'); // SSRF guard (fixed URL)
-      if (!this.gebcoTiff) this.gebcoTiff = GeoTIFF.fromUrl(GEBCO_COG_URL);
+      if (!this.gebcoTiff)
+        this.gebcoTiff = GeoTIFF.fromUrl(GEBCO_COG_URL, { headers: { 'User-Agent': APP_USER_AGENT } });
       const image = await (await this.gebcoTiff).getImage();
       const [ox, oy] = image.getOrigin() as [number, number, number]; // (-180, 90)
       const [rx, ry] = image.getResolution() as [number, number, number]; // ry < 0 (north-up)

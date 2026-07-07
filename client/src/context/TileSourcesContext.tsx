@@ -64,6 +64,13 @@ interface TileSourcesContextValue {
   getSource: (id: string) => PublicTileSource | undefined;
   /** Build the server-proxied tile URL template for a source id. */
   tileUrl: (id: string) => string;
+  /**
+   * Viewport-padding (in screens) to pre-fetch for a source. Remote sources get
+   * 0 — the OSMF tile-usage policy treats pre-emptively fetching tiles the user
+   * isn't actively viewing as bulk downloading. Local-pack (pmtiles) sources
+   * get 1 — prefetch aggressively from our own disk for smooth panning.
+   */
+  loadBufferFor: (id: string) => number;
 }
 
 const TileSourcesContext = createContext<TileSourcesContextValue | null>(null);
@@ -104,6 +111,17 @@ export const TileSourcesProvider: React.FC<{ children: ReactNode }> = ({ childre
     [sources]
   );
 
+  const loadBufferFor = useCallback(
+    (id: string) => {
+      // Local-pack sources are served from the Pi's own disk — prefetch freely.
+      // Everything else is a remote source: no pre-emptive fetching (policy).
+      // Cast: the 'pmtiles' kind arrives with Phase 3; comparing as a string
+      // keeps this correct now (all sources → 0) and once packs land (→ 1).
+      return (getSource(id)?.kind as string) === 'pmtiles' ? 1 : 0;
+    },
+    [getSource]
+  );
+
   const value = useMemo<TileSourcesContextValue>(() => {
     return {
       sources,
@@ -112,8 +130,9 @@ export const TileSourcesProvider: React.FC<{ children: ReactNode }> = ({ childre
       loaded,
       getSource,
       tileUrl,
+      loadBufferFor,
     };
-  }, [sources, loaded, getSource, tileUrl]);
+  }, [sources, loaded, getSource, tileUrl, loadBufferFor]);
 
   return <TileSourcesContext.Provider value={value}>{children}</TileSourcesContext.Provider>;
 };

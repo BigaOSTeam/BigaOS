@@ -27,6 +27,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
 import { assertSafeOutboundUrl } from '../utils/url-safety';
+import { APP_USER_AGENT } from '../utils/app-identity';
 
 export interface HeritageBbox {
   west: number;
@@ -301,7 +302,7 @@ class HeritageService {
       const timer = setTimeout(() => ctrl.abort(), 20000);
       let res: Response;
       try {
-        res = await fetch(url, { signal: ctrl.signal });
+        res = await fetch(url, { signal: ctrl.signal, headers: { 'User-Agent': APP_USER_AGENT } });
       } finally {
         clearTimeout(timer);
       }

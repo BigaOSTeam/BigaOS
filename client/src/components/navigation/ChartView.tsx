@@ -159,7 +159,7 @@ export const ChartView = React.memo<ChartViewProps>(({
   const [autoCenter, setAutoCenter] = useState(true);
   const [depthSettingsOpen, setDepthSettingsOpen] = useState(false);
   const [weatherPanelOpen, setWeatherPanelOpen] = useState(false);
-  const { tileUrl, overlays: overlayList } = useTileSources();
+  const { tileUrl, overlays: overlayList, loadBufferFor } = useTileSources();
   const { baseMapId, overlayEnabled, activeSources } = useChartLayers();
   // Cosmetic only: imagery bases get a dark backdrop behind loading tiles,
   // map bases get a light "water" blue.
@@ -1386,7 +1386,7 @@ export const ChartView = React.memo<ChartViewProps>(({
           url={tileUrl(baseMapId)}
           updateWhenZooming={false}
           keepBuffer={4}
-          loadBuffer={0.5}
+          loadBuffer={loadBufferFor(baseMapId)}
         />
         {/* Enabled overlays, stacked above the base in registry order.
             Contour overlays (depth) are vector layers fetched as GeoJSON; all
@@ -1450,7 +1450,7 @@ export const ChartView = React.memo<ChartViewProps>(({
               zIndex={10 + idx}
               updateWhenZooming={false}
               keepBuffer={4}
-              loadBuffer={0.5}
+              loadBuffer={loadBufferFor(ov.id)}
             />
           );
         })}

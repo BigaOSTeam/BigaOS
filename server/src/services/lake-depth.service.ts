@@ -23,8 +23,10 @@ import {
   extractOuterRings, lakeWaterRings, ringsBbox,
   rasterizeWater, distanceToShore, modelDepth, writeLakeDepth,
 } from '../utils/geo-raster';
+import { APP_USER_AGENT } from '../utils/app-identity';
 
-const UA = 'BigaOS/1.0 (regional lake-depth importer)';
+// Versioned, contactable UA for the OSM/Overpass/LfU requests this importer makes.
+const UA = APP_USER_AGENT;
 const OVERPASS = 'https://overpass-api.de/api/interpreter';
 const POLYGONS = 'https://polygons.openstreetmap.fr/get_geojson.py';
 

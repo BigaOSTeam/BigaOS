@@ -69,6 +69,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({ onClose, initialTab,
   const [savingUrl, setSavingUrl] = useState<string | null>(null);
   const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
 const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
+  const [clearingCache, setClearingCache] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [updateChecking, setUpdateChecking] = useState(false);
   const [updateInstalling, setUpdateInstalling] = useState(false);
@@ -107,6 +108,25 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
       console.error('Failed to fetch storage stats:', error);
     }
   }, []);
+
+  const handleClearTileCache = useCallback(async () => {
+    const ok = await confirm({
+      title: t('downloads.clear_tile_cache'),
+      message: t('downloads.clear_tile_cache_confirm'),
+      confirmLabel: t('downloads.clear_tile_cache'),
+      cancelLabel: t('common.cancel'),
+    });
+    if (!ok) return;
+    setClearingCache(true);
+    try {
+      await mapStatusAPI.clearTileCache();
+      await fetchStorageStats();
+    } catch (error) {
+      console.error('Failed to clear tile cache:', error);
+    } finally {
+      setClearingCache(false);
+    }
+  }, [confirm, t, fetchStorageStats]);
 
   const fetchDataStatus = useCallback(async () => {
     try {
@@ -1122,6 +1142,34 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
 
       {/* User-added regional layers (lake depth). Folds into the Depth overlay. */}
       <RegionalImportSection />
+
+      {/* Tile cache — online tiles the server has fetched and kept on disk so
+          revisited/offline areas render without re-hitting upstream. */}
+      {!loadingFiles && (
+        <div style={{
+          marginTop: theme.space.md,
+          paddingTop: theme.space.md,
+          borderTop: `1px solid ${theme.colors.border}`,
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          gap: theme.space.md,
+        }}>
+          <div style={{ fontSize: theme.fontSize.sm, color: theme.colors.text }}>
+            {t('downloads.tile_cache')}
+            <span style={{ color: theme.colors.textMuted, marginLeft: theme.space.sm }}>
+              {storageStats?.totalSize ?? formatFileSize(0)}
+            </span>
+          </div>
+          <SButton
+            variant="outline"
+            onClick={handleClearTileCache}
+            disabled={clearingCache || !storageStats || storageStats.totalBytes === 0}
+          >
+            {clearingCache ? t('downloads.clearing') : t('downloads.clear_tile_cache')}
+          </SButton>
+        </div>
+      )}
 
       {/* Storage + attribution */}
       {!loadingFiles && (
