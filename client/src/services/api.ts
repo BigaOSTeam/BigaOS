@@ -123,7 +123,7 @@ export interface DataFileInfo {
   id: string;
   name: string;
   description: string;
-  category: 'navigation' | 'depth' | 'heritage' | 'seabed' | 'other';
+  category: 'navigation' | 'depth' | 'heritage' | 'seabed' | 'charts' | 'other';
   defaultUrl: string;
   url: string;
   localPath: string;
@@ -496,6 +496,46 @@ export const mapStatusAPI = {
    */
   clearTileCache: () =>
     api.delete<{ ok: boolean; totalBytes: number; totalSize: string }>('/tiles/cache'),
+};
+
+// Offline chart packs (PMTiles vector base map). The pack index drives whether
+// the client mounts the offline base layer; the raw .pmtiles file is fetched
+// directly by protomaps-leaflet (Range requests), not through this axios client.
+export interface ChartPackInfo {
+  packId: string;
+  bounds: [number, number, number, number]; // [minLon, minLat, maxLon, maxLat]
+  minzoom: number;
+  maxzoom: number;
+  bytes: number;
+  tileType: string;
+}
+
+export const chartsAPI = {
+  listPacks: () => api.get<{ packs: ChartPackInfo[] }>('/charts/packs'),
+};
+
+// Offline seamarks (vector buoys/lights/beacons) from a downloaded pack.
+export interface SeamarkFeatureCollection {
+  type: 'FeatureCollection';
+  features: Array<{
+    type: 'Feature';
+    properties: Record<string, unknown>; // raw seamark:* tags
+    geometry: { type: string; coordinates: unknown };
+  }>;
+  source: 'local' | 'none';
+}
+
+export const seamarksAPI = {
+  getFeatures: (
+    bbox: { west: number; south: number; east: number; north: number },
+    zoom: number,
+    signal?: AbortSignal
+  ) =>
+    api.get<SeamarkFeatureCollection>('/seamarks/features', {
+      params: { ...bbox, zoom },
+      signal,
+      timeout: 15000,
+    }),
 };
 
 // System / Update API

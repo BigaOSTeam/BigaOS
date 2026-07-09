@@ -64,6 +64,8 @@ import {
   DepthContourLayer,
   HeritageLayer,
   SeabedLayer,
+  OfflinePmtilesLayer,
+  SeamarkLayer,
   AutopilotPanel,
   WaterDebugOverlay,
   DebugInfoPanel,
@@ -152,14 +154,19 @@ export const ChartView = React.memo<ChartViewProps>(({
   onOpenSettings,
   hideSidebar = false,
 }) => {
-  const { theme } = useTheme();
+  const { theme, themeMode } = useTheme();
   const { t, language } = useLanguage();
   const { pushNotification, clearNotification } = useAlerts();
   // UI State
   const [autoCenter, setAutoCenter] = useState(true);
   const [depthSettingsOpen, setDepthSettingsOpen] = useState(false);
   const [weatherPanelOpen, setWeatherPanelOpen] = useState(false);
-  const { tileUrl, overlays: overlayList, loadBufferFor } = useTileSources();
+  const { tileUrl, overlays: overlayList, loadBufferFor, packs } = useTileSources();
+  // Offline seamark pack covers the current view → hide the online raster
+  // nautical overlay (the vector SeamarkLayer draws it instead).
+  const [seamarkCoverage, setSeamarkCoverage] = useState(false);
+  // Dark base-map flavor at night (dark + marine themes) to protect night vision.
+  const offlineBaseNight = themeMode !== 'light';
   const { baseMapId, overlayEnabled, activeSources } = useChartLayers();
   // Cosmetic only: imagery bases get a dark backdrop behind loading tiles,
   // map bases get a light "water" blue.
@@ -1388,6 +1395,20 @@ export const ChartView = React.memo<ChartViewProps>(({
           keepBuffer={4}
           loadBuffer={loadBufferFor(baseMapId)}
         />
+        {/* Offline vector base packs (PMTiles), stacked just above the online
+            'street' raster so downloaded areas render offline and gaps fall
+            through to the raster. Inert until a pack is downloaded (packs=[]).
+            World pack sits under regionals; both under depth/nautical (z5/z10+). */}
+        {baseMapId === 'street' &&
+          packs.map((p) => (
+            <OfflinePmtilesLayer
+              key={`pmtiles-${p.packId}`}
+              packId={p.packId}
+              maxDataZoom={p.maxzoom}
+              night={offlineBaseNight}
+              zIndex={p.packId.includes('world') ? 1 : 2}
+            />
+          ))}
         {/* Enabled overlays, stacked above the base in registry order.
             Contour overlays (depth) are vector layers fetched as GeoJSON; all
             others are remote tile layers. The provider merges the layers'
@@ -1441,6 +1462,26 @@ export const ChartView = React.memo<ChartViewProps>(({
           }
           if (ov.kind === 'zones') {
             return <ZonesLayer key={`overlay-${ov.id}`} zones={zones} onDelete={deleteZone} />;
+          }
+          if (ov.id === 'nautical') {
+            // Seamarks: crisp offline vector from a downloaded pack where it
+            // covers the view; otherwise the online OpenSeaMap raster. The
+            // vector layer reports coverage so the two never draw at once.
+            return (
+              <React.Fragment key={`overlay-${ov.id}`}>
+                <SeamarkLayer onCoverage={setSeamarkCoverage} />
+                {!seamarkCoverage && (
+                  <BufferedTileLayer
+                    attribution=""
+                    url={tileUrl(ov.id)}
+                    zIndex={10 + idx}
+                    updateWhenZooming={false}
+                    keepBuffer={4}
+                    loadBuffer={loadBufferFor(ov.id)}
+                  />
+                )}
+              </React.Fragment>
+            );
           }
           return (
             <BufferedTileLayer
@@ -1916,7 +1957,15 @@ export const ChartView = React.memo<ChartViewProps>(({
                 lineHeight: 1.3,
               }}
               className="chart-attribution"
-              dangerouslySetInnerHTML={{ __html: buildAttribution(activeSources) }}
+              dangerouslySetInnerHTML={{
+                __html:
+                  buildAttribution(activeSources) +
+                  // OSM is already credited by the street base; the offline
+                  // vector packs additionally require a Protomaps credit.
+                  (baseMapId === 'street' && packs.length > 0
+                    ? ' · <a href="https://protomaps.com" target="_blank" rel="noopener noreferrer">Protomaps</a>'
+                    : ''),
+              }}
             />
           </div>
         );

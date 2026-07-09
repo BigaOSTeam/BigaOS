@@ -7,9 +7,10 @@ import React, {
   useCallback,
   ReactNode,
 } from 'react';
-import { tileSourcesAPI, PublicTileSource } from '../services/api';
+import { tileSourcesAPI, chartsAPI, PublicTileSource, ChartPackInfo } from '../services/api';
 import { API_BASE_URL } from '../utils/urls';
 import { useClientSetting } from './ClientSettingsContext';
+import { wsService } from '../services/websocket';
 
 /**
  * Loads the server's tile-source registry once and exposes it to the chart
@@ -61,6 +62,10 @@ interface TileSourcesContextValue {
   getSource: (id: string) => PublicTileSource | undefined;
   /** Build the server-proxied tile URL template for a source id. */
   tileUrl: (id: string) => string;
+  /** Installed offline base-map packs (PMTiles). Empty until one is downloaded. */
+  packs: ChartPackInfo[];
+  /** Re-fetch the installed pack index (after a download/delete). */
+  refreshPacks: () => void;
   /**
    * Viewport-padding (in screens) to pre-fetch for a source. Remote sources get
    * 0 — the OSMF tile-usage policy treats pre-emptively fetching tiles the user
@@ -75,6 +80,7 @@ const TileSourcesContext = createContext<TileSourcesContextValue | null>(null);
 export const TileSourcesProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [sources, setSources] = useState<PublicTileSource[]>(FALLBACK_SOURCES);
   const [loaded, setLoaded] = useState(false);
+  const [packs, setPacks] = useState<ChartPackInfo[]>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -97,6 +103,34 @@ export const TileSourcesProvider: React.FC<{ children: ReactNode }> = ({ childre
       cancelled = true;
     };
   }, []);
+
+  // Installed offline chart packs. Fetched once, then refreshed whenever a pack
+  // download completes (so the offline base hot-swaps in without a reload) and
+  // when connectivity returns (in case a pack landed while the chart was open).
+  const refreshPacks = useCallback(() => {
+    chartsAPI
+      .listPacks()
+      .then((res) => setPacks(res.data?.packs ?? []))
+      .catch(() => {
+        /* server without the endpoint, or offline — keep whatever we have */
+      });
+  }, []);
+
+  useEffect(() => {
+    refreshPacks();
+    const onDownload = (data: { status?: string }) => {
+      if (data?.status === 'completed') refreshPacks();
+    };
+    const onConnectivity = (data: { online?: boolean }) => {
+      if (data?.online) refreshPacks();
+    };
+    wsService.on('download_progress', onDownload);
+    wsService.on('connectivity_change', onConnectivity);
+    return () => {
+      wsService.off('download_progress', onDownload);
+      wsService.off('connectivity_change', onConnectivity);
+    };
+  }, [refreshPacks]);
 
   const tileUrl = useCallback(
     (id: string) => `${API_BASE_URL}/tiles/${id}/{z}/{x}/{y}`,
@@ -126,8 +160,10 @@ export const TileSourcesProvider: React.FC<{ children: ReactNode }> = ({ childre
       getSource,
       tileUrl,
       loadBufferFor,
+      packs,
+      refreshPacks,
     };
-  }, [sources, loaded, getSource, tileUrl, loadBufferFor]);
+  }, [sources, loaded, getSource, tileUrl, loadBufferFor, packs, refreshPacks]);
 
   return <TileSourcesContext.Provider value={value}>{children}</TileSourcesContext.Provider>;
 };

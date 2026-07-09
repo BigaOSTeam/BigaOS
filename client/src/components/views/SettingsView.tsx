@@ -356,6 +356,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
   const depthFiles = dataFiles.filter(f => f.category === 'depth');
   const heritageFiles = dataFiles.filter(f => f.category === 'heritage');
   const seabedFiles = dataFiles.filter(f => f.category === 'seabed');
+  const chartsFiles = dataFiles.filter(f => f.category === 'charts');
 
   const settings = useSettings();
 
@@ -976,6 +977,7 @@ const [storageStats, setStorageStats] = useState<StorageStats | null>(null);
       ) : (
         ([
           { key: 'navigation', title: t('downloads.group_navigation'), files: navigationFiles },
+          { key: 'charts', title: t('downloads.group_charts'), files: chartsFiles },
           { key: 'depth', title: t('downloads.group_depth'), files: depthFiles },
           { key: 'seabed', title: t('downloads.group_seabed'), files: seabedFiles },
           { key: 'heritage', title: t('downloads.group_heritage'), files: heritageFiles },

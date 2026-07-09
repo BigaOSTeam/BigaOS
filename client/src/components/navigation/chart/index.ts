@@ -43,6 +43,10 @@ export { HeritageLayer, HERITAGE_MIN_ZOOM } from './HeritageLayer';
 // Seabed composition (anchoring) overlay — EMODnet substrate + Posidonia polygons
 export { SeabedLayer, SEABED_MIN_ZOOM } from './SeabedLayer';
 
+// Offline chart-pack layers: PMTiles vector base + vector seamarks.
+export { OfflinePmtilesLayer } from './OfflinePmtilesLayer';
+export { SeamarkLayer } from './SeamarkLayer';
+
 // Debug overlay
 export { WaterDebugOverlay, DebugInfoPanel, useWaterDebugGrid } from './WaterDebugOverlay';
 export type { DebugMode } from './WaterDebugOverlay';
