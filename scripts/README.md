@@ -329,3 +329,134 @@ The Downloads tab and the seabed service pick the pack up automatically. The
 
 Rendered in the chart attribution (`server/src/utils/tile-sources.ts`).
 **NOT FOR NAVIGATION** — broad-scale / predictive data; holding quality is advisory.
+
+---
+
+# BigaOS Offline Chart Packs (base map + seamarks) — regeneration runbook
+
+The offline chart feature ships two pack families, downloaded via
+Settings → Downloads → **Offline Charts**:
+
+- **Base-map packs** — OSM vector tiles as **PMTiles**, one file per cruising
+  region (mirroring the depth regions). Served by the Pi over HTTP Range
+  (`chart-pack.service.ts`) and rendered client-side by protomaps-leaflet,
+  stacked above the online raster base so gaps fall through.
+- **Seamark packs** — OpenSeaMap `seamark:*` objects as **GeoJSON**, one per
+  region, loaded by `seamark.service.ts` and drawn as vector symbols.
+
+Both are published as `.tar.gz` assets on the GitHub release
+**`BigaOSTeam/BigaOS-data` → `chart-packs-v1`**. The server reads them from
+`server/src/data/chart-packs/<pack>/` (`osm-<region>/*.pmtiles`,
+`seamark-<region>/*.geojson`). Nothing here ever touches osm.org tile servers —
+base packs are extracted from the **Protomaps daily planet build** (an
+OSM-derived PMTiles archive; extraction reads only byte ranges) and seamarks
+from **Geofabrik** raw extracts.
+
+## Prerequisites
+
+- **go-pmtiles** (single static binary): <https://github.com/protomaps/go-pmtiles/releases>.
+- **osmium-tool** (for seamark packs): conda `osmium-tool` or `apt install osmium-tool`.
+- **`gh` CLI** authenticated with write access to `BigaOSTeam/BigaOS-data`.
+- A standard machine — `pmtiles extract` never downloads the ~100 GB planet.
+
+## Regions
+
+Bounding boxes mirror the depth regions (`minLon,minLat,maxLon,maxLat`). A hand-
+traced `--region` **polygon** (sea + ~25 km coastal buffer) keeps packs far
+smaller than a bbox — strongly preferred for the big regions; version them under
+`BigaOS-data/regions/`. Always `--dry-run` first and check the printed size
+against GitHub's 2 GiB/asset cap.
+
+| Region | bbox (approx.) |
+|---|---|
+| `world` | whole planet, `--maxzoom=7` (tens of MB — near-mandatory context) |
+| `baltic` | `9,53,30.5,66` |
+| `north-sea` | `-11,48,13,62` |
+| `iberia` | `-11,35,5,47` |
+| `mediterranean` | `-6,30,37,46` |
+| `black-sea` | `27,40,42,48` |
+
+## Base-map packs (go-pmtiles)
+
+`--maxzoom=13` for v1 (~19 m/px — plenty offshore/approaches; land detail beyond
+falls back online). Each extra zoom roughly doubles the file.
+
+```powershell
+$BUILD = (Get-Date).AddDays(-1).ToString('yyyyMMdd')   # yesterday's build
+$SRC = "https://build.protomaps.com/$BUILD.pmtiles"
+
+# World context pack.
+& pmtiles extract $SRC chart-osm-world.pmtiles --maxzoom=7
+tar.exe -czf chart-osm-world-v1.tar.gz chart-osm-world.pmtiles
+
+# A region by bbox (or --region=regions\baltic.geojson for a tight polygon).
+& pmtiles extract $SRC chart-osm-baltic.pmtiles --bbox=9,53,30.5,66 --maxzoom=13
+tar.exe -czf chart-osm-baltic-v1.tar.gz chart-osm-baltic.pmtiles
+```
+
+The tarball must contain the `.pmtiles` file (the server's strip:1 extract lands
+it in `chart-packs/osm-<region>/`). Header sanity-check: `pmtiles show <file>`.
+
+## Seamark packs (osmium)
+
+Per region, from Geofabrik **country** extracts (never `europe-latest`). Baltic =
+DE, DK, SE, FI, PL, EE, LV, LT + Kaliningrad:
+
+```bash
+for c in germany denmark sweden finland poland estonia latvia lithuania russia/kaliningrad; do
+  curl -sO "https://download.geofabrik.de/europe/${c}-latest.osm.pbf"
+  osmium tags-filter "$(basename ${c})-latest.osm.pbf" nwr/seamark:type -o "sm-$(basename ${c}).osm.pbf"
+  rm "$(basename ${c})-latest.osm.pbf"            # keep runner disk flat
+done
+osmium merge sm-*.osm.pbf -o seamarks-baltic.osm.pbf
+osmium export seamarks-baltic.osm.pbf -o seamarks-baltic.geojson \
+  --geometry-types=point,linestring,polygon
+tar czf seamark-baltic-v1.tar.gz seamarks-baltic.geojson
+```
+
+Keep **all** `seamark:*` keys in the export — the client style consumes
+`seamark:type`, `seamark:<type>:category`, `seamark:<type>:colour`, and
+`seamark:light:*`. Expected size: low tens of MB uncompressed for the whole
+Baltic (seamark objects are sparse).
+
+## Publish
+
+```powershell
+gh release create chart-packs-v1 -R BigaOSTeam/BigaOS-data `
+  chart-osm-world-v1.tar.gz chart-osm-baltic-v1.tar.gz seamark-baltic-v1.tar.gz `
+  --title "Chart packs v1" --notes "OSM PMTiles base + OpenSeaMap seamarks."
+# ...or refresh an asset in place:
+gh release upload chart-packs-v1 -R BigaOSTeam/BigaOS-data chart-osm-baltic-v1.tar.gz --clobber
+```
+
+Once uploaded, the Downloads tab entries (already wired in
+`navigation-data.controller.ts` → `CHART_DATA_FILES`) just work.
+
+## Adding a region
+
+1. **Produce + upload** its base and/or seamark pack (above).
+2. **Register** — append `DataFileConfig` entries in
+   `navigation-data.controller.ts` (`category: 'charts'`,
+   `localPath: 'chart-packs/osm-<region>'` / `'chart-packs/seamark-<region>'`).
+3. **Label** — add `downloads.file_<id>` to `client/src/i18n/{en,de}.txt`.
+
+The Downloads tab, chart-pack service, and seamark service pick them up
+automatically — no other code.
+
+## Local dev fixture
+
+For rendering work before the release exists, drop a pack straight into the data
+dir (bypassing the download): a small pack via
+`pmtiles extract <build-url> tiles.pmtiles --bbox=<small> --maxzoom=12` into
+`server/src/data/chart-packs/osm-<region>/tiles.pmtiles`, and/or a hand-authored
+`seamark-<region>/seamarks-<region>.geojson`. `server/src/data/` is gitignored;
+restart the server (or re-trigger a download) to reindex.
+
+## Licensing / attribution (keep on-chart)
+
+- **Base map** — © OpenStreetMap contributors · Protomaps (ODbL; Protomaps build).
+- **Seamarks** — © OpenStreetMap contributors / OpenSeaMap (ODbL).
+
+Both are ODbL-derived; carried in the chart attribution
+(`ChartView` merges the Protomaps credit when a base pack is mounted).
+**NOT FOR NAVIGATION.**
