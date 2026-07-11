@@ -154,7 +154,7 @@ export const ChartView = React.memo<ChartViewProps>(({
   onOpenSettings,
   hideSidebar = false,
 }) => {
-  const { theme, themeMode } = useTheme();
+  const { theme } = useTheme();
   const { t, language } = useLanguage();
   const { pushNotification, clearNotification } = useAlerts();
   // UI State
@@ -165,8 +165,6 @@ export const ChartView = React.memo<ChartViewProps>(({
   // Offline seamark pack covers the current view → hide the online raster
   // nautical overlay (the vector SeamarkLayer draws it instead).
   const [seamarkCoverage, setSeamarkCoverage] = useState(false);
-  // Dark base-map flavor at night (dark + marine themes) to protect night vision.
-  const offlineBaseNight = themeMode !== 'light';
   const { baseMapId, overlayEnabled, activeSources } = useChartLayers();
   // Cosmetic only: imagery bases get a dark backdrop behind loading tiles,
   // map bases get a light "water" blue.
@@ -1386,26 +1384,30 @@ export const ChartView = React.memo<ChartViewProps>(({
         zoomAnimation={false}
         markerZoomAnimation={false}
       >
-        {/* Base map (keyed by id so swapping base recreates the layer cleanly) */}
+        {/* Base map. Always the raster, but for the 'street' base it SKIPS any
+            tile an installed pack fully covers (coveragePacks) — fetching OSM
+            online only for the uncovered tiles. The OSM-styled offline vector
+            base is drawn on top and fills the covered tiles (transparent where
+            it has no data), so local and online blend tile by tile with no
+            online request under the pack, and no whole-viewport switch.
+            Keyed on the installed packs so it rebuilds when a pack is
+            added/removed. Satellite / street-with-no-pack: plain raster. */}
         <BufferedTileLayer
-          key={`base-${baseMapId}`}
+          key={`base-${baseMapId}-${packs.map((p) => p.packId).join(',')}`}
           attribution=""
           url={tileUrl(baseMapId)}
           updateWhenZooming={false}
           keepBuffer={4}
           loadBuffer={loadBufferFor(baseMapId)}
+          coveragePacks={baseMapId === 'street' ? packs : undefined}
         />
-        {/* Offline vector base packs (PMTiles), stacked just above the online
-            'street' raster so downloaded areas render offline and gaps fall
-            through to the raster. Inert until a pack is downloaded (packs=[]).
-            World pack sits under regionals; both under depth/nautical (z5/z10+). */}
         {baseMapId === 'street' &&
           packs.map((p) => (
             <OfflinePmtilesLayer
               key={`pmtiles-${p.packId}`}
               packId={p.packId}
               maxDataZoom={p.maxzoom}
-              night={offlineBaseNight}
+              lang={language}
               zIndex={p.packId.includes('world') ? 1 : 2}
             />
           ))}
@@ -1961,7 +1963,7 @@ export const ChartView = React.memo<ChartViewProps>(({
                 __html:
                   buildAttribution(activeSources) +
                   // OSM is already credited by the street base; the offline
-                  // vector packs additionally require a Protomaps credit.
+                  // vector base additionally requires a Protomaps credit.
                   (baseMapId === 'street' && packs.length > 0
                     ? ' · <a href="https://protomaps.com" target="_blank" rel="noopener noreferrer">Protomaps</a>'
                     : ''),

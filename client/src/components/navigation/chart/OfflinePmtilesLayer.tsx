@@ -2,20 +2,22 @@ import { useEffect } from 'react';
 import { useMap } from 'react-leaflet';
 import { leafletLayer } from 'protomaps-leaflet';
 import { API_BASE_URL } from '../../../utils/urls';
+import { osmPaintRules, osmLabelRules } from './osm-flavor';
 
 /**
  * Offline vector base-map layer — one installed PMTiles pack.
  *
  * Renders an OSM vector base map (protomaps-leaflet → canvas) from a pack served
- * by the Pi over HTTP Range, stacked just above the online raster base so that:
- *   - where the pack has data it covers the raster (or the raster's white gap);
- *   - where it doesn't, the online raster shows through.
- * No coverage/bounds logic needed — the stack IS the fallback. Mounted only when
- * a pack is installed (see ChartView), so it's completely inert until one is
- * downloaded.
+ * by the Pi over HTTP Range, styled to look like the online OSM tiles (see
+ * osm-flavor). Mounted by ChartView whenever a pack is installed, stacked ABOVE
+ * the online raster base. It draws where the pack has data (sea + land) and is
+ * transparent elsewhere; the raster underneath skips any tile the pack fully
+ * covers (see BufferedTileLayer's `coveragePacks`), so covered tiles come purely
+ * from local data with zero online requests while uncovered tiles blend in from
+ * OSM — a per-tile blend, not a whole-viewport switch.
  *
  * z-index note: sits in tilePane above the base raster (z≈0) but below the depth
- * canvas (z5) and the nautical layer (z10+), so those chart overlays draw on top.
+ * canvas (z5) and seamarks (z11).
  *
  * Data: © OpenStreetMap contributors · Protomaps. NOT FOR NAVIGATION.
  */
@@ -24,13 +26,13 @@ interface OfflinePmtilesLayerProps {
   packId: string;
   /** Pack's max native zoom; protomaps overzooms past it instead of blanking. */
   maxDataZoom: number;
-  /** Use the dark stock flavor at night to protect night vision. */
-  night: boolean;
-  /** tilePane z-index (world pack below regionals, both below depth/nautical). */
+  /** Label language (selects the OSM name:<lang> field where present). */
+  lang: string;
+  /** tilePane z-index (world pack below regionals, both below depth/seamarks). */
   zIndex: number;
 }
 
-export const OfflinePmtilesLayer = ({ packId, maxDataZoom, night, zIndex }: OfflinePmtilesLayerProps) => {
+export const OfflinePmtilesLayer = ({ packId, maxDataZoom, lang, zIndex }: OfflinePmtilesLayerProps) => {
   const map = useMap();
 
   useEffect(() => {
@@ -39,7 +41,8 @@ export const OfflinePmtilesLayer = ({ packId, maxDataZoom, night, zIndex }: Offl
     const url = `${API_BASE_URL}/charts/${packId}/tiles.pmtiles`;
     const layer = leafletLayer({
       url,
-      flavor: night ? 'dark' : 'light',
+      paintRules: osmPaintRules,
+      labelRules: osmLabelRules(lang),
       maxDataZoom,
       attribution: '',
       pane: 'tilePane',
@@ -50,8 +53,7 @@ export const OfflinePmtilesLayer = ({ packId, maxDataZoom, night, zIndex }: Offl
     return () => {
       map.removeLayer(layer);
     };
-    // Re-create on pack/flavor/zoom/z change (cheap; packs rarely change).
-  }, [map, packId, maxDataZoom, night, zIndex]);
+  }, [map, packId, maxDataZoom, lang, zIndex]);
 
   return null;
 };

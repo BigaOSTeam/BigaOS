@@ -10,6 +10,14 @@ import L from 'leaflet';
  * a single 204 (server's failed-tile cache) or transient image-load error leaves
  * the tile permanently white until the user pans away and back. Each retry adds
  * a `_cb=` cache-buster so the server bypasses its short failure cache.
+ *
+ * `coveragePacks` (optional): a list of installed offline packs (`{ bounds }`).
+ * Any tile whose extent falls entirely inside a pack's bounds is served as a
+ * transparent data-URI instead of being fetched — the offline vector base
+ * renders those tiles, so we skip the redundant online request. Tiles only
+ * partially covered (pack edge) still fetch normally so their uncovered part
+ * isn't blank. This is what makes local-vs-online a per-tile blend rather than
+ * a whole-viewport switch.
  */
 const proto = L.TileLayer.prototype as any;
 
@@ -17,6 +25,11 @@ const proto = L.TileLayer.prototype as any;
 // server's failure cache, so these delays only need to give a flaky upstream
 // time to recover between attempts.
 const RETRY_DELAYS_MS = [500, 2000, 6000];
+
+// 1×1 transparent PNG — returned for tiles a local pack already covers so no
+// network request is made for them.
+const TRANSPARENT_TILE =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
 
 const BufferedTileLayerClass = L.TileLayer.extend({
   _getTiledPixelBounds(center: L.LatLng) {
@@ -26,6 +39,25 @@ const BufferedTileLayerClass = L.TileLayer.extend({
     bounds.min = bounds.min.subtract(padding);
     bounds.max = bounds.max.add(padding);
     return bounds;
+  },
+
+  getTileUrl(coords: L.Coords) {
+    const packs = (this.options as any).coveragePacks as Array<{ bounds: [number, number, number, number] }> | undefined;
+    if (packs && packs.length) {
+      const b = (this as any)._tileCoordsToBounds(coords) as L.LatLngBounds;
+      for (const p of packs) {
+        const [minLon, minLat, maxLon, maxLat] = p.bounds;
+        if (
+          b.getWest() >= minLon &&
+          b.getEast() <= maxLon &&
+          b.getSouth() >= minLat &&
+          b.getNorth() <= maxLat
+        ) {
+          return TRANSPARENT_TILE; // covered by an offline pack — don't fetch online
+        }
+      }
+    }
+    return proto.getTileUrl.call(this, coords);
   },
 
   createTile(coords: L.Coords, done: L.DoneCallback) {
