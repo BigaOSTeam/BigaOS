@@ -520,6 +520,14 @@ KIOSKEOF
 
 # Append Chromium launch with the actual URL (not single-quoted)
 cat >> "$HOME/bigaos-kiosk.sh" << KIOSKEOF
+# Wait for the BigaOS server before launching the browser — server and
+# clients power up together and the server needs a moment to listen.
+# Bounded: after 90 s launch anyway (Chromium then shows its retry page).
+for _ in \$(seq 1 90); do
+  curl -sf --connect-timeout 2 --max-time 3 "${SERVER_URL}/health" > /dev/null 2>&1 && break
+  sleep 1
+done
+
 # Launch Chromium (background so we can dismiss Plymouth after)
 ${CHROMIUM_BIN} \\
   --kiosk \\

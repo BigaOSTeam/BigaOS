@@ -33,6 +33,7 @@ app.demo=DEMO
 app.online=ONLINE
 app.offline=OFFLINE
 app.server_unreachable=Server nicht erreichbar - Verbindung wird hergestellt...
+app.server_starting=BigaOS startet...
 app.version=BigaOS v1.0
 
 # ==================== Sprache ====================

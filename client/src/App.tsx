@@ -106,6 +106,7 @@ function AppContent() {
   const [sensorData, setSensorData] = useState<SensorData | null>(null);
   const [loading, setLoading] = useState(true);
   const [serverReachable, setServerReachable] = useState(true);
+  const [serverStarting, setServerStarting] = useState(false);
   const [isOfflineMode, setIsOfflineMode] = useState(false);
   const [showOnlineBanner, setShowOnlineBanner] = useState(false);
   const [systemUpdating, setSystemUpdating] = useState(false);
@@ -118,6 +119,8 @@ function AppContent() {
   const shutdownCheckRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const shutdownTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onlineBannerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const startingPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const initialDataRetryRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [apkUpdate, setApkUpdate] = useState<ApkUpdateState | null>(null);
   const { setCurrentDepth, setSidebarPosition } = useSettings();
   const { installingPlugins } = usePlugins();
@@ -197,6 +200,26 @@ function AppContent() {
     // Listen for server reachability changes (WebSocket connection health)
     wsService.on('server_reachability', (data: { reachable: boolean }) => {
       setServerReachable(data.reachable);
+      if (data.reachable) {
+        // The WebSocket attaches last during server startup, so a connected
+        // socket means the server is fully ready.
+        if (startingPollRef.current) {
+          clearInterval(startingPollRef.current);
+          startingPollRef.current = null;
+        }
+        setServerStarting(false);
+      } else if (!startingPollRef.current) {
+        // Socket is down — find out whether the server is booting (HTTP up,
+        // subsystems still starting) or truly unreachable, and keep checking.
+        const pollStarting = () => {
+          fetch('/health')
+            .then(r => (r.ok ? r.json() : null))
+            .then(h => setServerStarting(!!h && h.ready === false))
+            .catch(() => setServerStarting(false));
+        };
+        pollStarting();
+        startingPollRef.current = setInterval(pollStarting, 2000);
+      }
       // After an update, reload when server comes back to get new client assets
       if (data.reachable && systemUpdatingRef.current) {
         window.location.reload();
@@ -321,6 +344,14 @@ function AppContent() {
         clearTimeout(onlineBannerTimerRef.current);
         onlineBannerTimerRef.current = null;
       }
+      if (startingPollRef.current) {
+        clearInterval(startingPollRef.current);
+        startingPollRef.current = null;
+      }
+      if (initialDataRetryRef.current) {
+        clearTimeout(initialDataRetryRef.current);
+        initialDataRetryRef.current = null;
+      }
       wsService.disconnect();
     };
   }, [setCurrentDepth, setSidebarPosition]);
@@ -335,9 +366,21 @@ function AppContent() {
         setCurrentDepth(initialDepth);
       }
       setLoading(false);
-    } catch (error) {
+    } catch (error: any) {
+      // During boot the server serves this page within seconds but answers
+      // /api with 503 starting:true until its subsystems are up — surface
+      // that as "starting", and retry until the data comes through.
+      if (error?.response?.data?.starting) {
+        setServerStarting(true);
+      }
       console.error('Failed to fetch initial data:', error);
       setLoading(false);
+      if (!initialDataRetryRef.current) {
+        initialDataRetryRef.current = setTimeout(() => {
+          initialDataRetryRef.current = null;
+          fetchInitialData();
+        }, 3000);
+      }
     }
   };
 
@@ -482,10 +525,14 @@ function AppContent() {
     );
   };
 
-  // Server unreachable banner (shown at top of screen)
+  // Server unreachable / starting banner (shown at top of screen).
+  // While the server boots it serves this page long before its subsystems
+  // (plugins, WebSocket) are up — that window shows as a calm "starting…"
+  // instead of the red outage banner.
   // Suppress during plugin installs — server blocks on execSync (npm install / setup.sh)
   const ServerUnreachableBanner = () => {
-    if (serverReachable || installingPlugins.size > 0) return null;
+    if (installingPlugins.size > 0) return null;
+    if (!serverStarting && serverReachable) return null;
 
     return (
       <div style={{
@@ -493,7 +540,7 @@ function AppContent() {
         top: 0,
         left: 0,
         right: 0,
-        background: 'rgba(239, 68, 68, 0.95)',
+        background: serverStarting ? 'rgba(59, 130, 246, 0.95)' : 'rgba(239, 68, 68, 0.95)',
         color: '#fff',
         padding: '8px 16px',
         display: 'flex',
@@ -512,7 +559,7 @@ function AppContent() {
           background: '#fff',
           animation: 'blink 1s ease-in-out infinite',
         }} />
-        <span>{t('app.server_unreachable')}</span>
+        <span>{serverStarting ? t('app.server_starting') : t('app.server_unreachable')}</span>
         <style>
           {`
             @keyframes blink {
