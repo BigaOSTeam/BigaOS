@@ -20,6 +20,16 @@ const bootThemeMode: ThemeMode = storedThemeMode && themes[storedThemeMode] ? st
 applyThemeToDOM(themes[bootThemeMode], bootThemeMode);
 
 const SERVER_PROBE_TIMEOUT_MS = 5000;
+const HEALTH_POLL_INTERVAL_MS = 1500;
+// A booting server gets plenty of time before we degrade; a hung subsystem
+// shouldn't leave a display on the starting screen forever.
+const STARTING_WAIT_MAX_MS = 180000;
+// Consecutive network errors before a web client stops waiting (dev servers,
+// transient LAN issues). Native shows the unreachable screen immediately.
+const NETWORK_ERROR_GRACE = 8;
+
+// /health lives at the server root, not under /api
+const HEALTH_URL = `${API_BASE_URL.replace(/\/api$/, '')}/health`;
 
 /** Extract client ID from URL path: /c/:clientId */
 function getClientIdFromUrl(): string | null {
@@ -27,15 +37,25 @@ function getClientIdFromUrl(): string | null {
   return match ? match[1] : null;
 }
 
+function fetchWithTimeout(url: string): Promise<Response> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), SERVER_PROBE_TIMEOUT_MS);
+  return fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timer));
+}
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms));
+
 export const ClientGate: React.FC = () => {
   const [clientId, setClientId] = useState<string | null>(null);
   const [clientName, setClientName] = useState<string>('Unknown');
   const [clientType, setClientType] = useState<string>('display');
   const [checking, setChecking] = useState(true);
+  const [starting, setStarting] = useState(false);
   const [unreachable, setUnreachable] = useState(false);
 
   const runProbe = useCallback(async () => {
     setChecking(true);
+    setStarting(false);
     setUnreachable(false);
 
     // Priority 1: client ID from URL path (/c/:clientId) — kiosk install
@@ -44,21 +64,55 @@ export const ClientGate: React.FC = () => {
     const storedId = localStorage.getItem('bigaos-client-id');
     const candidateId = urlClientId || storedId;
 
+    // ── Phase 1: wait until the server is ready to answer authoritatively.
+    // During boot the HTTP server is up long before the database and plugin
+    // system (/health reports ready:false, /api answers 503). The client-ID
+    // check must not run in that window — a 503 read as "client deleted"
+    // would wipe the stored ID and dump a configured display into the wizard.
+    const waitStart = Date.now();
+    let sawStarting = false;
+    let netErrors = 0;
+    while (Date.now() - waitStart < STARTING_WAIT_MAX_MS) {
+      try {
+        const res = await fetchWithTimeout(HEALTH_URL);
+        const health = res.ok ? await res.json().catch(() => null) : null;
+        if (health && health.ready === false) {
+          // Definite "booting" signal — show the starting screen and wait.
+          sawStarting = true;
+          netErrors = 0;
+          setStarting(true);
+        } else if (res.ok) {
+          break; // ready (or a pre-0.3.0 server without the ready flag)
+        } else {
+          netErrors++;
+        }
+      } catch {
+        netErrors++;
+      }
+      if (netErrors > 0 && !sawStarting) {
+        // Never saw a booting BigaOS — the server may be genuinely down.
+        // Native users need the change-server-URL screen to recover;
+        // web falls through to the probe below (old trust-the-ID behavior).
+        if (isNativeApp()) {
+          setStarting(false);
+          setUnreachable(true);
+          setChecking(false);
+          return;
+        }
+        if (netErrors >= NETWORK_ERROR_GRACE) break;
+      }
+      await sleep(HEALTH_POLL_INTERVAL_MS);
+    }
+    setStarting(false);
+
+    // ── Phase 2: authoritative client check against the ready server.
     if (!candidateId) {
-      setChecking(false);
+      setChecking(false); // → setup wizard
       return;
     }
 
-    // Validate the client still exists on the server, and pull its name
-    // from the authoritative source for display. Hard-bound by a short
-    // timeout so the loading screen can't hang forever on a bad URL.
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), SERVER_PROBE_TIMEOUT_MS);
     try {
-      const res = await fetch(`${API_BASE_URL}/clients/${candidateId}`, {
-        signal: controller.signal,
-      });
-      clearTimeout(timer);
+      const res = await fetchWithTimeout(`${API_BASE_URL}/clients/${candidateId}`);
       if (res.ok) {
         const data = await res.json();
         setClientId(candidateId);
@@ -67,16 +121,26 @@ export const ClientGate: React.FC = () => {
         try {
           localStorage.setItem('bigaos-client-id', candidateId);
         } catch { /* read-only filesystem — ignore */ }
-      } else if (!urlClientId) {
-        // Client was deleted — only clear localStorage if we weren't URL-based
-        localStorage.removeItem('bigaos-client-id');
+      } else if (res.status === 404) {
+        // Definitive: the server checked its database and this client is
+        // gone. Only a 404 may clear the stored ID — and only when the ID
+        // didn't come from the kiosk URL.
+        if (!urlClientId) {
+          localStorage.removeItem('bigaos-client-id');
+        }
+      } else {
+        // Transient failure (5xx, rate limit, …) — never treat as deletion.
+        if (isNativeApp()) {
+          setUnreachable(true);
+        } else {
+          setClientId(candidateId);
+        }
       }
     } catch {
-      clearTimeout(timer);
       // Server unreachable. On native (Capacitor) the user is the only one
       // who can recover — they need a button to change the server URL.
       // Pi kiosks have no other server to point at, so just trust the ID
-      // and let them stare at the loading state until the server returns.
+      // and let the in-app status banners take over once it returns.
       if (isNativeApp()) {
         setUnreachable(true);
       } else {
@@ -124,6 +188,9 @@ export const ClientGate: React.FC = () => {
   };
 
   if (checking) {
+    // Doubles as the boot screen: while the server reports it's still
+    // starting (database, plugins), this is all a display shows — the
+    // client-ID check and the app only come after the server is ready.
     return (
       <div style={{
         width: '100vw',
@@ -145,6 +212,11 @@ export const ClientGate: React.FC = () => {
           borderRadius: '50%',
           animation: 'spin 1s linear infinite',
         }} />
+        {starting && (
+          <span style={{ fontSize: '1rem', color: 'var(--color-text-muted)' }}>
+            Starting…
+          </span>
+        )}
       </div>
     );
   }
